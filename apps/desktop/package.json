@@ -1,15 +1,20 @@
 {
   "name": "@enis/desktop",
+  "productName": "Emplois du temps ENISo",
   "version": "1.0.0",
   "private": true,
-  "description": "ENISo timetable → Word (desktop app)",
+  "description": "ENISo timetable \u2192 Word (desktop app)",
   "author": "ENISo",
   "main": "dist/main.js",
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "start": "npm run build && electron .",
     "stage": "node scripts/stage.js",
-    "dist": "npm run build && npm run stage && electron-builder"
+    "dist": "npm run build && npm run stage && electron-builder",
+    "pack": "npm run build && npm run stage && electron-builder --dir"
+  },
+  "dependencies": {
+    "embedded-postgres": "17.11.0-beta.19"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
@@ -20,13 +25,42 @@
   "build": {
     "appId": "tn.enis.timetable",
     "productName": "Emplois du temps ENISo",
-    "files": ["dist/**/*", "package.json"],
-    "extraResources": [
-      { "from": "stage/api", "to": "api" },
-      { "from": "stage/web", "to": "web" }
+    "files": [
+      "dist/**/*",
+      "package.json"
     ],
-    "win": { "target": "nsis" },
-    "mac": { "target": "dmg" },
-    "linux": { "target": "AppImage", "category": "Office" }
+    "extraResources": [
+      {
+        "from": "stage/api",
+        "to": "api"
+      },
+      {
+        "from": "stage/web",
+        "to": "web"
+      }
+    ],
+    "win": {
+      "target": "nsis",
+      "signAndEditExecutable": false
+    },
+    "mac": {
+      "target": "dmg"
+    },
+    "linux": {
+      "target": "AppImage",
+      "category": "Office"
+    },
+    "directories": {
+      "output": "release"
+    },
+    "asar": false,
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "language": "1036"
+    },
+    "npmRebuild": false
   }
 }

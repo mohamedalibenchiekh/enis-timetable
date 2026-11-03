@@ -8,7 +8,7 @@ into one **Word (.docx) file per day** — same layout as your `Jeudi.docx`: roo
 | Desktop shell | Electron (TypeScript) — starts the API on a free local port and opens the UI |
 | UI | Next.js 15 + React 19 + TypeScript (static export, served by the API) |
 | API | NestJS 11 + TypeORM + TypeScript (parsing, storage, DOCX generation with `docx`) |
-| Database | PostgreSQL 14+ |
+| Database | PostgreSQL 17 — **bundled** in the desktop app (`embedded-postgres`), or any external PostgreSQL |
 
 ```
 apps/
@@ -17,20 +17,19 @@ apps/
   desktop/  Electron main + preload (folder picker, starts the API)
 ```
 
-## 1. Prerequisites
-* Node.js 20.12+ (22 recommended)
-* A PostgreSQL server. Either install it, or: `docker compose up -d` (creates user/password/db `enis` / `enis` / `enis_timetable`).
-  Without Docker: `createuser -P enis` · `createdb -O enis enis_timetable`.
+## 1. Prerequisites (developers only)
+* Node.js 22 LTS (20.12+ works)
+* Nothing else: the desktop app starts its own PostgreSQL (data in the app's user-data folder, never exposed to the network).
+  For browser development (`npm run dev:api`) you need a PostgreSQL: `docker compose up -d`, or create user/db `enis` / `enis_timetable`.
 
-## 2. Install & run
+## 2. Install & run (developers)
 ```bash
 npm install
-npm run build          # builds API + web
-npm run desktop        # builds the Electron shell and opens the desktop app
+npm run desktop        # builds API + web + Electron shell and opens the app
 ```
-Database URL: default `postgres://enis:enis@127.0.0.1:5432/enis_timetable`.
-In the desktop app it is read from `config.json` in the app's user-data folder (menu *Fichier → Fichier de configuration*);
-in development use `apps/api/.env` (see `.env.example`). Tables are created automatically on first start.
+To use an existing PostgreSQL server instead of the bundled one, create `config.json` in the app's user-data folder
+(menu *Fichier → Fichier de configuration*) containing `{ "databaseUrl": "postgres://user:password@host:5432/dbname" }`.
+In development (`dev:api`) the URL comes from `apps/api/.env` (see `.env.example`). Tables are created automatically.
 
 ### Development (browser, hot reload)
 ```bash
@@ -52,9 +51,22 @@ npm run dev:web    # http://localhost:3000   (Next.js, proxies /api to :4000)
 * Time headers follow the file: Wednesday/Saturday show `12:00-13:30`, Friday `14:00-15:30` / `15:45-17:15`, and `Pause` is shown when nothing is scheduled in the lunch slot.
 * Rooms such as `A02` / `B12 (Labo Anglais)` are labelled `A 0-2` / `B 1-2` as in the reference file.
 
-## 5. Installer (optional)
-`npm run dist` stages the API + web next to the Electron app and calls electron-builder (Windows NSIS / macOS dmg / Linux AppImage).
-PostgreSQL is **not** bundled: the installed app connects to the server configured in `config.json`.
+## 5. Build the installer for end users (no code, no command line)
+On the OS you target (Windows for a `.exe`):
+```bash
+npm install
+npm run dist
+```
+Result in `apps/desktop/release/`: **`Emplois du temps ENISo Setup <version>.exe`** (Windows, NSIS), `.dmg` (macOS) or `.AppImage` (Linux).
+Give that single file to the users: they double-click it, install, and open *Emplois du temps ENISo* from the desktop shortcut.
+The installer contains everything (app, API, PostgreSQL); no Node.js or database installation is needed.
+
+Notes
+* The installer is not code-signed, so Windows SmartScreen shows "Windows protected your PC" → *More info → Run anyway*. A code-signing certificate removes this.
+* If `npm run dist` fails on Windows with a "symbolic link" error, run the terminal as Administrator once (or enable Windows *Developer Mode*).
+* `npm run pack` builds an unpacked app folder (faster, for testing).
+* Users' data lives in `%APPDATA%\Emplois du temps ENISo\database`; uninstalling the app keeps it.
+* If PostgreSQL cannot start on a PC, install the Microsoft *Visual C++ Redistributable (x64)* and retry.
 
 ## REST API (used by the UI)
 `POST /api/timetables` (multipart `files`) · `GET /api/timetables` · `GET /api/timetables/:id/days/:day/preview` · `GET …/days/:day/docx` ·
