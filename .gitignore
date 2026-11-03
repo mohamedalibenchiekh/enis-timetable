@@ -1,0 +1,9 @@
+node_modules
+dist
+out
+.next
+stage
+test-output
+.env
+*.tsbuildinfo
+next-env.d.ts

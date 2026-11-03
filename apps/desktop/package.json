@@ -1,0 +1,32 @@
+{
+  "name": "@enis/desktop",
+  "version": "1.0.0",
+  "private": true,
+  "description": "ENISo timetable → Word (desktop app)",
+  "author": "ENISo",
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "npm run build && electron .",
+    "stage": "node scripts/stage.js",
+    "dist": "npm run build && npm run stage && electron-builder"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "electron": "^33.0.0",
+    "electron-builder": "^25.0.0",
+    "typescript": "^5.6.0"
+  },
+  "build": {
+    "appId": "tn.enis.timetable",
+    "productName": "Emplois du temps ENISo",
+    "files": ["dist/**/*", "package.json"],
+    "extraResources": [
+      { "from": "stage/api", "to": "api" },
+      { "from": "stage/web", "to": "web" }
+    ],
+    "win": { "target": "nsis" },
+    "mac": { "target": "dmg" },
+    "linux": { "target": "AppImage", "category": "Office" }
+  }
+}
