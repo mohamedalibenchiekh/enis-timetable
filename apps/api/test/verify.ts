@@ -54,4 +54,9 @@ const meta = { days: src.days, slots: src.slots, rooms: src.owners };
     fs.writeFileSync(path.join(out, `${src.days[d]}.json`), JSON.stringify(grid, null, 1));
     console.log(src.days[d], 'sessions', grid.sessionCount, 'rooms', grid.blocs.map((b) => b.rows.length).join('+'), 'bytes', buf.length);
   }
+
+  if (onlyA.length > 0 || onlyB.length > 0) {
+    console.error(`Parity check failed: ${onlyA.length} session(s) only in rooms, ${onlyB.length} session(s) only in teachers.`);
+    process.exit(1);
+  }
 })();
