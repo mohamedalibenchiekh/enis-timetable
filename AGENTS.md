@@ -61,10 +61,18 @@ Run all commands from repository root unless scoped with `-w`.
 - **Release directory**: Packaging output artifacts (`.exe`, `.dmg`, `.AppImage`) are written to `apps/desktop/release/`.
 
 ## Testing Policy
+Every bug fix starts with a failing test.
+
 Before considering any task complete:
 1. **Typecheck & Build**: Verify `npm run build` and `npm run build -w apps/desktop` complete with 0 errors.
-2. **Data Consistency**: Run `npm test -w apps/api -- <html-dir>` when parser or grid logic changes; ensure zero discrepancy between rooms and teachers views (fails with non-zero exit code on mismatch).
+2. **Data Consistency**: Run `npm run test:verify -w apps/api -- <html-dir>` when parser or grid logic changes; ensure zero discrepancy between rooms and teachers views (fails with non-zero exit code on mismatch).
 3. **DOCX Visual Inspection**: When modifying `docx-builder.ts` or layout settings, generate and visually inspect the output `.docx` against `Jeudi.docx` (margins, column widths in twips, background colors, fonts).
+
+Test commands:
+- `npm test`: API unit/integration and web component suites.
+- `npm run test:coverage -w apps/api`: API parser/export coverage.
+- `npm run test:e2e`: Chromium end-to-end browser suite.
+- `npm run test:verify -w apps/api -- <html-dir> [out-dir]`: fixture parity check and sample DOCX generation.
 
 ## Do / Don't
 - **DO** keep HTTP and DB listeners strictly bound to `127.0.0.1`.

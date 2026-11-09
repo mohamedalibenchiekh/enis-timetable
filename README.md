@@ -46,8 +46,7 @@ npm run dev:web    # http://localhost:3000   (Next.js, proxies /api to :4000)
 ## 4. How the HTML is read
 * Every FET table holds one room / teacher / group; cells may be `rowspan` (a 3-hour session covering two slots) or a *detailed* split cell (parallel TP groups).
   The parser resolves the real column of each cell, then keeps only the activities that belong to the table's owner.
-* Check: `npm test -w apps/api -- <folder with the html files>` imports the three files, compares the **rooms** view with the **teachers** view
-  (they must describe the same sessions) and writes the six .docx files to `apps/api/test-output`.
+* Run the fixture parity check: `npm run test:verify -w apps/api -- <folder with the html files>` compares the **rooms** view with the **teachers** view and writes six `.docx` files to `apps/api/test-output`.
 * Time headers follow the file: Wednesday/Saturday show `12:00-13:30`, Friday `14:00-15:30` / `15:45-17:15`, and `Pause` is shown when nothing is scheduled in the lunch slot.
 * Rooms such as `A02` / `B12 (Labo Anglais)` are labelled `A 0-2` / `B 1-2` as in the reference file.
 
@@ -72,13 +71,30 @@ Notes
 `POST /api/timetables` (multipart `files`) · `GET /api/timetables` · `GET /api/timetables/:id/days/:day/preview` · `GET …/days/:day/docx` ·
 `GET …/export.zip` · `POST …/export-to-folder {dir}` · `GET|PUT /api/settings/export`. The server only listens on `127.0.0.1`.
 
+## Testing
+
+Run commands from the repository root. The root suite includes API unit, Word-output, PostgreSQL integration, and web component tests; PostgreSQL integration cases skip with a clear message when the local development database is unreachable.
+
+```bash
+npm test                              # API unit/integration and web component suites
+npm run test:coverage -w apps/api     # API coverage (parser/export line threshold: 90%)
+npm run test:watch -w apps/api        # API watch mode
+npm run test:watch -w apps/web        # web watch mode
+npm run test:verify -w apps/api       # fixture parity check and six sample Word files
+npm run test:e2e                     # build, then Chromium browser flow (requires PostgreSQL)
+```
+
+To add a fixture, use synthetic names and activities, keep the HTML under `apps/api/test/fixtures/`, and update the parser or integration assertions that consume it. Never add real FET exports. The rooms and teachers fixtures should continue to describe the same (day, slot, room, teacher, subject code) set.
+
+The Monday `DayGrid` golden snapshot is in `apps/api/test/__snapshots__/docx.spec.ts.snap`. After an intentional export change, run `npm run test -w apps/api -- -u`, inspect the snapshot diff by hand, and commit the reviewed update with the test change. Word documents themselves are checked as ZIP/XML and are not snapshotted because they contain generated metadata.
+
 ## CI/CD
 
 ### Workflows
 
 | Workflow | Trigger | What it does |
 |----------|---------|-------------|
-| **CI** (`.github/workflows/ci.yml`) | PR to `main`, push to `main` | Typechecks all workspaces, builds API + web, runs unit tests (parser parity check + fixture assertions), runs API integration tests against PostgreSQL, and builds an unpacked Electron app on Windows to catch packaging regressions. |
+| **CI** (`.github/workflows/ci.yml`) | PR to `main`, push to `main` | Typechecks and builds the workspaces, runs API and web suites against PostgreSQL, uploads API coverage, exercises the Chromium UI flow, and builds an unpacked Electron app on Windows. |
 | **Release** (`.github/workflows/release.yml`) | Push of a tag `v*.*.*` | Verifies the tag matches `apps/desktop/package.json` version, builds NSIS `.exe` (Windows), `.dmg` (macOS), and `.AppImage` (Linux) installers, then creates a GitHub Release with all installers attached. Builds are unsigned by default (no code-signing certificate required unless configured). |
 | **Dependabot** (`.github/dependabot.yml`) | Weekly (Monday) | Opens PRs for npm dependency updates (grouped by dependency type, minor+patch together) and GitHub Actions version bumps. |
 
