@@ -7,6 +7,7 @@
     "dev:api": "npm run start:dev -w apps/api",
     "dev:web": "npm run dev -w apps/web",
     "dev": "npm run dev:api & npm run dev:web",
+    "typecheck": "npm run typecheck -w apps/api && npm run typecheck -w apps/web && npm run typecheck -w apps/desktop",
     "build": "npm run build -w apps/api && npm run build -w apps/web",
     "desktop": "npm run build && npm run start -w apps/desktop",
     "dist": "npm run build && npm run dist -w apps/desktop",

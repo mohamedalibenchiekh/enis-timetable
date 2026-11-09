@@ -1,0 +1,98 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: '22'
+
+jobs:
+  # ── Typecheck + Build + Unit Tests ─────────────────────────────────
+  checks:
+    name: Typecheck · Build · Test
+    runs-on: ubuntu-latest
+    env:
+      # Electron binary is not needed for typecheck/build/test
+      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+    steps:
+      - uses: actions/checkout@v4  # pin to commit SHA for supply-chain security is advised
+      - uses: actions/setup-node@v4  # pin to commit SHA for supply-chain security is advised
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run build
+      - run: npm test
+
+  # ── API Integration Test (with PostgreSQL) ─────────────────────────
+  api-integration:
+    name: API Integration
+    runs-on: ubuntu-latest
+    needs: checks
+    env:
+      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: enis
+          POSTGRES_PASSWORD: enis
+          POSTGRES_DB: enis_timetable
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U enis"
+          --health-interval=5s
+          --health-timeout=3s
+          --health-retries=5
+    steps:
+      - uses: actions/checkout@v4  # pin to commit SHA for supply-chain security is advised
+      - uses: actions/setup-node@v4  # pin to commit SHA for supply-chain security is advised
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: npm run build -w apps/api
+      - name: Start API and run integration tests
+        env:
+          DATABASE_URL: postgres://enis:enis@127.0.0.1:5432/enis_timetable
+          PORT: '4000'
+        run: |
+          # Start the API in the background
+          node apps/api/dist/main.js &
+          API_PID=$!
+          # Run integration tests
+          npx ts-node apps/api/test/integration.ts
+          TEST_EXIT=$?
+          kill $API_PID 2>/dev/null || true
+          exit $TEST_EXIT
+
+  # ── Electron Packaging Smoke Test (Windows) ────────────────────────
+  package-smoke:
+    name: Package Smoke (Windows)
+    runs-on: windows-latest
+    needs: checks
+    steps:
+      - uses: actions/checkout@v4  # pin to commit SHA for supply-chain security is advised
+      - uses: actions/setup-node@v4  # pin to commit SHA for supply-chain security is advised
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npm run build -w apps/desktop
+      - run: npm run stage -w apps/desktop
+      - name: Electron Builder (unpacked)
+        working-directory: apps/desktop
+        run: npx electron-builder --dir --win

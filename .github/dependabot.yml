@@ -1,0 +1,29 @@
+version: 2
+updates:
+  # npm dependencies — grouped by workspace, minor+patch together
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      api-deps:
+        patterns: ['*']
+        update-types: ['minor', 'patch']
+        dependency-type: production
+      web-deps:
+        patterns: ['*']
+        update-types: ['minor', 'patch']
+      desktop-deps:
+        patterns: ['*']
+        update-types: ['minor', 'patch']
+    open-pull-requests-limit: 10
+
+  # GitHub Actions
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+

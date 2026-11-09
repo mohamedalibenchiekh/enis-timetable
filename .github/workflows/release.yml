@@ -1,0 +1,98 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+env:
+  NODE_VERSION: '22'
+
+jobs:
+  # ── Verify tag matches package.json version ────────────────────────
+  verify-version:
+    name: Verify tag version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4  # pin to commit SHA for supply-chain security is advised
+      - name: Check tag matches apps/desktop/package.json
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          PKG_VERSION=$(node -p "require('./apps/desktop/package.json').version")
+          echo "Tag version:     $TAG_VERSION"
+          echo "Package version: $PKG_VERSION"
+          if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match apps/desktop/package.json version $PKG_VERSION"
+            exit 1
+          fi
+
+  # ── Build installers per OS ────────────────────────────────────────
+  build:
+    name: Build (${{ matrix.os }})
+    needs: verify-version
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            builder-args: --win
+            artifact-name: installer-windows
+          - os: macos-latest
+            builder-args: --mac
+            artifact-name: installer-macos
+          - os: ubuntu-latest
+            builder-args: --linux
+            artifact-name: installer-linux
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4  # pin to commit SHA for supply-chain security is advised
+      - uses: actions/setup-node@v4  # pin to commit SHA for supply-chain security is advised
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npm run build -w apps/desktop
+      - run: npm run stage -w apps/desktop
+      - name: Build installer
+        working-directory: apps/desktop
+        env:
+          # Signing certificates are optional — builds are unsigned by default.
+          # Set CSC_LINK and CSC_KEY_PASSWORD as repository secrets for signed builds.
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+        run: npx electron-builder --publish never ${{ matrix.builder-args }}
+      - uses: actions/upload-artifact@v4  # pin to commit SHA for supply-chain security is advised
+        with:
+          name: ${{ matrix.artifact-name }}
+          path: |
+            apps/desktop/release/*.exe
+            apps/desktop/release/*.dmg
+            apps/desktop/release/*.AppImage
+          if-no-files-found: error
+
+  # ── Create GitHub Release ──────────────────────────────────────────
+  release:
+    name: Publish Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4  # pin to commit SHA for supply-chain security is advised
+      - uses: actions/download-artifact@v4  # pin to commit SHA for supply-chain security is advised
+        with:
+          path: release-artifacts
+          merge-multiple: true
+      - name: List artifacts
+        run: ls -lR release-artifacts
+      - uses: softprops/action-gh-release@v2  # pin to commit SHA for supply-chain security is advised
+        with:
+          generate_release_notes: true
+          body: |
+            ## ⚠️ Unsigned builds
+            These builds are **not code-signed**:
+            - **Windows**: SmartScreen will warn → click *More info* → *Run anyway*.
+            - **macOS**: You may need to right-click → Open and confirm.
+          files: release-artifacts/*
