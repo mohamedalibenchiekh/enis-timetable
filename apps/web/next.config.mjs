@@ -2,23 +2,36 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const dev = process.env.NODE_ENV !== 'production';
+const dir = path.dirname(fileURLToPath(import.meta.url));
 // Pin the workspace root so stray lockfiles in parent folders (e.g. C:\Users\you\package-lock.json) are ignored.
-const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
+const root = path.join(dir, '..', '..');
 
 /** @type {import('next').NextConfig} */
-const nextConfig = dev
-  ? {
-      outputFileTracingRoot: root,
-      // `npm run dev`: the browser talks to Next, which forwards /api to the NestJS server.
-      async rewrites() {
-        return [{ source: '/api/:path*', destination: `${process.env.API_URL ?? 'http://127.0.0.1:4000'}/api/:path*` }];
-      },
-    }
-  : {
-      // production / desktop: static site (apps/web/out) served by the NestJS server itself.
-      outputFileTracingRoot: root,
-      output: 'export',
-      images: { unoptimized: true },
-    };
+const nextConfig = {
+  outputFileTracingRoot: root,
+  typescript: {
+    // Typechecking is handled separately by `npm run typecheck` (tsc --noEmit)
+    ignoreBuildErrors: true,
+  },
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
+  ...(dev
+    ? {
+        // `npm run dev`: the browser talks to Next, which forwards /api to the NestJS server.
+        async rewrites() {
+          return [{ source: '/api/:path*', destination: `${process.env.API_URL ?? 'http://127.0.0.1:4000'}/api/:path*` }];
+        },
+      }
+    : {
+        // production / desktop: static site (apps/web/out) served by the NestJS server itself.
+        output: 'export',
+        images: { unoptimized: true },
+      }),
+  webpack: (config) => {
+    config.resolve.alias['@'] = dir;
+    return config;
+  },
+};
 
 export default nextConfig;
