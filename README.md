@@ -125,7 +125,7 @@ The Release workflow will automatically build installers for all platforms and c
 ### Recommended branch protection settings for `main`
 
 - Require a pull request before merging (at least 1 approval)
-- Require status checks to pass: `Typecheck · Build · Test`, `End-to-end · Chromium`, `Package Smoke (Windows)`
+- Require status checks to pass: `Typecheck · Build · Test`, `API Integration`, `End-to-end · Chromium`, `Package Smoke (Windows)`
 - Require branches to be up to date before merging
 - Do not allow force pushes
 - Do not allow deletions
