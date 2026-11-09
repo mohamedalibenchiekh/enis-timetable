@@ -5,6 +5,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as http from 'http';
+import JSZip = require('jszip');
 
 const API_PORT = Number(process.env.API_PORT ?? process.env.PORT ?? 4000);
 const BASE_URL = `http://127.0.0.1:${API_PORT}`;
@@ -67,56 +68,73 @@ async function waitForApi(timeoutMs = 30000): Promise<void> {
   throw new Error(`API did not respond on ${BASE_URL}/api/health within ${timeoutMs}ms`);
 }
 
-/** Check if a buffer starts with the ZIP magic number (PK\x03\x04). */
-function isZip(buf: Buffer): boolean {
-  return buf.length >= 4 && buf[0] === 0x50 && buf[1] === 0x4b && buf[2] === 0x03 && buf[3] === 0x04;
+/** Parse and validate that a buffer is a readable, uncorrupted ZIP archive. */
+async function validateZip(buf: Buffer, expectedMinFiles = 1): Promise<boolean> {
+  try {
+    const zip = await JSZip.loadAsync(buf);
+    const files = Object.keys(zip.files);
+    return files.length >= expectedMinFiles;
+  } catch (e) {
+    console.error('ZIP archive parsing failed:', e);
+    return false;
+  }
 }
 
 (async () => {
+  let timetableId: string | null = null;
   console.log(`Testing API at ${BASE_URL}...`);
 
-  // 1. Wait for health endpoint
-  await waitForApi();
-  console.log('API is healthy.');
+  try {
+    // 1. Wait for health endpoint
+    await waitForApi();
+    console.log('API is healthy.');
 
-  // 2. Upload fixture HTML files
-  const htmlFiles = fs.readdirSync(FIXTURE_DIR).filter((f) => f.endsWith('.html'));
-  assert(htmlFiles.length >= 2, `Found ${htmlFiles.length} fixture HTML files`);
+    // 2. Upload fixture HTML files
+    const htmlFiles = fs.readdirSync(FIXTURE_DIR).filter((f) => f.endsWith('.html'));
+    assert(htmlFiles.length >= 2, `Found ${htmlFiles.length} fixture HTML files`);
 
-  const parts = htmlFiles.map((f) => ({
-    name: 'files',
-    filename: f,
-    content: fs.readFileSync(path.join(FIXTURE_DIR, f)),
-  }));
-  const { body: uploadBody, contentType } = buildMultipart(parts);
+    const parts = htmlFiles.map((f) => ({
+      name: 'files',
+      filename: f,
+      content: fs.readFileSync(path.join(FIXTURE_DIR, f)),
+    }));
+    const { body: uploadBody, contentType } = buildMultipart(parts);
 
-  const uploadRes = await request('POST', '/api/timetables', {
-    body: uploadBody,
-    headers: { 'Content-Type': contentType },
-  });
-  assert(uploadRes.status === 201 || uploadRes.status === 200, `Upload returned ${uploadRes.status} (expected 200 or 201)`);
+    const uploadRes = await request('POST', '/api/timetables', {
+      body: uploadBody,
+      headers: { 'Content-Type': contentType },
+    });
+    assert(uploadRes.status === 201 || uploadRes.status === 200, `Upload returned ${uploadRes.status} (expected 200 or 201)`);
 
-  const timetable = JSON.parse(uploadRes.body.toString());
-  const timetableId = timetable.id;
-  assert(!!timetableId, `Got timetable ID: ${timetableId}`);
-  console.log(`Uploaded timetable: ${timetableId}`);
+    const timetable = JSON.parse(uploadRes.body.toString());
+    timetableId = timetable.id;
+    assert(!!timetableId, `Got timetable ID: ${timetableId}`);
+    console.log(`Uploaded timetable: ${timetableId}`);
 
-  // 3. Download one day's .docx (day 0 = Lundi)
-  const docxRes = await request('GET', `/api/timetables/${timetableId}/days/0/docx`);
-  assert(docxRes.status === 200, `GET docx returned ${docxRes.status}`);
-  assert(docxRes.body.length > 0, `docx body is non-empty (${docxRes.body.length} bytes)`);
-  // DOCX files are ZIP archives
-  assert(isZip(docxRes.body), 'docx response is a valid ZIP archive');
+    // 3. Download one day's .docx (day 0 = Lundi) and parse as readable ZIP
+    const docxRes = await request('GET', `/api/timetables/${timetableId}/days/0/docx`);
+    assert(docxRes.status === 200, `GET docx returned ${docxRes.status}`);
+    assert(docxRes.body.length > 0, `docx body is non-empty (${docxRes.body.length} bytes)`);
+    const docxValid = await validateZip(docxRes.body, 1);
+    assert(docxValid, 'docx response is a readable, valid ZIP archive containing document files');
 
-  // 4. Download the full zip
-  const zipRes = await request('GET', `/api/timetables/${timetableId}/export.zip`);
-  assert(zipRes.status === 200, `GET zip returned ${zipRes.status}`);
-  assert(zipRes.body.length > 0, `zip body is non-empty (${zipRes.body.length} bytes)`);
-  assert(isZip(zipRes.body), 'zip response is a valid ZIP archive');
-
-  // 5. Cleanup: delete the timetable
-  const delRes = await request('DELETE', `/api/timetables/${timetableId}`);
-  assert(delRes.status === 200, `DELETE returned ${delRes.status}`);
+    // 4. Download the full zip and verify it contains 6 day documents
+    const zipRes = await request('GET', `/api/timetables/${timetableId}/export.zip`);
+    assert(zipRes.status === 200, `GET zip returned ${zipRes.status}`);
+    assert(zipRes.body.length > 0, `zip body is non-empty (${zipRes.body.length} bytes)`);
+    const zipValid = await validateZip(zipRes.body, 6);
+    assert(zipValid, 'zip response is a readable, valid ZIP archive containing all 6 daily documents');
+  } finally {
+    // Always clean up created timetable even if earlier steps failed
+    if (timetableId) {
+      try {
+        const delRes = await request('DELETE', `/api/timetables/${timetableId}`);
+        assert(delRes.status === 200, `DELETE cleanup returned ${delRes.status}`);
+      } catch (err) {
+        console.error('Failed to clean up timetable:', err);
+      }
+    }
+  }
 
   // Final result
   console.log('');
@@ -130,4 +148,3 @@ function isZip(buf: Buffer): boolean {
   console.error('Integration test error:', err);
   process.exit(1);
 });
-
