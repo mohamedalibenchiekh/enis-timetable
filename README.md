@@ -71,3 +71,44 @@ Notes
 ## REST API (used by the UI)
 `POST /api/timetables` (multipart `files`) · `GET /api/timetables` · `GET /api/timetables/:id/days/:day/preview` · `GET …/days/:day/docx` ·
 `GET …/export.zip` · `POST …/export-to-folder {dir}` · `GET|PUT /api/settings/export`. The server only listens on `127.0.0.1`.
+
+## CI/CD
+
+### Workflows
+
+| Workflow | Trigger | What it does |
+|----------|---------|-------------|
+| **CI** (`.github/workflows/ci.yml`) | PR to `main`, push to `main` | Typechecks all workspaces, builds API + web, runs unit tests (parser parity check + fixture assertions), runs API integration tests against PostgreSQL, and builds an unpacked Electron app on Windows to catch packaging regressions. |
+| **Release** (`.github/workflows/release.yml`) | Push of a tag `v*.*.*` | Verifies the tag matches `apps/desktop/package.json` version, builds NSIS `.exe` (Windows), `.dmg` (macOS), and `.AppImage` (Linux) installers, then creates a GitHub Release with all installers attached. Builds are unsigned by default (no code-signing certificate required unless configured). |
+| **Dependabot** (`.github/dependabot.yml`) | Weekly (Monday) | Opens PRs for npm dependency updates (grouped by dependency type, minor+patch together) and GitHub Actions version bumps. |
+
+### How to cut a release
+
+1. **Create a release branch and bump the version**:
+   ```bash
+   git switch main && git pull
+   git checkout -b chore/bump-version
+   npm version <major|minor|patch> -w apps/desktop
+   git add apps/desktop/package.json
+   git commit -m "chore: bump version to $(node -p "require('./apps/desktop/package.json').version")"
+   git push -u origin chore/bump-version
+   ```
+
+2. **Open and merge a Pull Request to `main`** following the standard review workflow.
+
+3. **Tag the merged commit on `main` and push the tag**:
+   ```bash
+   git switch main && git pull
+   git tag v$(node -p "require('./apps/desktop/package.json').version")
+   git push origin v$(node -p "require('./apps/desktop/package.json').version")
+   ```
+
+The Release workflow will automatically build installers for all platforms and create a GitHub Release.
+
+### Recommended branch protection settings for `main`
+
+- Require a pull request before merging (at least 1 approval)
+- Require status checks to pass: `Typecheck · Build · Test`, `API Integration`, `Package Smoke (Windows)`
+- Require branches to be up to date before merging
+- Do not allow force pushes
+- Do not allow deletions

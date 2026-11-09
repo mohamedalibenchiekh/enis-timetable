@@ -1,5 +1,15 @@
 # AGENTS.md — Agent Guidelines for ENISo Timetable → Word
 
+## Git Workflow (mandatory)
+- Never commit or push to `main`. First: `git switch main && git pull`, then create a branch named
+  `feat/<short-kebab-name>` (or `fix/…`, `chore/…`, `docs/…`).
+- Small commits using Conventional Commits (feat:, fix:, chore:, ci:, docs:, test:, refactor:).
+- Before pushing, run the checks listed below (typecheck, build, tests) and fix failures.
+- Push the branch, then open a Pull Request to `main` with `gh pr create` (title in Conventional Commits
+  format; body = what changed, how you tested it, risks). If `gh` is not authenticated, print the exact
+  PR title and body instead.
+- Do not merge the PR. Do not force-push. Do not touch unrelated files.
+
 ## Overview
 Desktop application converting FET HTML timetables (`*_rooms_*`, `*_teachers_*`, `*_groups_*`) into daily Word (`.docx`) documents (Lundi–Samedi). Replicates the reference layout of `Jeudi.docx`: rooms grouped by bloc (A, B, R + Amphi) × time slots with teacher names in cells. Stack: Electron + Next.js 15 (static export) + NestJS 11 / TypeORM + PostgreSQL (bundled v17 via `embedded-postgres`, or v16 via Docker in dev) + `docx`.
 
