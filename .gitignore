@@ -4,6 +4,9 @@ out
 .next
 stage
 test-output
+test-results
+playwright-report
+coverage
 .env
 *.tsbuildinfo
 next-env.d.ts
