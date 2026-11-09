@@ -9,13 +9,6 @@ const root = path.join(dir, '..', '..');
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   outputFileTracingRoot: root,
-  typescript: {
-    // Typechecking is handled separately by `npm run typecheck` (tsc --noEmit)
-    ignoreBuildErrors: true,
-  },
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
   ...(dev
     ? {
         // `npm run dev`: the browser talks to Next, which forwards /api to the NestJS server.

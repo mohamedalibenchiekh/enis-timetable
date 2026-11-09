@@ -79,23 +79,29 @@ Notes
 | Workflow | Trigger | What it does |
 |----------|---------|-------------|
 | **CI** (`.github/workflows/ci.yml`) | PR to `main`, push to `main` | Typechecks all workspaces, builds API + web, runs unit tests (parser parity check + fixture assertions), runs API integration tests against PostgreSQL, and builds an unpacked Electron app on Windows to catch packaging regressions. |
-| **Release** (`.github/workflows/release.yml`) | Push of a tag `v*.*.*` | Verifies the tag matches `apps/desktop/package.json` version, builds NSIS `.exe` (Windows), `.dmg` (macOS), and `.AppImage` (Linux) installers, then creates a GitHub Release with all installers attached. Builds are **unsigned** (no code-signing certificate required). |
-| **Dependabot** (`.github/dependabot.yml`) | Weekly (Monday) | Opens PRs for npm dependency updates (grouped by workspace, minor+patch together) and GitHub Actions version bumps. |
+| **Release** (`.github/workflows/release.yml`) | Push of a tag `v*.*.*` | Verifies the tag matches `apps/desktop/package.json` version, builds NSIS `.exe` (Windows), `.dmg` (macOS), and `.AppImage` (Linux) installers, then creates a GitHub Release with all installers attached. Builds are unsigned by default (no code-signing certificate required unless configured). |
+| **Dependabot** (`.github/dependabot.yml`) | Weekly (Monday) | Opens PRs for npm dependency updates (grouped by dependency type, minor+patch together) and GitHub Actions version bumps. |
 
 ### How to cut a release
 
-```bash
-# 1. Bump version in apps/desktop/package.json
-npm version <major|minor|patch> -w apps/desktop
+1. **Create a release branch and bump the version**:
+   ```bash
+   git switch main && git pull
+   git checkout -b chore/bump-version
+   npm version <major|minor|patch> -w apps/desktop
+   git add apps/desktop/package.json
+   git commit -m "chore: bump version to $(node -p "require('./apps/desktop/package.json').version")"
+   git push -u origin chore/bump-version
+   ```
 
-# 2. Commit the version bump
-git add apps/desktop/package.json
-git commit -m "chore: bump version to $(node -p "require('./apps/desktop/package.json').version")"
+2. **Open and merge a Pull Request to `main`** following the standard review workflow.
 
-# 3. Tag and push
-git tag v$(node -p "require('./apps/desktop/package.json').version")
-git push origin main --tags
-```
+3. **Tag the merged commit on `main` and push the tag**:
+   ```bash
+   git switch main && git pull
+   git tag v$(node -p "require('./apps/desktop/package.json').version")
+   git push origin v$(node -p "require('./apps/desktop/package.json').version")
+   ```
 
 The Release workflow will automatically build installers for all platforms and create a GitHub Release.
 
