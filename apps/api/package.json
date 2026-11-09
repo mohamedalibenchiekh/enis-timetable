@@ -14,7 +14,7 @@
     "test:verify": "ts-node test/verify.ts"
   },
   "dependencies": {
-    "@nestjs/common": "^12.4.0",
+    "@nestjs/common": "^11.0.0",
     "@nestjs/core": "^11.0.0",
     "@nestjs/platform-express": "^11.0.0",
     "@nestjs/typeorm": "^11.0.0",
