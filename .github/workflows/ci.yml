@@ -52,7 +52,7 @@ jobs:
       - run: npm run build
       - run: npm test
       - run: npm run test:coverage -w apps/api
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
         if: always()
         with:
           name: api-coverage
@@ -91,8 +91,8 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npx playwright install --with-deps chromium
-      - run: npm run test:e2e -- --reporter=line
-      - uses: actions/upload-artifact@v4
+      - run: npx playwright test --reporter=line
+      - uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
         if: failure()
         with:
           name: playwright-report

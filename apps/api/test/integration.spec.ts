@@ -1,5 +1,6 @@
 import 'reflect-metadata';
 import 'ts-node/register';
+import { randomUUID } from 'node:crypto';
 import * as fs from 'node:fs';
 import { createRequire } from 'node:module';
 import * as os from 'node:os';
@@ -12,7 +13,7 @@ import { Test } from '@nestjs/testing';
 import { ExpressAdapter } from '@nestjs/platform-express';
 import { DataSource } from 'typeorm';
 
-const schema = 'enis_api_integration_tests';
+const schema = `enis_api_integration_tests_${process.pid}_${randomUUID().replace(/-/g, '')}`;
 const baseUrl = process.env.DATABASE_URL ?? 'postgres://enis:enis@127.0.0.1:5432/enis_timetable';
 const fixtureDir = path.join(__dirname, 'fixtures');
 const fixture = (name: string) => fs.readFileSync(path.join(fixtureDir, name));

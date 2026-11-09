@@ -31,7 +31,7 @@ Run all commands from repository root unless scoped with `-w`.
 - `npm run build -w apps/desktop`: Compile Electron main/preload TypeScript into `apps/desktop/dist`.
 - `npm run dev:api`: Start API in watch mode on `http://127.0.0.1:4000` (requires PostgreSQL: `docker compose up -d` using `postgres:16` bound to `127.0.0.1:5432`).
 - `npm run dev:web`: Start Next.js dev server on `http://localhost:3000` (proxies `/api` to `:4000`).
-- `npm test -w apps/api -- <html-dir> [out-dir]`: E2E test verifying rooms vs teachers consistency (fails with exit code 1 on mismatch) and generating test DOCX files.
+- `npm run test:verify -w apps/api -- <html-dir> [out-dir]`: E2E test verifying rooms vs teachers consistency (fails with exit code 1 on mismatch) and generating test DOCX files.
 - `npm run stage -w apps/desktop`: Stage compiled API, production node_modules, and web export for packaging.
 - `npm run pack` / `npm run dist`: Package desktop application with electron-builder into `apps/desktop/release/`.
 
@@ -71,6 +71,7 @@ Before considering any task complete:
 Test commands:
 - `npm test`: API unit/integration and web component suites.
 - `npm run test:coverage -w apps/api`: API parser/export coverage.
+- `npx playwright install chromium`: install the browser required by the Chromium end-to-end suite.
 - `npm run test:e2e`: Chromium end-to-end browser suite.
 - `npm run test:verify -w apps/api -- <html-dir> [out-dir]`: fixture parity check and sample DOCX generation.
 

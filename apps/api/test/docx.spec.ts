@@ -48,6 +48,10 @@ describe('Word documents', () => {
         expect(fills).toContain('C2D69B');
         expect(fills).toContain('B8CCE4');
       }
+      if (parsed.days[day] === 'Jeudi') {
+        expect(text).toContain('Prof Martin');
+        expect(text).toContain('A 0-1');
+      }
       names.push(`${parsed.days[day]}.docx`);
     }
     expect(names).toEqual(['Lundi.docx', 'Mardi.docx', 'Mercredi.docx', 'Jeudi.docx', 'Vendredi.docx', 'Samedi.docx']);

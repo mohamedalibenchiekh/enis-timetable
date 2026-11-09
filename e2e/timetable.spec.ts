@@ -10,7 +10,6 @@ const JSZip = createRequire(path.join(__dirname, '..', 'apps', 'api', 'dist', 'm
 test('imports fixtures, previews a day, downloads Word, and updates an export option', async ({ page }) => {
   let timetableId = '';
   let tempDir = '';
-  const before = await (await page.request.get('/api/timetables')).json() as { id: string }[];
   const originalOptions = await (await page.request.get('/api/settings/export')).json();
   try {
     await page.goto('/');
@@ -20,11 +19,13 @@ test('imports fixtures, previews a day, downloads Word, and updates an export op
       path.join(fixtureDir, 'FET_teachers_test.html'),
       path.join(fixtureDir, 'FET_groups_test.html'),
     ]);
+    const uploadResponse = page.waitForResponse((response) =>
+      response.url().includes('/api/timetables') && response.request().method() === 'POST');
     await page.getByRole('button', { name: 'Importer', exact: true }).click();
+    const uploaded = await (await uploadResponse).json() as { id: string };
+    timetableId = uploaded.id;
     await expect(page.getByRole('heading', { name: 'Fixture test data' })).toBeVisible();
     await expect(page.getByText('Prof Dupont 1/15')).toBeVisible();
-    const after = await (await page.request.get('/api/timetables')).json() as { id: string }[];
-    timetableId = after.find((item) => !before.some((old) => old.id === item.id))?.id ?? '';
 
     await page.getByRole('button', { name: 'Mercredi' }).click();
     await expect(page.getByRole('columnheader', { name: 'Mercredi' })).toBeVisible();
