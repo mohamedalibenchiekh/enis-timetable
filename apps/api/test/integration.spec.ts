@@ -19,8 +19,8 @@ const fixtureDir = path.join(__dirname, 'fixtures');
 const fixture = (name: string) => fs.readFileSync(path.join(fixtureDir, name));
 const requireApiSource = createRequire(path.join(__dirname, 'integration-loader.cjs'));
 
-it.fails('Nest core resolves the HTTP adapter from the monorepo API workspace', () => {
-  // @nestjs/core is hoisted to the root while platform-express stays under apps/api/node_modules.
+it('Nest core resolves the HTTP adapter from the monorepo API workspace', () => {
+  // @nestjs/core must be able to resolve platform-express in the monorepo layout.
   const requireFromNestCore = createRequire(requireApiSource.resolve('@nestjs/core'));
   expect(requireFromNestCore.resolve('@nestjs/platform-express')).toBeTruthy();
 });
