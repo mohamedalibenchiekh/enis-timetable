@@ -14,10 +14,10 @@
     "test:verify": "ts-node test/verify.ts"
   },
   "dependencies": {
-    "@nestjs/common": "^11.0.0",
+    "@nestjs/common": "^12.4.0",
     "@nestjs/core": "^12.4.0",
-    "@nestjs/platform-express": "^11.0.0",
-    "@nestjs/typeorm": "^11.0.0",
+    "@nestjs/platform-express": "^12.4.0",
+    "@nestjs/typeorm": "^12.0.3",
     "cheerio": "^1.0.0",
     "docx": "^9.15.2",
     "jszip": "^3.10.2",
@@ -28,7 +28,7 @@
   },
   "devDependencies": {
     "@nestjs/cli": "^12.0.12",
-    "@nestjs/testing": "^11.0.0",
+    "@nestjs/testing": "^12.4.0",
     "@types/express": "^5.0.0",
     "@types/node": "^26.6.6",
     "@types/supertest": "^6.0.3",
