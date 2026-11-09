@@ -6,7 +6,7 @@ on:
       - 'v*.*.*'
 
 permissions:
-  contents: write
+  contents: read
 
 env:
   NODE_VERSION: '22'
@@ -17,7 +17,7 @@ jobs:
     name: Verify tag version
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4  # pin to commit SHA for supply-chain security is advised
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - name: Check tag matches apps/desktop/package.json
         run: |
           TAG_VERSION="${GITHUB_REF_NAME#v}"
@@ -48,12 +48,13 @@ jobs:
             artifact-name: installer-linux
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4  # pin to commit SHA for supply-chain security is advised
-      - uses: actions/setup-node@v4  # pin to commit SHA for supply-chain security is advised
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@1d0ff469b7ec7b3cb9d8673fde0c81c44821de2a # v4.2.0
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
       - run: npm ci
+      - run: npm run typecheck
       - run: npm run build
       - run: npm run build -w apps/desktop
       - run: npm run stage -w apps/desktop
@@ -65,7 +66,7 @@ jobs:
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
         run: npx electron-builder --publish never ${{ matrix.builder-args }}
-      - uses: actions/upload-artifact@v4  # pin to commit SHA for supply-chain security is advised
+      - uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
         with:
           name: ${{ matrix.artifact-name }}
           path: |
@@ -79,20 +80,22 @@ jobs:
     name: Publish Release
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
-      - uses: actions/checkout@v4  # pin to commit SHA for supply-chain security is advised
-      - uses: actions/download-artifact@v4  # pin to commit SHA for supply-chain security is advised
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/download-artifact@cc203385981b70ca67e1cc392babf9cc229d5806 # v4.1.9
         with:
           path: release-artifacts
           merge-multiple: true
       - name: List artifacts
         run: ls -lR release-artifacts
-      - uses: softprops/action-gh-release@v2  # pin to commit SHA for supply-chain security is advised
+      - uses: softprops/action-gh-release@c95fe1489396fe8a9eb87c0abf8aa5b2ef267fda # v2.2.1
         with:
           generate_release_notes: true
           body: |
-            ## ⚠️ Unsigned builds
-            These builds are **not code-signed**:
-            - **Windows**: SmartScreen will warn → click *More info* → *Run anyway*.
+            ## ⚠️ Note on code signing
+            Unless repository signing certificates (`CSC_LINK`) are configured, these builds are **unsigned**:
+            - **Windows**: If SmartScreen warns, click *More info* → *Run anyway*.
             - **macOS**: You may need to right-click → Open and confirm.
           files: release-artifacts/*

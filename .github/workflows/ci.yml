@@ -25,8 +25,8 @@ jobs:
       # Electron binary is not needed for typecheck/build/test
       ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
     steps:
-      - uses: actions/checkout@v4  # pin to commit SHA for supply-chain security is advised
-      - uses: actions/setup-node@v4  # pin to commit SHA for supply-chain security is advised
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@1d0ff469b7ec7b3cb9d8673fde0c81c44821de2a # v4.2.0
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -44,7 +44,7 @@ jobs:
       ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
     services:
       postgres:
-        image: postgres:17
+        image: postgres:17@sha256:ff87138949ad9a46f32ff23bd6852b52ce024a13dffe9b4087be98292cdd3b4f
         env:
           POSTGRES_USER: enis
           POSTGRES_PASSWORD: enis
@@ -57,8 +57,8 @@ jobs:
           --health-timeout=3s
           --health-retries=5
     steps:
-      - uses: actions/checkout@v4  # pin to commit SHA for supply-chain security is advised
-      - uses: actions/setup-node@v4  # pin to commit SHA for supply-chain security is advised
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@1d0ff469b7ec7b3cb9d8673fde0c81c44821de2a # v4.2.0
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -72,8 +72,8 @@ jobs:
           # Start the API in the background
           node apps/api/dist/main.js &
           API_PID=$!
-          # Run integration tests
-          npx ts-node apps/api/test/integration.ts
+          # Run integration tests via the advertised workspace script
+          npm run test:integration -w apps/api
           TEST_EXIT=$?
           kill $API_PID 2>/dev/null || true
           exit $TEST_EXIT
@@ -84,8 +84,8 @@ jobs:
     runs-on: windows-latest
     needs: checks
     steps:
-      - uses: actions/checkout@v4  # pin to commit SHA for supply-chain security is advised
-      - uses: actions/setup-node@v4  # pin to commit SHA for supply-chain security is advised
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@1d0ff469b7ec7b3cb9d8673fde0c81c44821de2a # v4.2.0
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
