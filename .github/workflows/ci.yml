@@ -24,6 +24,8 @@ jobs:
     env:
       # Electron binary is not needed for typecheck/build/test
       ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+      TZ: UTC
+      LANG: C.UTF-8
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -34,6 +36,13 @@ jobs:
       - run: npm run typecheck
       - run: npm run build
       - run: npm test
+      - run: npm run test:coverage -w apps/api
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: api-coverage
+          path: apps/api/coverage
+          if-no-files-found: warn
 
   # ── API Integration Test (with PostgreSQL) ─────────────────────────
   api-integration:
@@ -42,6 +51,9 @@ jobs:
     needs: checks
     env:
       ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+      DATABASE_URL: postgres://enis:enis@127.0.0.1:5432/enis_timetable
+      TZ: UTC
+      LANG: C.UTF-8
     services:
       postgres:
         image: postgres:17@sha256:ff87138949ad9a46f32ff23bd6852b52ce024a13dffe9b4087be98292cdd3b4f
@@ -63,20 +75,49 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
       - run: npm ci
-      - run: npm run build -w apps/api
-      - name: Start API and run integration tests
+      - run: npm run test:integration -w apps/api
+
+  # ── Browser E2E (Chromium) ─────────────────────────────────────────
+  e2e:
+    name: End-to-end · Chromium
+    runs-on: ubuntu-latest
+    env:
+      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+      DATABASE_URL: postgres://enis:enis@127.0.0.1:5432/enis_timetable
+      TZ: UTC
+      LANG: C.UTF-8
+    services:
+      postgres:
+        image: postgres:17@sha256:ff87138949ad9a46f32ff23bd6852b52ce024a13dffe9b4087be98292cdd3b4f
         env:
-          DATABASE_URL: postgres://enis:enis@127.0.0.1:5432/enis_timetable
-          PORT: '4000'
-        run: |
-          # Start the API in the background
-          node apps/api/dist/main.js &
-          API_PID=$!
-          # Run integration tests via the advertised workspace script
-          npm run test:integration -w apps/api
-          TEST_EXIT=$?
-          kill $API_PID 2>/dev/null || true
-          exit $TEST_EXIT
+          POSTGRES_USER: enis
+          POSTGRES_PASSWORD: enis
+          POSTGRES_DB: enis_timetable
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U enis"
+          --health-interval=5s
+          --health-timeout=3s
+          --health-retries=5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: npx playwright test --reporter=line
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: failure()
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
 
   # ── Electron Packaging Smoke Test (Windows) ────────────────────────
   package-smoke:

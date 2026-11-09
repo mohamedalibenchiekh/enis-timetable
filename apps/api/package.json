@@ -7,11 +7,14 @@
     "start": "node dist/main.js",
     "start:dev": "nest start --watch",
     "typecheck": "tsc --noEmit",
-    "test": "ts-node test/verify.ts",
-    "test:integration": "ts-node test/integration.ts"
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:integration": "vitest run test/integration.spec.ts",
+    "test:verify": "ts-node test/verify.ts"
   },
   "dependencies": {
-    "@nestjs/common": "^12.4.0",
+    "@nestjs/common": "^11.0.0",
     "@nestjs/core": "^11.0.0",
     "@nestjs/platform-express": "^11.0.0",
     "@nestjs/typeorm": "^11.0.0",
@@ -25,9 +28,14 @@
   },
   "devDependencies": {
     "@nestjs/cli": "^12.0.12",
+    "@nestjs/testing": "^11.0.0",
     "@types/express": "^5.0.0",
     "@types/node": "^26.6.6",
+    "@types/supertest": "^6.0.3",
+    "@vitest/coverage-v8": "^3.2.4",
+    "supertest": "^7.1.4",
     "ts-node": "^10.9.2",
-    "typescript": "^5.6.0"
+    "typescript": "^5.6.0",
+    "vitest": "^3.2.4"
   }
 }

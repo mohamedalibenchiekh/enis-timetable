@@ -11,6 +11,10 @@
     "build": "npm run build -w apps/api && npm run build -w apps/web",
     "desktop": "npm run build && npm run start -w apps/desktop",
     "dist": "npm run build && npm run dist -w apps/desktop",
-    "test": "npm run test -w apps/api"
+    "test": "npm run test -w apps/api && npm run test -w apps/web",
+    "test:e2e": "npm run build && playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.56.1"
   }
 }
