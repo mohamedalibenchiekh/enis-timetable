@@ -1,7 +1,7 @@
 # AGENTS.md — Agent Guidelines for ENISo Timetable → Word
 
 ## Overview
-Desktop application converting FET HTML timetables (`*_rooms_*`, `*_teachers_*`, `*_groups_*`) into daily Word (`.docx`) documents (Lundi–Samedi). Replicates the reference layout of `Jeudi.docx`: rooms grouped by bloc (A, B, R + Amphi) × time slots with teacher names in cells. Stack: Electron + Next.js 15 (static export) + NestJS 11 / TypeORM + PostgreSQL 17 (`embedded-postgres` or external) + `docx`.
+Desktop application converting FET HTML timetables (`*_rooms_*`, `*_teachers_*`, `*_groups_*`) into daily Word (`.docx`) documents (Lundi–Samedi). Replicates the reference layout of `Jeudi.docx`: rooms grouped by bloc (A, B, R + Amphi) × time slots with teacher names in cells. Stack: Electron + Next.js 15 (static export) + NestJS 11 / TypeORM + PostgreSQL (bundled v17 via `embedded-postgres`, or v16 via Docker in dev) + `docx`.
 
 ## Architecture
 ```
@@ -19,7 +19,7 @@ Run all commands from repository root unless scoped with `-w`.
 - `npm run build -w apps/api`: Build NestJS API into `apps/api/dist`.
 - `npm run build -w apps/web`: Export static Next.js web app into `apps/web/out`.
 - `npm run build -w apps/desktop`: Compile Electron main/preload TypeScript into `apps/desktop/dist`.
-- `npm run dev:api`: Start API in watch mode on `http://127.0.0.1:4000` (requires PostgreSQL 17: `docker compose up -d` bound to `127.0.0.1:5432`).
+- `npm run dev:api`: Start API in watch mode on `http://127.0.0.1:4000` (requires PostgreSQL: `docker compose up -d` using `postgres:16` bound to `127.0.0.1:5432`).
 - `npm run dev:web`: Start Next.js dev server on `http://localhost:3000` (proxies `/api` to `:4000`).
 - `npm test -w apps/api -- <html-dir> [out-dir]`: E2E test verifying rooms vs teachers consistency (fails with exit code 1 on mismatch) and generating test DOCX files.
 - `npm run stage -w apps/desktop`: Stage compiled API, production node_modules, and web export for packaging.

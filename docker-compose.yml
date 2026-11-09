@@ -1,7 +1,7 @@
 # Optional: run PostgreSQL in Docker instead of installing it.  →  docker compose up -d
 services:
   db:
-    image: postgres:17
+    image: postgres:16
     restart: unless-stopped
     environment:
       POSTGRES_USER: enis
