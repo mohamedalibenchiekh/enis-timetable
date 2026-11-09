@@ -101,10 +101,10 @@
   <!-- Lundi: detailed split cell with 2 parallel activities -->
   <td>
     <table class="detailed">
-      <tr><td>B01</td><td>B02</td></tr>
-      <tr><td>Grp-D4</td><td>Grp-E5</td></tr>
-      <tr><td>Prof Moreau</td><td>Prof Bernard</td></tr>
-      <tr><td>T401 | Mécanique</td><td>T501 | Optique</td></tr>
+      <tr><td>B01</td><td>B02</td><td>B01</td></tr>
+      <tr><td>Grp-D4</td><td>Grp-E5</td><td>Grp-D4</td></tr>
+      <tr><td>Prof Moreau, Prof Bernard</td><td>Prof Bernard</td><td>Prof Moreau, Prof Bernard</td></tr>
+      <tr><td>T401 | Mécanique</td><td>T501 | Optique</td><td>T401 | Mécanique</td></tr>
     </table>
   </td>
   <td>---</td>
@@ -181,10 +181,10 @@
   <!-- Lundi: same detailed split cell; B02 keeps only B02's activity -->
   <td>
     <table class="detailed">
-      <tr><td>B01</td><td>B02</td></tr>
-      <tr><td>Grp-D4</td><td>Grp-E5</td></tr>
-      <tr><td>Prof Moreau</td><td>Prof Bernard</td></tr>
-      <tr><td>T401 | Mécanique</td><td>T501 | Optique</td></tr>
+      <tr><td>B01</td><td>B02</td><td>B01</td></tr>
+      <tr><td>Grp-D4</td><td>Grp-E5</td><td>Grp-D4</td></tr>
+      <tr><td>Prof Moreau, Prof Bernard</td><td>Prof Bernard</td><td>Prof Moreau, Prof Bernard</td></tr>
+      <tr><td>T401 | Mécanique</td><td>T501 | Optique</td><td>T401 | Mécanique</td></tr>
     </table>
   </td>
   <td>---</td>
@@ -311,6 +311,25 @@
   <td>---</td>
 </tr>
 <tr class="foot"><td colspan="7">Planning généré avec FET v6.20.3</td></tr>
+</tbody>
+</table>
+
+<!-- Synthetic edge case: room with a scheduled session that has no teacher. -->
+<table id="table_4">
+<thead>
+<tr><th colspan="7">A03</th></tr>
+<tr>
+  <th class="xAxis">Lundi</th><th class="xAxis">Mardi</th><th class="xAxis">Mercredi</th>
+  <th class="xAxis">Jeudi</th><th class="xAxis">Vendredi</th><th class="xAxis">Samedi</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <th class="yAxis">8:00-9:30</th>
+  <td>Grp-Z1<br/><br/>T700 | Atelier sans enseignant<br/></td>
+  <td>---</td><td>---</td><td>---</td><td>---</td><td>---</td>
+</tr>
+<tr class="foot"><td colspan="7">Planning généré avec FET test</td></tr>
 </tbody>
 </table>
 

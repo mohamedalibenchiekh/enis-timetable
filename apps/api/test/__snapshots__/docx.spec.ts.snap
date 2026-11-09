@@ -1,0 +1,106 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`Word documents > matches the reviewed Monday DayGrid golden file 1`] = `
+{
+  "blocs": [
+    {
+      "rows": [
+        {
+          "cells": [
+            "Prof Dupont 1/15",
+            "Prof Laurent",
+            "Prof Laurent",
+            "",
+            "",
+            "",
+          ],
+          "label": "A 0-1",
+          "room": "A01",
+        },
+        {
+          "cells": [
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+          ],
+          "label": "A 0-3",
+          "room": "A03",
+        },
+      ],
+      "title": "BLOC « A »",
+    },
+    {
+      "rows": [
+        {
+          "cells": [
+            "Prof Moreau / Prof Bernard",
+            "",
+            "",
+            "",
+            "",
+            "",
+          ],
+          "label": "B 0-1",
+          "room": "B01",
+        },
+        {
+          "cells": [
+            "Prof Bernard",
+            "",
+            "",
+            "",
+            "",
+            "",
+          ],
+          "label": "B 0-2",
+          "room": "B02",
+        },
+      ],
+      "title": "BLOC « B »",
+    },
+    {
+      "rows": [
+        {
+          "cells": [
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+          ],
+          "label": "Amphi",
+          "room": "Amphi",
+        },
+      ],
+      "title": "BLOC « R »",
+    },
+  ],
+  "day": 0,
+  "dayName": "Lundi",
+  "headers": [
+    [
+      "8:00-9:30",
+    ],
+    [
+      "9:45-11:15",
+    ],
+    [
+      "11:30-13:00",
+    ],
+    [
+      "13:00-14:30",
+    ],
+    [
+      "14:30-16:00",
+    ],
+    [
+      "16:15-17:45",
+    ],
+  ],
+  "sessionCount": 6,
+}
+`;

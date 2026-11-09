@@ -1,0 +1,87 @@
+import { describe, expect, it } from 'vitest';
+import { buildDayGrid, formatTeacher, roomLabel } from '../src/export/grid-builder';
+import { DEFAULT_OPTIONS, mergeOptions } from '../src/export/options';
+import { parseSlotLabel } from '../src/parser/html-parser';
+import { ParsedSession } from '../src/parser/types';
+
+const session = (fields: Partial<ParsedSession> = {}): Pick<ParsedSession, 'day' | 'slot' | 'room' | 'teachers' | 'frequency'> => ({
+  day: 0, slot: 0, room: 'A01', teachers: 'BEN RHOUMA Asma', frequency: '', ...fields,
+});
+const meta = {
+  days: ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'],
+  slots: ['08:00-09:30', '11:30-13:00 (M/S: 12:00-13:30)', '14:30-16:00 (V: 14:00-15:30)', '12:00-13:30']
+    .map(parseSlotLabel),
+  rooms: ['A01', 'A02', 'B12 (Labo Anglais)', 'R01', 'Amphi', 'Hors bloc'],
+};
+
+describe('formatTeacher and roomLabel', () => {
+  it.each([
+    ['BEN RHOUMA Asma', true, 'B Rhouma Asma'], ['BEN RHOUMA Asma', false, 'Ben Rhouma Asma'],
+    ['Jean-Pierre O’Neil', false, 'Jean-Pierre O’Neil'], ['ÉLODIE D’AMOUR', false, 'Élodie D’Amour'],
+    ['Ben Rhouma', true, 'Ben Rhouma'], ['', true, ''], ['-', true, ''],
+  ])('formatTeacher(%j, %s)', (input, abbreviate, expected) => expect(formatTeacher(input, abbreviate)).toBe(expected));
+
+  it.each([
+    ['A02', 'A 0-2'], ['B12 (Labo Anglais)', 'B 1-2'], ['Amphi', 'Amphi'], ['Salle polyvalente', 'Salle polyvalente'],
+  ])('roomLabel(%j)', (room, expected) => expect(roomLabel(room)).toBe(expected));
+});
+
+describe('mergeOptions', () => {
+  it('keeps defaults for an empty bloc list while applying other values', () => {
+    expect(mergeOptions({ blocs: [], pauseLabel: 'Break' })).toEqual({ ...DEFAULT_OPTIONS, pauseLabel: 'Break' });
+  });
+
+  it('uses non-empty bloc overrides', () => {
+    const blocs = [{ title: 'BLOC TEST', patterns: ['^X'] }];
+    expect(mergeOptions({ blocs }).blocs).toEqual(blocs);
+  });
+});
+
+describe('buildDayGrid', () => {
+  it('assigns rooms by regex, orders numbered rooms before Amphi, and formats labels', () => {
+    const grid = buildDayGrid([session({ room: 'A02' })], meta, 0, DEFAULT_OPTIONS);
+    expect(grid.blocs.map((b) => [b.title, b.rows.map((r) => r.room)])).toEqual([
+      ['BLOC « A »', ['A01', 'A02']], ['BLOC « B »', ['B12 (Labo Anglais)']],
+      ['BLOC « R »', ['R01', 'Amphi']],
+    ]);
+    expect(grid.blocs[0].rows[1].label).toBe('A 0-2');
+  });
+
+  it.each([[true, 2], [false, 1]])('includes empty rooms = %s', (includeEmptyRooms, rowCount) => {
+    const options = { ...DEFAULT_OPTIONS, includeEmptyRooms };
+    const grid = buildDayGrid([session()], { ...meta, rooms: ['A01', 'A02'] }, 0, options);
+    expect(grid.blocs[0].rows).toHaveLength(rowCount);
+  });
+
+  it.each([[true, 'B Rhouma Asma 1/15'], [false, 'B Rhouma Asma']])('frequency setting %s', (showFrequency, text) => {
+    const grid = buildDayGrid([session({ frequency: '1/15' })], meta, 0, { ...DEFAULT_OPTIONS, showFrequency });
+    expect(grid.blocs[0].rows.find((r) => r.room === 'A01')?.cells[0]).toBe(text);
+  });
+
+  it('joins teachers, removes duplicate teachers, and never renders sessions without rooms', () => {
+    const grid = buildDayGrid([
+      session({ teachers: 'BEN RHOUMA Asma,Prof Dupont' }), session({ teachers: 'BEN RHOUMA Asma' }),
+      session({ room: '', teachers: 'Hidden Teacher' }),
+    ], meta, 0, DEFAULT_OPTIONS);
+    expect(grid.blocs[0].rows.find((r) => r.room === 'A01')?.cells[0]).toBe('B Rhouma Asma / Prof Dupont');
+    expect(grid.sessionCount).toBe(2);
+    expect(grid.blocs.flatMap((b) => b.rows).some((r) => r.cells.includes('Hidden Teacher'))).toBe(false);
+  });
+
+  it('shows the pause only when the lunch slot is empty for that day', () => {
+    const lunchSlot = 3;
+    const empty = buildDayGrid([], meta, 0, DEFAULT_OPTIONS);
+    const busy = buildDayGrid([session({ slot: lunchSlot })], meta, 0, DEFAULT_OPTIONS);
+    expect(empty.headers[lunchSlot]).toEqual(['Pause']);
+    expect(busy.headers[lunchSlot]).toEqual(['12:00-13:30']);
+  });
+
+  it('uses Wednesday/Saturday and Friday header overrides', () => {
+    const wed = buildDayGrid([], meta, 2, DEFAULT_OPTIONS);
+    const fri = buildDayGrid([], meta, 4, DEFAULT_OPTIONS);
+    const sat = buildDayGrid([], meta, 5, DEFAULT_OPTIONS);
+    expect(wed.headers[1]).toEqual(['12:00-13:30']);
+    expect(sat.headers[1]).toEqual(['12:00-13:30']);
+    expect(fri.headers[2]).toEqual(['14:00-15:30']);
+  });
+});
