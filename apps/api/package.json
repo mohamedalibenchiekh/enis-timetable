@@ -6,7 +6,9 @@
     "build": "nest build",
     "start": "node dist/main.js",
     "start:dev": "nest start --watch",
-    "test": "ts-node test/verify.ts"
+    "typecheck": "tsc --noEmit",
+    "test": "ts-node test/verify.ts",
+    "test:integration": "ts-node test/integration.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.0",
