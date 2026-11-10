@@ -11,6 +11,7 @@ import { buildDayGrid, DayGrid } from '../export/grid-builder.js';
 import { buildDayDocx } from '../export/docx-builder.js';
 import { SettingsService } from '../settings/settings.service.js';
 import { NamesService } from '../names/names.service.js';
+import { NameResolver } from '../export/name-resolver.js';
 
 const PRIORITY: SourceKind[] = ['rooms', 'teachers', 'groups'];
 
@@ -98,25 +99,26 @@ export class TimetablesService {
     return kind;
   }
 
-  async dayGrid(id: string, day: number): Promise<DayGrid> {
+  async dayGrid(id: string, day: number, nameResolver?: NameResolver): Promise<DayGrid> {
     const t = await this.get(id);
     if (!Number.isInteger(day) || day < 0 || day >= t.days.length) throw new BadRequestException('Jour invalide');
     const source = this.pickSource(t);
     const rows = await this.sessions.find({ where: { timetableId: id, source, day } });
     const options = await this.settings.getExportOptions();
-    const nameResolver = await this.names.getResolver();
-    return buildDayGrid(rows, { days: t.days, slots: t.slots, rooms: t.rooms }, day, options, nameResolver);
+    const resolver = nameResolver ?? await this.names.getResolver();
+    return buildDayGrid(rows, { days: t.days, slots: t.slots, rooms: t.rooms }, day, options, resolver);
   }
 
-  async dayDocx(id: string, day: number) {
-    const grid = await this.dayGrid(id, day);
+  async dayDocx(id: string, day: number, nameResolver?: NameResolver) {
+    const grid = await this.dayGrid(id, day, nameResolver);
     return { fileName: `${grid.dayName}.docx`, buffer: await buildDayDocx(grid) };
   }
 
   async allDocx(id: string) {
     const t = await this.get(id);
+    const nameResolver = await this.names.getResolver();
     const out: { fileName: string; buffer: Buffer }[] = [];
-    for (let d = 0; d < t.days.length; d++) out.push(await this.dayDocx(id, d));
+    for (let d = 0; d < t.days.length; d++) out.push(await this.dayDocx(id, d, nameResolver));
     return out;
   }
 

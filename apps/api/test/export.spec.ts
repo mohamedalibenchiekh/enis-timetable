@@ -42,6 +42,7 @@ describe('mergeOptions', () => {
 describe('name overrides', () => {
   it('normalizes accents, whitespace, non-breaking spaces, and case for keys', () => {
     expect(normalizeName('  ÉLODIE\u00a0  D’Amour  ')).toBe('elodie d’amour');
+    expect(normalizeName('Salle ^3 `test`')).toBe('salle ^3 `test`');
   });
 
   it('treats a blank display value as override removal and trims valid display values', () => {

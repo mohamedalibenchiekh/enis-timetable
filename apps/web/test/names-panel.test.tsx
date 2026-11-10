@@ -82,12 +82,13 @@ describe('NamesPanel', () => {
     await screen.findByRole('textbox', { name: 'Affiché dans Word pour Prof Benali' });
     fireEvent.click(screen.getAllByRole('checkbox', { name: 'Modifiés seulement' })[0]);
     expect(screen.queryByRole('textbox', { name: 'Affiché dans Word pour Prof Dupont' })).toBeNull();
-    const existing = screen.getByRole('textbox', { name: 'Affiché dans Word pour Prof Benali' });
     fireEvent.click(screen.getByRole('button', { name: 'Réinitialiser Prof Benali' }));
     expect(screen.getByText('1 modification')).not.toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
     await waitFor(() => expect(screen.getByText('Noms enregistrés')).not.toBeNull());
-    expect((existing as HTMLInputElement).value).toBe('');
+    fireEvent.click(screen.getAllByRole('checkbox', { name: 'Modifiés seulement' })[0]);
+    const updated = screen.getByRole('textbox', { name: 'Affiché dans Word pour Prof Benali' });
+    expect((updated as HTMLInputElement).value).toBe('');
     expect(fetchMock).toHaveBeenCalledWith('/api/names/teachers', expect.objectContaining({
       method: 'PUT',
       body: JSON.stringify({ items: [{ sourceName: 'Prof Benali', displayName: '' }] }),
@@ -99,6 +100,20 @@ describe('NamesPanel', () => {
     await screen.findByRole('button', { name: 'Importer des noms…' });
     const file = new File(['{"version":1,"teachers":[],"rooms":[]}'], 'noms.json', { type: 'application/json' });
     fireEvent.change(screen.getByLabelText('Choisir un fichier de noms'), { target: { files: [file] } });
-    await waitFor(() => expect(screen.getByText('Import terminé : 1 ajouts, 2 actualisations, 0 ignorés')).not.toBeNull());
+    await waitFor(() => expect(screen.getByText('Import terminé : 1 ajout, 2 actualisations, 0 ignorés')).not.toBeNull());
+  });
+
+  it('filters by pending display names and preserves drafts when rows are hidden', async () => {
+    render(<NamesPanel id="fixture-id" onSaved={vi.fn()} />);
+    const input = await screen.findByRole('textbox', { name: 'Affiché dans Word pour Prof Dupont' });
+    fireEvent.change(input, { target: { value: 'Dupont corrigé' } });
+    fireEvent.change(screen.getAllByRole('searchbox')[0], { target: { value: 'corrigé' } });
+    const filtered = screen.getByRole('textbox', { name: 'Affiché dans Word pour Prof Dupont' });
+    expect((filtered as HTMLInputElement).value).toBe('Dupont corrigé');
+    fireEvent.change(screen.getAllByRole('searchbox')[0], { target: { value: 'aucun résultat' } });
+    expect(screen.queryByRole('textbox', { name: 'Affiché dans Word pour Prof Dupont' })).toBeNull();
+    fireEvent.change(screen.getAllByRole('searchbox')[0], { target: { value: '' } });
+    const restored = screen.getByRole('textbox', { name: 'Affiché dans Word pour Prof Dupont' });
+    expect((restored as HTMLInputElement).value).toBe('Dupont corrigé');
   });
 });

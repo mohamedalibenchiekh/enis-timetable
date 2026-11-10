@@ -11,6 +11,12 @@ test('imports fixtures, previews a day, downloads Word, and updates an export op
   let timetableId = '';
   let tempDir = '';
   const originalOptions = await (await page.request.get('/api/settings/export')).json();
+  const originalNames = await (await page.request.get('/api/names/export')).json() as {
+    teachers: { key: string; sourceName: string; displayName: string }[];
+    rooms: { key: string; sourceName: string; displayName: string }[];
+  };
+  const originalTeacher = originalNames.teachers.find((entry) => entry.key === 'prof dupont');
+  const originalRoom = originalNames.rooms.find((entry) => entry.key === 'a01');
   try {
     await page.goto('/');
     await page.getByRole('button', { name: '+ Importer' }).click();
@@ -84,6 +90,12 @@ test('imports fixtures, previews a day, downloads Word, and updates an export op
     expect(resetXml).not.toContain('Hanafi Latifa');
   } finally {
     if (timetableId) await page.request.delete(`/api/timetables/${timetableId}`);
+    await page.request.put('/api/names/teachers', {
+      data: { items: [{ sourceName: originalTeacher?.sourceName ?? 'Prof Dupont', displayName: originalTeacher?.displayName ?? '' }] },
+    });
+    await page.request.put('/api/names/rooms', {
+      data: { items: [{ sourceName: originalRoom?.sourceName ?? 'A01', displayName: originalRoom?.displayName ?? '' }] },
+    });
     await page.request.put('/api/settings/export', { data: originalOptions });
     if (tempDir) fs.rmSync(tempDir, { recursive: true, force: true });
   }

@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, In, Repository } from 'typeorm';
 import { RoomLabel, SessionEntity, TeacherName, Timetable } from '../entities/timetable.entity.js';
 import { formatTeacher, roomLabel } from '../export/grid-builder.js';
 import { createNameResolver, NameResolver } from '../export/name-resolver.js';
@@ -52,7 +52,7 @@ export class NamesService {
 
     const source = SOURCE_PRIORITY.find((candidate) => timetable.files.some((file) => file.kind === candidate));
     const countedRows = rows.filter((row) => row.source === source);
-    const counts = countedRows.length ? countedRows : rows;
+    const counts = source ? countedRows : rows;
     const active = kind === 'teachers'
       ? this.collectTeachers(rows, counts)
       : this.collectRooms(timetable.rooms ?? [], rows, counts);
@@ -72,7 +72,9 @@ export class NamesService {
       };
     };
 
-    const items = [...active].map(([key, value]) => makeRow(key, value))
+    const items = [...active]
+      .filter(([, value]) => kind !== 'teachers' || Boolean(formatTeacher(value.sourceName, options.abbreviateBen)))
+      .map(([key, value]) => makeRow(key, value))
       .sort((a, b) => naturalCompare(a.sourceName, b.sourceName));
     const unused = overrides.filter((override) => !active.has(override.key))
       .map((override) => makeRow(override.key, { sourceName: override.sourceName, sessions: 0 }))
@@ -93,19 +95,16 @@ export class NamesService {
     const inputs = this.parseItems(body, true);
     await this.dataSource.transaction(async (manager) => {
       const repository = manager.getRepository(kind === 'teachers' ? TeacherName : RoomLabel);
-      for (const item of inputs) {
-        if (!item.displayName) {
-          await repository.delete({ key: item.key });
-        } else {
-          await repository.upsert(item, ['key']);
-        }
-      }
+      const removals = inputs.filter((item) => !item.displayName).map((item) => item.key);
+      const updates = inputs.filter((item) => item.displayName);
+      if (removals.length) await repository.delete({ key: In(removals) });
+      if (updates.length) await repository.upsert(updates, ['key']);
     });
     return { ok: true, saved: inputs.length };
   }
 
   async remove(kind: NameKind, key: string) {
-    if (!key || key.length > 255 || normalizeName(key) !== key) {
+    if (!key || normalizeName(key) !== key) {
       throw new BadRequestException('Clé de nom invalide');
     }
     await this.repository(kind).delete({ key });
@@ -236,7 +235,9 @@ export class NamesService {
       for (const teacher of row.teachers.split(',')) {
         const sourceName = teacher.trim();
         const key = normalizeName(sourceName);
-        if (key && !active.has(key)) active.set(key, { sourceName, sessions: counts.get(key) ?? 0 });
+        if (key && formatTeacher(sourceName, false) && !active.has(key)) {
+          active.set(key, { sourceName, sessions: counts.get(key) ?? 0 });
+        }
       }
     }
     return active;

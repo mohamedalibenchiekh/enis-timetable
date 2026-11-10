@@ -5,6 +5,7 @@
 }
 @media (prefers-color-scheme: dark) {
   :root { --bg: #14181d; --panel: #1c2229; --ink: #e6ebf1; --muted: #93a0b0; --line: #2f3944; --accent: #5aa2e8; --accent-ink: #0b1620; --danger: #ff8a80; --ok: #6bd78a; }
+  .warning { color: #f5c542; }
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); font: 14px/1.45 system-ui, 'Segoe UI', sans-serif; }
@@ -59,10 +60,12 @@ table.grid { border-collapse: collapse; width: 100%; min-width: 760px; color: #1
 .names-search .text { margin: 0; }
 .names-modified { display: flex; gap: 6px; align-items: center; padding-bottom: 8px; }
 .names-table-wrap { overflow: auto; max-height: 60vh; }
-.names-table { width: 100%; border-collapse: collapse; }
+.names-table { width: 100%; table-layout: fixed; border-collapse: collapse; }
+.names-table th:first-child { width: 25%; }
 .names-table th, .names-table td { border-bottom: 1px solid var(--line); padding: 7px 8px; text-align: left; }
 .names-table thead th { position: sticky; top: 0; z-index: 1; background: var(--panel); }
-.names-table tbody th { font-weight: 500; max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.names-table tbody th { font-weight: 500; overflow: hidden; }
+.names-table .source-name { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .names-table .number-cell { text-align: center; width: 76px; }
 .names-input { min-width: 220px; margin: 0; }
 .reset-name { padding: 3px 9px; font-size: 18px; line-height: 1; }

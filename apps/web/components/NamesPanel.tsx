@@ -6,7 +6,7 @@ type Drafts = Record<string, string>;
 
 const draftKey = (kind: NameCategory, key: string) => `${kind}:${key}`;
 const normalizeForCompare = (value: string) =>
-  value.trim().replace(/\s+/gu, ' ').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
+  value.trim().replace(/\s+/gu, ' ').normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
 
 function readFile(file: File): Promise<string> {
   if (typeof file.text === 'function') return file.text();
@@ -22,7 +22,6 @@ export function NamesPanel({ id, onSaved }: { id: string; onSaved: () => void })
   const [teachers, setTeachers] = useState<NameList | null>(null);
   const [rooms, setRooms] = useState<NameList | null>(null);
   const [drafts, setDrafts] = useState<Drafts>({});
-  const [resetToken, setResetToken] = useState(0);
   const [status, setStatus] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -98,7 +97,6 @@ export function NamesPanel({ id, onSaved }: { id: string; onSaved: () => void })
       if (roomItems.length) await api.saveNames('rooms', roomItems);
       await reload();
       setDrafts({});
-      setResetToken((value) => value + 1);
       setStatus('Noms enregistrés');
       onSaved();
     } catch (e) {
@@ -110,7 +108,6 @@ export function NamesPanel({ id, onSaved }: { id: string; onSaved: () => void })
 
   const cancel = () => {
     setDrafts({});
-    setResetToken((value) => value + 1);
     setStatus('');
     setError('');
   };
@@ -153,8 +150,11 @@ export function NamesPanel({ id, onSaved }: { id: string; onSaved: () => void })
       const summary: NamesImportSummary = await api.importNames(JSON.parse(await readFile(file)) as unknown);
       await reload();
       setDrafts({});
-      setResetToken((value) => value + 1);
-      setStatus(`Import terminé : ${summary.added} ajouts, ${summary.updated} actualisations, ${summary.ignored} ignorés`);
+      setStatus(
+        `Import terminé : ${summary.added} ${summary.added === 1 ? 'ajout' : 'ajouts'}, ` +
+        `${summary.updated} ${summary.updated === 1 ? 'actualisation' : 'actualisations'}, ` +
+        `${summary.ignored} ${summary.ignored === 1 ? 'ignoré' : 'ignorés'}`,
+      );
       onSaved();
     } catch (e) {
       setError((e as Error).message);
@@ -199,8 +199,8 @@ export function NamesPanel({ id, onSaved }: { id: string; onSaved: () => void })
         kind="teachers"
         title="Enseignants"
         list={teachers}
+        drafts={drafts}
         modifiedKeys={modifiedKeys}
-        resetToken={resetToken}
         onDraft={onDraft}
         onDeleteUnused={deleteUnused}
       />
@@ -208,8 +208,8 @@ export function NamesPanel({ id, onSaved }: { id: string; onSaved: () => void })
         kind="rooms"
         title="Salles"
         list={rooms}
+        drafts={drafts}
         modifiedKeys={modifiedKeys}
-        resetToken={resetToken}
         onDraft={onDraft}
         onDeleteUnused={deleteUnused}
       />
@@ -226,13 +226,13 @@ export function NamesPanel({ id, onSaved }: { id: string; onSaved: () => void })
 }
 
 const NamesSection = memo(function NamesSection({
-  kind, title, list, modifiedKeys, resetToken, onDraft, onDeleteUnused,
+  kind, title, list, drafts, modifiedKeys, onDraft, onDeleteUnused,
 }: {
   kind: NameCategory;
   title: string;
   list: NameList;
+  drafts: Drafts;
   modifiedKeys: Set<string>;
-  resetToken: number;
   onDraft: (kind: NameCategory, entry: NameEntry, value: string) => void;
   onDeleteUnused: (kind: NameCategory, entry: NameEntry) => void;
 }) {
@@ -240,7 +240,8 @@ const NamesSection = memo(function NamesSection({
   const [modifiedOnly, setModifiedOnly] = useState(false);
   const rowsRef = useRef<HTMLDivElement>(null);
   const visible = list.items.filter((entry) => {
-    const matchesSearch = `${entry.sourceName} ${entry.autoName} ${entry.displayName ?? ''}`
+    const draftValue = drafts[draftKey(kind, entry.key)];
+    const matchesSearch = `${entry.sourceName} ${entry.autoName} ${draftValue ?? entry.displayName ?? ''}`
       .toLocaleLowerCase('fr').includes(search.toLocaleLowerCase('fr'));
     return matchesSearch && (!modifiedOnly || entry.displayName !== null || modifiedKeys.has(draftKey(kind, entry.key)));
   });
@@ -285,7 +286,7 @@ const NamesSection = memo(function NamesSection({
                 kind={kind}
                 entry={entry}
                 rowIndex={index}
-                resetToken={resetToken}
+                value={drafts[draftKey(kind, entry.key)] ?? entry.displayName ?? ''}
                 onDraft={onDraft}
                 onEnter={focusNext}
               />
@@ -312,28 +313,23 @@ const NamesSection = memo(function NamesSection({
 });
 
 const NameEntryRow = memo(function NameEntryRow({
-  kind, entry, rowIndex, resetToken, onDraft, onEnter,
+  kind, entry, rowIndex, value, onDraft, onEnter,
 }: {
   kind: NameCategory;
   entry: NameEntry;
   rowIndex: number;
-  resetToken: number;
+  value: string;
   onDraft: (kind: NameCategory, entry: NameEntry, value: string) => void;
   onEnter: (index: number) => void;
 }) {
   const savedValue = entry.displayName ?? '';
-  const [value, setValue] = useState(savedValue);
-
-  useEffect(() => { setValue(savedValue); }, [savedValue, resetToken]);
-
   const change = (next: string) => {
-    setValue(next);
     onDraft(kind, entry, next);
   };
 
   return (
     <tr>
-      <th scope="row" title={entry.sourceName}>{entry.sourceName}</th>
+      <th scope="row" title={entry.sourceName}><span className="source-name">{entry.sourceName}</span></th>
       <td>
         <input
           className="text names-input"
@@ -348,7 +344,6 @@ const NameEntryRow = memo(function NameEntryRow({
               onEnter(rowIndex);
             } else if (event.key === 'Escape') {
               event.preventDefault();
-              setValue(savedValue);
               onDraft(kind, entry, savedValue);
             }
           }}

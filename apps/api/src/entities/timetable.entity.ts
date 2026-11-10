@@ -49,24 +49,19 @@ export class Setting {
   @Column('jsonb') value: any;
 }
 
-@Entity('teacher_names')
-@Index(['key'], { unique: true })
-export class TeacherName {
+abstract class NameOverride {
   @PrimaryGeneratedColumn() id: number;
-  @Column({ length: 255 }) key: string;
+  @Column('text') key: string;
   @Column({ length: 255 }) sourceName: string;
   @Column({ length: 60 }) displayName: string;
   @CreateDateColumn() createdAt: Date;
   @UpdateDateColumn() updatedAt: Date;
 }
 
+@Entity('teacher_names')
+@Index(['key'], { unique: true })
+export class TeacherName extends NameOverride {}
+
 @Entity('room_labels')
 @Index(['key'], { unique: true })
-export class RoomLabel {
-  @PrimaryGeneratedColumn() id: number;
-  @Column({ length: 255 }) key: string;
-  @Column({ length: 255 }) sourceName: string;
-  @Column({ length: 60 }) displayName: string;
-  @CreateDateColumn() createdAt: Date;
-  @UpdateDateColumn() updatedAt: Date;
-}
+export class RoomLabel extends NameOverride {}

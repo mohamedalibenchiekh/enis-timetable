@@ -14,7 +14,7 @@ async function bootstrap() {
     logger: ['error', 'warn', 'log'],
     bodyParser: false,
   });
-  app.useBodyParser('json', { limit: '1mb' });
+  app.useBodyParser('json', { limit: '2mb' });
   app.useBodyParser('urlencoded', { extended: true, limit: '1mb' });
   app.setGlobalPrefix('api');
   // Local desktop app: only reachable from this machine.

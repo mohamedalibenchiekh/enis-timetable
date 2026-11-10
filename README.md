@@ -45,7 +45,7 @@ npm run dev:web    # http://localhost:3000   (Next.js, proxies /api to :4000)
 
 ## Noms et libellés
 
-Open the **Noms** tab of an imported timetable to correct teacher names and room labels without changing the imported HTML or stored sessions. The corrections are global to this database, so they also apply to other timetables and remain available for the next semester. They are stored in the database and survive application updates; the app's pre-update database backup covers them.
+Open the **Noms** tab of an imported timetable to correct teacher names and room labels without changing the imported HTML or stored sessions. The corrections are global to this database, so they also apply to other timetables and remain available for the next semester. They are stored in the database and survive application updates. The app's pre-update backup includes the bundled local database; if you configured an external database, arrange backups for that database separately.
 
 Enter the wording you want to see in Word and save the changes. A saved teacher or room override takes precedence over automatic formatting and is used exactly as entered (after trimming outer whitespace). Without an override, the existing formatting still applies, including `BEN` → `B`, title casing, and labels such as `A02` → `A 0-2`. Frequency suffixes such as `1/15` continue to be added after a teacher's displayed name. Room bloc membership always uses the source room name, not its corrected label.
 

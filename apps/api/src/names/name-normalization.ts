@@ -3,7 +3,7 @@ export function normalizeName(value: string): string {
     .replace(/[\s\u00a0]+/gu, ' ')
     .trim()
     .normalize('NFD')
-    .replace(/\p{Diacritic}/gu, '')
+    .replace(/\p{M}/gu, '')
     .toLowerCase();
 }
 
