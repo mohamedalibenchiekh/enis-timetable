@@ -135,14 +135,14 @@ The Monday `DayGrid` golden snapshot is in `apps/api/test/__snapshots__/docx.spe
 
 ### Cutting a release
 
-1. Create a version branch from the latest `main` and update the desktop package version. Replace `1.0.2` with the next unused version:
+1. Create a version branch from the latest `main` and update the desktop package version. Replace `1.0.3` with the next unused version:
    ```bash
    git switch main && git pull
-   git switch -c chore/release-1-0-2
-   npm version 1.0.2 -w apps/desktop --no-git-tag-version
+   git switch -c chore/release-1-0-3
+   npm version 1.0.3 -w apps/desktop --no-git-tag-version
    git add apps/desktop/package.json package-lock.json
-   git commit -m "chore: bump desktop version to 1.0.2"
-   git push -u origin chore/release-1-0-2
+   git commit -m "chore: bump desktop version to 1.0.3"
+   git push -u origin chore/release-1-0-3
    ```
 
 2. Open and merge the pull request to `main`. Confirm the desktop package version equals the new tag without the leading `v`.
@@ -150,13 +150,13 @@ The Monday `DayGrid` golden snapshot is in `apps/api/test/__snapshots__/docx.spe
 3. Tag the merged commit and push only the new tag:
    ```bash
    git switch main && git pull
-   git tag v1.0.2
-   git push origin v1.0.2
+   git tag v1.0.3
+   git push origin v1.0.3
    ```
 
 Never reuse a release tag, edit `latest*.yml` by hand, or create a tag whose version differs from `apps/desktop/package.json`. The workflow keeps `--publish never` in the build jobs and attaches the generated installer assets, update metadata, and blockmaps to one **published** (not draft or prerelease) GitHub Release. Electron-updater only checks published releases.
 
-The generated asset names contain no spaces (for example `ENISo-Setup-1.0.2.exe`), so the URLs in `latest.yml`, `latest-linux.yml`, and `latest-mac.yml` match uploaded names. Updates are enabled only for Windows NSIS and Linux AppImage. On macOS and other unsupported platforms, a manual check offers to open the Releases page; automatic checks do nothing. macOS auto-install is not supported because these builds are unsigned.
+The generated asset names contain no spaces (for example `ENISo-Setup-1.0.3.exe`), so the URLs in `latest.yml`, `latest-linux.yml`, and `latest-mac.yml` match uploaded names. Updates are enabled only for Windows NSIS and Linux AppImage. On macOS and other unsupported platforms, a manual check offers to open the Releases page; automatic checks do nothing. macOS auto-install is not supported because these builds are unsigned.
 
 ### What users see and data safety
 
