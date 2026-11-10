@@ -43,6 +43,14 @@ npm run dev:web    # http://localhost:3000   (Next.js, proxies /api to :4000)
 3. **Télécharger Lundi.docx** (one day), **Tous les jours (.zip)**, or **Enregistrer dans un dossier…** (desktop only: writes the 6 files straight into a folder you choose).
 4. *Options du document Word*: abbreviate `BEN` → `B`, show `1/15` for bi-weekly sessions, list free rooms, and define the blocs (regex per bloc).
 
+## Noms et libellés
+
+Open the **Noms** tab of an imported timetable to correct teacher names and room labels without changing the imported HTML or stored sessions. The corrections are global to this database, so they also apply to other timetables and remain available for the next semester. They are stored in the database and survive application updates. The app's pre-update backup includes the bundled local database; if you configured an external database, arrange backups for that database separately.
+
+Enter the wording you want to see in Word and save the changes. A saved teacher or room override takes precedence over automatic formatting and is used exactly as entered (after trimming outer whitespace). Without an override, the existing formatting still applies, including `BEN` → `B`, title casing, and labels such as `A02` → `A 0-2`. Frequency suffixes such as `1/15` continue to be added after a teacher's displayed name. Room bloc membership always uses the source room name, not its corrected label.
+
+Use **Exporter les noms (.json)** to keep a copy of the overrides or **Importer des noms…** to merge a previously exported file. Importing does not execute file contents; invalid files are rejected.
+
 ## 4. How the HTML is read
 * Every FET table holds one room / teacher / group; cells may be `rowspan` (a 3-hour session covering two slots) or a *detailed* split cell (parallel TP groups).
   The parser resolves the real column of each cell, then keeps only the activities that belong to the table's owner.
@@ -70,7 +78,10 @@ Notes
 
 ## REST API (used by the UI)
 `POST /api/timetables` (multipart `files`) · `GET /api/timetables` · `GET /api/timetables/:id/days/:day/preview` · `GET …/days/:day/docx` ·
-`GET …/export.zip` · `POST …/export-to-folder {dir}` · `GET|PUT /api/settings/export`. The server only listens on `127.0.0.1`.
+`GET …/export.zip` · `POST …/export-to-folder {dir}` · `GET|PUT /api/settings/export` ·
+`GET /api/names/teachers|rooms?timetableId=…` · `PUT /api/names/teachers|rooms` ·
+`DELETE /api/names/teachers|rooms/:key` · `GET /api/names/export` · `POST /api/names/import`.
+The server only listens on `127.0.0.1`.
 
 ## Testing
 

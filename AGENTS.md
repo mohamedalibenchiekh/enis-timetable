@@ -21,6 +21,7 @@ apps/
   desktop/   Electron shell: manages embedded PostgreSQL, spawns API child process, native dialogs
 ```
 Data flow: FET HTML → `html-parser.ts` → PostgreSQL `sessions` table → `grid-builder.ts` → `docx-builder.ts` → `.docx`.
+Global name overrides are stored separately in `teacher_names` and `room_labels`; imported session rows are never edited.
 
 ## Commands
 Run all commands from repository root unless scoped with `-w`.
@@ -39,6 +40,7 @@ Run all commands from repository root unless scoped with `-w`.
 - **TypeScript**: Strict mode enabled across all apps. Do not use unchecked `any`.
 - **Language**: French for all UI strings and generated Word headers; English for code, identifiers, and comments.
 - **Modularity**: Keep `apps/api/src/parser` and `apps/api/src/export` as small, pure functions with no side effects.
+- **Name formatting**: Formatting happens in `apps/api/src/export` only; name overrides are applied to grids via the pure `NameResolver`. Keep parser output and the `sessions` table independent of display corrections.
 - **Controllers**: Keep controllers lean (HTTP/IPC routing, validation pipes, multipart handling only); place business logic in services.
 - **Security**: Bind API and database servers strictly to `127.0.0.1` (including `docker-compose.yml` and `embedded-postgres`). Connecting to an externally managed remote database via `DATABASE_URL` is the only permitted exception and requires explicit user configuration.
 
@@ -53,6 +55,7 @@ Run all commands from repository root unless scoped with `-w`.
 - **Time slot overrides**: Header labels support per-day overrides (e.g., `(V: 14:00-15:30)` for Vendredi, `(M/S: 12:00-13:30)` for Mercredi/Samedi). Empty lunch slots display configurable `pauseLabel` (default: `Pause`).
 - **Room formatting**: Standardize room labels: `A02` → `A 0-2`, `B12 (Labo Anglais)` → `B 1-2`, `Amphi` → `Amphi` (strip notes in parentheses, insert space and hyphen between block letter and digits).
 - **Settings table**: User preferences (`blocs` regex list, `abbreviateBen` [BEN → B], `showFrequency` [1/15], `includeEmptyRooms`) persist in PostgreSQL `settings` table (`key = 'export'`).
+- **Name override tables**: `teacher_names` and `room_labels` store globally scoped normalized keys, the source name associated with each override, and display names. Formatting happens in `apps/api/src/export` only; overrides are applied through `NameResolver`. They persist across timetables and app updates; never write overrides into `sessions`.
 
 ## Packaging Gotchas
 - **ASAR disabled (`asar: false`)**: PostgreSQL binaries (`embedded-postgres`) must remain raw executable files on disk; bundling into ASAR breaks execution.

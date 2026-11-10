@@ -1,6 +1,10 @@
 import { ParsedSession, SlotLabel } from '../parser/types.js';
 import { clean } from '../parser/html-parser.js';
 import { ExportOptions } from './options.js';
+import { createNameResolver, NameResolver } from './name-resolver.js';
+import { formatTeacher, roomLabel } from './formatters.js';
+
+export { formatTeacher, roomLabel } from './formatters.js';
 
 export interface TimetableMeta {
   days: string[];
@@ -29,24 +33,6 @@ export interface DayGrid {
   sessionCount: number;
 }
 
-const titleCase = (w: string) =>
-  w.toLowerCase().replace(/(^|[-'’])(\p{L})/gu, (_, sep, ch) => sep + ch.toUpperCase());
-
-export function formatTeacher(name: string, abbreviateBen: boolean): string {
-  const s = clean(name);
-  if (!s || s === '-') return '';
-  const words = s.split(' ').map(titleCase);
-  if (abbreviateBen && words.length >= 3 && words[0] === 'Ben') words[0] = 'B';
-  return words.join(' ');
-}
-
-/** "A02" → "A 0-2", "B12 (Labo Anglais)" → "B 1-2", "Amphi" → "Amphi" */
-export function roomLabel(room: string): string {
-  const name = clean(room).replace(/\s*\(.*\)\s*$/, '');
-  const m = name.match(/^([A-Za-z])(\d)(\d)$/);
-  return m ? `${m[1].toUpperCase()} ${m[2]}-${m[3]}` : name;
-}
-
 const naturalCmp = (a: string, b: string) => a.localeCompare(b, 'fr', { numeric: true, sensitivity: 'base' });
 
 export function buildDayGrid(
@@ -54,6 +40,7 @@ export function buildDayGrid(
   meta: TimetableMeta,
   day: number,
   options: ExportOptions,
+  nameResolver: NameResolver = createNameResolver(new Map(), new Map()),
 ): DayGrid {
   const nSlots = meta.slots.length;
   const daySessions = sessions.filter((s) => s.day === day && s.room);
@@ -65,7 +52,7 @@ export function buildDayGrid(
     const k = `${key(s.room)}|${s.slot}`;
     const list = cellMap.get(k) ?? [];
     for (const t of s.teachers.split(',')) {
-      const name = formatTeacher(t, options.abbreviateBen);
+      const name = nameResolver.teacher(t, options.abbreviateBen);
       if (!name) continue;
       const text = options.showFrequency && s.frequency ? `${name} ${s.frequency}` : name;
       if (!list.includes(text)) list.push(text);
@@ -97,7 +84,7 @@ export function buildDayGrid(
     const rows: RoomRow[] = rooms
       .map((room) => ({
         room,
-        label: roomLabel(room),
+        label: nameResolver.room(room),
         cells: Array.from({ length: nSlots }, (_, i) => (cellMap.get(`${key(room)}|${i}`) ?? []).join(' / ')),
       }))
       .filter((r) => options.includeEmptyRooms || r.cells.some(Boolean));

@@ -1,4 +1,4 @@
-import { Column, CreateDateColumn, Entity, Index, ManyToOne, OneToMany, PrimaryColumn, PrimaryGeneratedColumn } from 'typeorm';
+import { Column, CreateDateColumn, Entity, Index, ManyToOne, OneToMany, PrimaryColumn, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm';
 import { SlotLabel, SourceKind } from '../parser/types.js';
 
 export interface SourceFileInfo {
@@ -48,3 +48,20 @@ export class Setting {
   @PrimaryColumn() key: string;
   @Column('jsonb') value: any;
 }
+
+abstract class NameOverride {
+  @PrimaryGeneratedColumn() id: number;
+  @Column('text') key: string;
+  @Column({ length: 255 }) sourceName: string;
+  @Column({ length: 60 }) displayName: string;
+  @CreateDateColumn() createdAt: Date;
+  @UpdateDateColumn() updatedAt: Date;
+}
+
+@Entity('teacher_names')
+@Index(['key'], { unique: true })
+export class TeacherName extends NameOverride {}
+
+@Entity('room_labels')
+@Index(['key'], { unique: true })
+export class RoomLabel extends NameOverride {}

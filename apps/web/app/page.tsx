@@ -5,6 +5,7 @@ import { ImportPanel } from '@/components/ImportPanel';
 import { DayPreview } from '@/components/DayPreview';
 import { OptionsPanel } from '@/components/OptionsPanel';
 import { UpdateBanner } from '@/components/UpdateBanner';
+import { NamesPanel } from '@/components/NamesPanel';
 import type { UpdateStatus } from '@/lib/api';
 
 function errorMessage(error: unknown): string {
@@ -15,6 +16,7 @@ export default function Home() {
   const [items, setItems] = useState<Timetable[] | null>(null);
   const [selId, setSelId] = useState<string | null>(null);
   const [day, setDay] = useState(0);
+  const [activeTab, setActiveTab] = useState<'schedule' | 'names'>('schedule');
   const [importMode, setImportMode] = useState<null | 'new' | 'add'>(null);
   const [showOptions, setShowOptions] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -74,6 +76,7 @@ export default function Home() {
     if (!sel || !confirm(`Supprimer « ${sel.name} » ?`)) return;
     await api.remove(sel.id);
     setSelId(null);
+    setActiveTab('schedule');
     reload();
   };
 
@@ -88,10 +91,10 @@ export default function Home() {
     <div className="app">
       <aside className="side">
         <h1>Emplois du temps</h1>
-        <button className="primary wide" onClick={() => setImportMode('new')}>+ Importer</button>
+        <button className="primary wide" onClick={() => { setImportMode('new'); setActiveTab('schedule'); }}>+ Importer</button>
         <ul className="tlist">
           {items?.map((t) => (
-            <li key={t.id} className={t.id === selId ? 'active' : ''} onClick={() => { setSelId(t.id); setImportMode(null); setStatus(''); }}>
+            <li key={t.id} className={t.id === selId ? 'active' : ''} onClick={() => { setSelId(t.id); setImportMode(null); setStatus(''); setActiveTab('schedule'); }}>
               <strong>{t.name}</strong>
               <span className="muted small">{new Date(t.createdAt).toLocaleDateString('fr-FR')}</span>
             </li>
@@ -112,7 +115,7 @@ export default function Home() {
         {items && (importMode || !sel) && (
           <ImportPanel
             timetable={importMode === 'add' ? sel ?? undefined : undefined}
-            onDone={(t) => { setImportMode(null); setRefreshKey((k) => k + 1); reload(t.id); }}
+            onDone={(t) => { setImportMode(null); setActiveTab('schedule'); setRefreshKey((k) => k + 1); reload(t.id); }}
           />
         )}
 
@@ -137,17 +140,27 @@ export default function Home() {
             </div>
             {status && <p className="ok">{status}</p>}
 
-            <div className="tabs">
-              {sel.days.map((d, i) => <button key={d} className={i === day ? 'on' : ''} onClick={() => setDay(i)}>{d}</button>)}
+            <div className="tabs view-tabs" role="group" aria-label="Vue de l’emploi du temps">
+              <button aria-pressed={activeTab === 'schedule'} className={activeTab === 'schedule' ? 'on' : ''} onClick={() => setActiveTab('schedule')}>Emploi du temps</button>
+              <button aria-pressed={activeTab === 'names'} className={activeTab === 'names' ? 'on' : ''} onClick={() => setActiveTab('names')}>Noms</button>
             </div>
-            <DayPreview id={sel.id} day={day} refreshKey={refreshKey} />
+            {activeTab === 'schedule' ? (
+              <>
+                <div className="tabs day-tabs" role="group" aria-label="Jours">
+                  {sel.days.map((d, i) => <button key={d} aria-pressed={i === day} className={i === day ? 'on' : ''} onClick={() => setDay(i)}>{d}</button>)}
+                </div>
+                <DayPreview id={sel.id} day={day} refreshKey={refreshKey} />
 
-            <div className="foot">
-              <button className="link" onClick={() => setShowOptions(!showOptions)}>{showOptions ? '▾' : '▸'} Options du document Word</button>
-              <button className="link" onClick={() => setImportMode('add')}>Ajouter / remplacer des fichiers</button>
-              <button className="link danger" onClick={remove}>Supprimer cet emploi du temps</button>
-            </div>
-            {showOptions && <OptionsPanel onSaved={() => setRefreshKey((k) => k + 1)} />}
+                <div className="foot">
+                  <button className="link" onClick={() => setShowOptions(!showOptions)}>{showOptions ? '▾' : '▸'} Options du document Word</button>
+                  <button className="link" onClick={() => setImportMode('add')}>Ajouter / remplacer des fichiers</button>
+                  <button className="link danger" onClick={remove}>Supprimer cet emploi du temps</button>
+                </div>
+                {showOptions && <OptionsPanel onSaved={() => setRefreshKey((k) => k + 1)} />}
+              </>
+            ) : (
+              <NamesPanel id={sel.id} onSaved={() => setRefreshKey((key) => key + 1)} />
+            )}
           </>
         )}
       </main>
