@@ -14,6 +14,21 @@ export interface BlocConfig { title: string; patterns: string[] }
 export interface ExportOptions {
   blocs: BlocConfig[]; abbreviateBen: boolean; showFrequency: boolean; pauseLabel: string; includeEmptyRooms: boolean;
 }
+export interface NameEntry {
+  key: string;
+  sourceName: string;
+  autoName: string;
+  displayName: string | null;
+  sessions: number;
+  bloc?: string | null;
+}
+export interface NameList { items: NameEntry[]; unused: NameEntry[] }
+export type NameCategory = 'teachers' | 'rooms';
+export interface NamesImportSummary {
+  added: number;
+  updated: number;
+  ignored: number;
+}
 
 export type UpdateStatus =
   | { status: 'checking' }
@@ -69,6 +84,19 @@ export const api = {
   getOptions: () => req<ExportOptions>('/api/settings/export'),
   saveOptions: (o: ExportOptions) =>
     req<ExportOptions>('/api/settings/export', { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify(o) }),
+  getNames: (kind: NameCategory, timetableId: string) =>
+    req<NameList>(`/api/names/${kind}?timetableId=${encodeURIComponent(timetableId)}`),
+  saveNames: (kind: NameCategory, items: { sourceName: string; displayName: string }[]) =>
+    req<{ ok: true; saved: number }>(`/api/names/${kind}`, {
+      method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ items }),
+    }),
+  deleteName: (kind: NameCategory, key: string) =>
+    req<{ ok: true }>(`/api/names/${kind}/${encodeURIComponent(key)}`, { method: 'DELETE' }),
+  exportNames: () => req<{ version: number; teachers: unknown[]; rooms: unknown[] }>('/api/names/export'),
+  importNames: (data: unknown) =>
+    req<NamesImportSummary>('/api/names/import', {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(data),
+    }),
 };
 
 export function guessKind(name: string): SourceKind | null {

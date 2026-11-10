@@ -3,6 +3,8 @@ import { buildDayGrid, formatTeacher, roomLabel } from '../src/export/grid-build
 import { DEFAULT_OPTIONS, mergeOptions } from '../src/export/options';
 import { parseSlotLabel } from '../src/parser/html-parser';
 import { ParsedSession } from '../src/parser/types';
+import { createNameResolver } from '../src/export/name-resolver';
+import { normalizeName, validateDisplayName } from '../src/names/name-normalization';
 
 const session = (fields: Partial<ParsedSession> = {}): Pick<ParsedSession, 'day' | 'slot' | 'room' | 'teachers' | 'frequency'> => ({
   day: 0, slot: 0, room: 'A01', teachers: 'BEN RHOUMA Asma', frequency: '', ...fields,
@@ -34,6 +36,49 @@ describe('mergeOptions', () => {
   it('uses non-empty bloc overrides', () => {
     const blocs = [{ title: 'BLOC TEST', patterns: ['^X'] }];
     expect(mergeOptions({ blocs }).blocs).toEqual(blocs);
+  });
+});
+
+describe('name overrides', () => {
+  it('normalizes accents, whitespace, non-breaking spaces, and case for keys', () => {
+    expect(normalizeName('  ÉLODIE\u00a0  D’Amour  ')).toBe('elodie d’amour');
+  });
+
+  it('treats a blank display value as override removal and trims valid display values', () => {
+    expect(validateDisplayName('   ', 1)).toBeNull();
+    expect(validateDisplayName('  Hanafi Latifa  ', 1)).toBe('Hanafi Latifa');
+  });
+
+  it('uses overrides verbatim before automatic formatting and applies frequency afterward', () => {
+    const resolver = createNameResolver(
+      new Map([[normalizeName('BEN RHOUMA Asma'), 'Hanafi Latifa']]),
+      new Map([[normalizeName('Amphi'), 'Amphi 1']]),
+    );
+    const grid = buildDayGrid(
+      [session({ teachers: 'BEN RHOUMA Asma', room: 'Amphi', frequency: '1/15' })],
+      meta,
+      0,
+      DEFAULT_OPTIONS,
+      resolver,
+    );
+    const row = grid.blocs.flatMap((bloc) => bloc.rows).find((item) => item.room === 'Amphi');
+    expect(row?.label).toBe('Amphi 1');
+    expect(row?.cells[0]).toBe('Hanafi Latifa 1/15');
+  });
+
+  it('resolves comma-separated teachers independently and preserves automatic formatting for others', () => {
+    const resolver = createNameResolver(
+      new Map([[normalizeName('BEN RHOUMA Asma'), 'Ben Rhouma Asma']]),
+      new Map(),
+    );
+    const grid = buildDayGrid(
+      [session({ teachers: 'BEN RHOUMA Asma,Prof Dupont' })],
+      meta,
+      0,
+      DEFAULT_OPTIONS,
+      resolver,
+    );
+    expect(grid.blocs[0].rows[0].cells[0]).toBe('Ben Rhouma Asma / Prof Dupont');
   });
 });
 

@@ -10,6 +10,7 @@ import { ParsedFile, SourceKind } from '../parser/types.js';
 import { buildDayGrid, DayGrid } from '../export/grid-builder.js';
 import { buildDayDocx } from '../export/docx-builder.js';
 import { SettingsService } from '../settings/settings.service.js';
+import { NamesService } from '../names/names.service.js';
 
 const PRIORITY: SourceKind[] = ['rooms', 'teachers', 'groups'];
 
@@ -25,6 +26,7 @@ export class TimetablesService {
     @InjectRepository(SessionEntity) private sessions: Repository<SessionEntity>,
     private ds: DataSource,
     private settings: SettingsService,
+    private names: NamesService,
   ) {}
 
   list() {
@@ -102,7 +104,8 @@ export class TimetablesService {
     const source = this.pickSource(t);
     const rows = await this.sessions.find({ where: { timetableId: id, source, day } });
     const options = await this.settings.getExportOptions();
-    return buildDayGrid(rows, { days: t.days, slots: t.slots, rooms: t.rooms }, day, options);
+    const nameResolver = await this.names.getResolver();
+    return buildDayGrid(rows, { days: t.days, slots: t.slots, rooms: t.rooms }, day, options, nameResolver);
   }
 
   async dayDocx(id: string, day: number) {

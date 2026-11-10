@@ -27,10 +27,24 @@ test('imports fixtures, previews a day, downloads Word, and updates an export op
     await expect(page.getByRole('heading', { name: 'Fixture test data' })).toBeVisible();
     await expect(page.getByText('Prof Dupont 1/15')).toBeVisible();
 
+    await page.getByRole('button', { name: 'Noms' }).click();
+    await page.getByRole('textbox', { name: 'Affiché dans Word pour Prof Dupont' }).fill('Hanafi Latifa');
+    await page.getByRole('textbox', { name: 'Affiché dans Word pour A01' }).fill('Salle 01');
+    await page.emulateMedia({ colorScheme: 'light' });
+    await test.info().attach('noms-light.png', { body: await page.screenshot({ fullPage: true }), contentType: 'image/png' });
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await test.info().attach('noms-dark.png', { body: await page.screenshot({ fullPage: true }), contentType: 'image/png' });
+    await page.emulateMedia({ colorScheme: 'light' });
+    await page.getByRole('button', { name: 'Enregistrer' }).click();
+    await expect(page.getByText('Noms enregistrés')).toBeVisible();
+
+    await page.getByRole('button', { name: 'Emploi du temps' }).click();
+    await expect(page.getByText('Hanafi Latifa 1/15')).toBeVisible();
+    await expect(page.getByRole('row', { name: /Salle 01/ })).toBeVisible();
     await page.getByRole('button', { name: 'Mercredi' }).click();
     await expect(page.getByRole('columnheader', { name: 'Mercredi' })).toBeVisible();
     await page.getByRole('button', { name: 'Lundi' }).click();
-    await expect(page.getByText('Prof Dupont')).toBeVisible();
+    await expect(page.getByText('Hanafi Latifa')).toBeVisible();
 
     const downloadWait = page.waitForEvent('download');
     await page.getByRole('link', { name: 'Télécharger Lundi.docx' }).click();
@@ -40,12 +54,34 @@ test('imports fixtures, previews a day, downloads Word, and updates an export op
     await download.saveAs(file);
     const zip = await JSZip.loadAsync(fs.readFileSync(file));
     const xml = await zip.file('word/document.xml')?.async('string');
-    expect(xml).toContain('Prof Dupont 1/15');
+    expect(xml).toContain('Hanafi Latifa 1/15');
+    expect(xml).toContain('Salle 01');
+    expect(xml).not.toContain('Prof Dupont');
 
     await page.getByRole('button', { name: /Options du document Word/ }).click();
     await page.getByLabel(/Afficher « 1\/15 »/).uncheck();
     await page.getByRole('button', { name: 'Enregistrer' }).click();
-    await expect(page.getByText('Prof Dupont', { exact: true })).toBeVisible();
+    await expect(page.getByText('Hanafi Latifa', { exact: true })).toBeVisible();
+
+    await page.getByRole('button', { name: 'Noms' }).click();
+    await page.getByRole('button', { name: 'Réinitialiser Prof Dupont' }).click();
+    await page.getByRole('button', { name: 'Réinitialiser A01' }).click();
+    await page.getByRole('button', { name: 'Enregistrer' }).click();
+    await expect(page.getByText('Noms enregistrés')).toBeVisible();
+    await page.getByRole('button', { name: 'Emploi du temps' }).click();
+    await expect(page.getByText('Prof Dupont')).toBeVisible();
+    await expect(page.getByRole('row', { name: /A 0-1/ })).toBeVisible();
+
+    const resetDownloadWait = page.waitForEvent('download');
+    await page.getByRole('link', { name: 'Télécharger Lundi.docx' }).click();
+    const resetDownload = await resetDownloadWait;
+    const resetFile = path.join(tempDir, resetDownload.suggestedFilename());
+    await resetDownload.saveAs(resetFile);
+    const resetZip = await JSZip.loadAsync(fs.readFileSync(resetFile));
+    const resetXml = await resetZip.file('word/document.xml')?.async('string');
+    expect(resetXml).toContain('Prof Dupont');
+    expect(resetXml).toContain('A 0-1');
+    expect(resetXml).not.toContain('Hanafi Latifa');
   } finally {
     if (timetableId) await page.request.delete(`/api/timetables/${timetableId}`);
     await page.request.put('/api/settings/export', { data: originalOptions });

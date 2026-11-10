@@ -67,7 +67,7 @@ describe('API integration (PostgreSQL)', () => {
 
   beforeEach(async () => {
     if (!databaseAvailable) return;
-    await dataSource?.query('TRUNCATE TABLE sessions, timetables, settings RESTART IDENTITY CASCADE');
+    await dataSource?.query('TRUNCATE TABLE sessions, timetables, settings, teacher_names, room_labels RESTART IDENTITY CASCADE');
     timetableId = '';
   });
 
@@ -166,5 +166,84 @@ describe('API integration (PostgreSQL)', () => {
     const preview = await request(app!.getHttpServer()).get(`/api/timetables/${timetable.id}/days/0/preview`).expect(200);
     expect(JSON.stringify(preview.body)).toContain('Prof Dupont');
     expect(JSON.stringify(preview.body)).not.toContain('1/15');
+  });
+
+  databaseTest('lists teacher and room names with counts, blocs, and unused overrides', async () => {
+    const timetable = await createTimetable();
+    await request(app!.getHttpServer()).put('/api/names/teachers').send({
+      items: [{ sourceName: 'Ancien Prof', displayName: 'Professeur ancien' }],
+    }).expect(200);
+    const teachers = await request(app!.getHttpServer())
+      .get(`/api/names/teachers?timetableId=${timetable.id}`).expect(200);
+    expect(teachers.body.items.some((item: { sourceName: string }) => item.sourceName === 'Prof Dupont')).toBe(true);
+    expect(teachers.body.unused.map((item: { sourceName: string }) => item.sourceName)).toContain('Ancien Prof');
+    const rooms = await request(app!.getHttpServer())
+      .get(`/api/names/rooms?timetableId=${timetable.id}`).expect(200);
+    expect(rooms.body.items.find((item: { sourceName: string }) => item.sourceName === 'A01').bloc).toBe('BLOC « A »');
+  });
+
+  databaseTest('rejects a bulk name update atomically when one row is invalid', async () => {
+    await createTimetable();
+    const invalid = await request(app!.getHttpServer()).put('/api/names/teachers').send({
+      items: [
+        { sourceName: 'Prof Dupont', displayName: 'Dupont Jean' },
+        { sourceName: 'Prof Benali', displayName: 'x'.repeat(61) },
+      ],
+    }).expect(400);
+    expect(invalid.body.message).toContain('Ligne 2');
+    const exported = await request(app!.getHttpServer()).get('/api/names/export').expect(200);
+    expect(exported.body.teachers).toHaveLength(0);
+  });
+
+  databaseTest('applies teacher overrides to DOCX and restores automatic formatting after delete', async () => {
+    const timetable = await createTimetable();
+    await request(app!.getHttpServer()).put('/api/names/teachers').send({
+      items: [{ sourceName: 'Prof Dupont', displayName: 'Hanafi Latifa' }],
+    }).expect(200);
+    const download = () => request(app!.getHttpServer())
+      .get(`/api/timetables/${timetable.id}/days/0/docx`)
+      .buffer(true)
+      .parse((response, callback) => {
+        const chunks: Buffer[] = [];
+        response.on('data', (chunk: Buffer) => chunks.push(chunk));
+        response.on('end', () => callback(null, Buffer.concat(chunks)));
+      })
+      .expect(200);
+    const changed = await JSZip.loadAsync((await download()).body);
+    const changedXml = await changed.file('word/document.xml')?.async('string');
+    expect(changedXml).toContain('Hanafi Latifa');
+    expect(changedXml).not.toContain('Prof Dupont');
+
+    await request(app!.getHttpServer()).put('/api/names/teachers').send({
+      items: [{ sourceName: 'Prof Dupont', displayName: '' }],
+    }).expect(200);
+    const emptyReset = await JSZip.loadAsync((await download()).body);
+    const emptyResetXml = await emptyReset.file('word/document.xml')?.async('string');
+    expect(emptyResetXml).toContain('Prof Dupont');
+    expect(emptyResetXml).not.toContain('Hanafi Latifa');
+
+    await request(app!.getHttpServer()).put('/api/names/teachers').send({
+      items: [{ sourceName: 'Prof Dupont', displayName: 'Hanafi Latifa' }],
+    }).expect(200);
+    await request(app!.getHttpServer()).delete('/api/names/teachers/prof%20dupont').expect(200);
+    const restored = await JSZip.loadAsync((await download()).body);
+    const restoredXml = await restored.file('word/document.xml')?.async('string');
+    expect(restoredXml).toContain('Prof Dupont');
+    expect(restoredXml).not.toContain('Hanafi Latifa');
+  });
+
+  databaseTest('exports and imports name overrides and rejects malformed import files', async () => {
+    await request(app!.getHttpServer()).put('/api/names/teachers').send({
+      items: [{ sourceName: 'Prof Dupont', displayName: 'Jean Dupont' }],
+    }).expect(200);
+    await request(app!.getHttpServer()).put('/api/names/rooms').send({
+      items: [{ sourceName: 'A01', displayName: 'Salle 01' }],
+    }).expect(200);
+    const exported = await request(app!.getHttpServer()).get('/api/names/export').expect(200);
+    await request(app!.getHttpServer()).delete('/api/names/teachers/prof%20dupont').expect(200);
+    await request(app!.getHttpServer()).delete('/api/names/rooms/a01').expect(200);
+    const imported = await request(app!.getHttpServer()).post('/api/names/import').send(exported.body).expect(201);
+    expect(imported.body).toMatchObject({ added: 2, updated: 0, ignored: 0 });
+    await request(app!.getHttpServer()).post('/api/names/import').send({ version: 2, teachers: [], rooms: [] }).expect(400);
   });
 });

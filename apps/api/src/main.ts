@@ -10,7 +10,12 @@ import { AppModule } from './app.module.js';
 try { process.loadEnvFile(path.join(process.cwd(), '.env')); } catch { /* no .env */ }
 
 async function bootstrap() {
-  const app = await NestFactory.create<NestExpressApplication>(AppModule, { logger: ['error', 'warn', 'log'] });
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    logger: ['error', 'warn', 'log'],
+    bodyParser: false,
+  });
+  app.useBodyParser('json', { limit: '1mb' });
+  app.useBodyParser('urlencoded', { extended: true, limit: '1mb' });
   app.setGlobalPrefix('api');
   // Local desktop app: only reachable from this machine.
   app.enableCors({ origin: [/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/] });
