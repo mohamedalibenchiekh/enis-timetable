@@ -14,9 +14,11 @@
     "test": "npm run test -w apps/api && npm run test -w apps/web",
     "test:visual": "npm run test:visual -w apps/api",
     "test:visual:update": "npm run test:visual:update -w apps/api --",
-    "test:e2e": "npm run build && playwright test"
+    "test:e2e": "npm run build && playwright test",
+    "icons": "node scripts/generate-icons.cjs"
   },
   "devDependencies": {
-    "@playwright/test": "^1.56.1"
+    "@playwright/test": "^1.56.1",
+    "sharp": "^0.35.5"
   }
 }

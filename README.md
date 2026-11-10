@@ -54,6 +54,7 @@ npm run dev:web    # http://localhost:3000   (Next.js, proxies /api to :4000)
 On the OS you target (Windows for a `.exe`):
 ```bash
 npm install
+npm run icons         # regenerates the committed app, installer, and web icons
 npm run dist
 ```
 Result in `apps/desktop/release/`: **`ENISo-Setup-<version>.exe`** (Windows, NSIS), `ENISo-<version>-<arch>.dmg` (macOS) or `ENISo-<version>-<arch>.AppImage` (Linux).
@@ -62,7 +63,7 @@ The installer contains everything (app, API, PostgreSQL); no Node.js or database
 
 Notes
 * The installer is not code-signed, so Windows SmartScreen shows "Windows protected your PC" → *More info → Run anyway*. A code-signing certificate removes this.
-* If `npm run dist` fails on Windows with a "symbolic link" error, run the terminal as Administrator once (or enable Windows *Developer Mode*).
+* If Windows packaging fails while creating symbolic links or editing the executable icon/version resources, enable *Developer Mode* in **Settings → System → For developers**, or run the terminal as Administrator and retry `npm run dist`.
 * `npm run pack` builds an unpacked app folder (faster, for testing).
 * Users' data lives in `%APPDATA%\Emplois du temps ENISo\database`; uninstalling the app keeps it.
 * If PostgreSQL cannot start on a PC, install the Microsoft *Visual C++ Redistributable (x64)* and retry.

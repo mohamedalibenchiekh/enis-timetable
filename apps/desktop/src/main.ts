@@ -41,6 +41,12 @@ function ensureConfigFile() {
   return configPath();
 }
 
+function appIconPath(name: 'icon.png' | 'icon-small.png') {
+  return app.isPackaged
+    ? path.join(process.resourcesPath, name)
+    : path.join(__dirname, '..', 'build', name);
+}
+
 function logUpdate(message: string) {
   const logDirectory = path.join(app.getPath('userData'), 'logs');
   const logFile = path.join(logDirectory, 'update.log');
@@ -115,8 +121,9 @@ async function startApi(): Promise<number> {
 }
 
 function showSplash() {
-  splash = new BrowserWindow({ width: 380, height: 150, frame: false, resizable: false, alwaysOnTop: true, show: true, backgroundColor: '#1d2733' });
-  const html = '<body style="margin:0;display:grid;place-items:center;height:100vh;background:#1d2733;color:#fff;font:15px system-ui,sans-serif;text-align:center"><div><b style="font-size:18px">Emplois du temps ENISo</b><br><br>Démarrage…</div></body>';
+  const icon = fs.readFileSync(appIconPath('icon-small.png')).toString('base64');
+  splash = new BrowserWindow({ width: 380, height: 220, frame: false, resizable: false, alwaysOnTop: true, show: true, backgroundColor: '#1d2733' });
+  const html = `<body style="margin:0;display:grid;place-items:center;height:100vh;background:#1d2733;color:#fff;font:15px system-ui,sans-serif;text-align:center"><div><img src="data:image/png;base64,${icon}" width="72" height="72" alt=""><br><b style="font-size:18px">Emplois du temps ENISo</b><br><br>Démarrage…</div></body>`;
   splash.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html));
 }
 
@@ -125,6 +132,7 @@ async function createWindow(port: number) {
     width: 1280, height: 860, minWidth: 900, minHeight: 600,
     title: 'Emplois du temps ENISo',
     show: false,
+    icon: appIconPath('icon.png'),
     webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: true },
   });
   win.once('ready-to-show', () => {
@@ -199,6 +207,8 @@ ipcMain.handle('install-update', async (_event, ...args: unknown[]) => {
   assertNoIpcArguments(args);
   await updaterService?.installUpdate();
 });
+
+if (process.platform === 'win32') app.setAppUserModelId('tn.enis.timetable');
 
 if (!app.requestSingleInstanceLock()) {
   app.quit();

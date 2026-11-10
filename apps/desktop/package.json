@@ -41,6 +41,14 @@
     ],
     "extraResources": [
       {
+        "from": "build/icon.png",
+        "to": "icon.png"
+      },
+      {
+        "from": "build/icon-small.png",
+        "to": "icon-small.png"
+      },
+      {
         "from": "stage/api",
         "to": "api"
       },
@@ -52,18 +60,22 @@
     "win": {
       "target": "nsis",
       "artifactName": "ENISo-Setup-${version}.${ext}",
-      "signAndEditExecutable": false
+      "icon": "build/icon.ico",
+      "signAndEditExecutable": true
     },
     "mac": {
       "target": ["dmg", "zip"],
+      "icon": "build/icon.icns",
       "artifactName": "ENISo-${version}-${arch}.${ext}"
     },
     "linux": {
       "target": "AppImage",
+      "icon": "build/icons",
       "artifactName": "ENISo-${version}-${arch}.${ext}",
       "category": "Office"
     },
     "directories": {
+      "buildResources": "build",
       "output": "release"
     },
     "asar": false,
@@ -72,6 +84,12 @@
       "allowToChangeInstallationDirectory": true,
       "perMachine": false,
       "createDesktopShortcut": true,
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "installerSidebar": "build/installerSidebar.bmp",
+      "uninstallerSidebar": "build/uninstallerSidebar.bmp",
+      "shortcutName": "Emplois du temps ENISo",
+      "uninstallDisplayName": "Emplois du temps ENISo",
       "language": "1036",
       "deleteAppDataOnUninstall": false
     },
