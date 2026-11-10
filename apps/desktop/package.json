@@ -1,7 +1,7 @@
 {
   "name": "@enis/desktop",
   "productName": "Emplois du temps ENISo",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "private": true,
   "description": "ENISo timetable → Word (desktop app)",
   "author": "ENISo",
@@ -51,6 +51,11 @@
       {
         "from": "stage/api",
         "to": "api"
+      },
+      {
+        "from": "stage/api/node_modules",
+        "to": "api/node_modules",
+        "filter": ["**/*"]
       },
       {
         "from": "stage/web",

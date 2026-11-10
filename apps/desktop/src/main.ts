@@ -65,7 +65,8 @@ function logUpdate(message: string) {
 
 function resolveBackend() {
   if (app.isPackaged) {
-    return { main: path.join(process.resourcesPath, 'api', 'dist', 'main.js'), web: path.join(process.resourcesPath, 'web'), cwd: path.join(process.resourcesPath, 'api') };
+    const apiDirectory = path.join(process.resourcesPath, 'api', 'apps', 'api');
+    return { main: path.join(apiDirectory, 'dist', 'main.js'), web: path.join(process.resourcesPath, 'web'), cwd: apiDirectory };
   }
   const apps = path.join(__dirname, '..', '..');
   return { main: path.join(apps, 'api', 'dist', 'main.js'), web: path.join(apps, 'web', 'out'), cwd: path.join(apps, 'api') };

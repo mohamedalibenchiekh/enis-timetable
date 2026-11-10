@@ -9,28 +9,32 @@ const { execSync } = require('child_process');
 const apps = path.join(__dirname, '..', '..');
 const repoRoot = path.join(apps, '..');
 const stage = path.join(__dirname, '..', 'stage');
+const apiPackage = path.join(apps, 'api', 'package.json');
+const stagedApi = path.join(stage, 'api', 'apps', 'api');
 fs.rmSync(stage, { recursive: true, force: true });
-fs.mkdirSync(path.join(stage, 'api'), { recursive: true });
+fs.mkdirSync(stagedApi, { recursive: true });
 
-fs.cpSync(path.join(apps, 'api', 'dist'), path.join(stage, 'api', 'dist'), { recursive: true });
+fs.cpSync(path.join(apps, 'api', 'dist'), path.join(stagedApi, 'dist'), { recursive: true });
 fs.cpSync(path.join(apps, 'web', 'out'), path.join(stage, 'web'), { recursive: true });
 
-// Install the API's production dependencies in a nested tree so workspace-only versions
-// cannot overwrite root-hoisted packages with incompatible versions.
+// Install only the API workspace so dependencies from the web and desktop workspaces
+// cannot change the API's production dependency tree.
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'enis-stage-'));
-fs.copyFileSync(path.join(repoRoot, 'package.json'), path.join(tmp, 'package.json'));
+const rootPackage = JSON.parse(fs.readFileSync(path.join(repoRoot, 'package.json'), 'utf8'));
+rootPackage.workspaces = ['apps/api'];
+fs.writeFileSync(path.join(tmp, 'package.json'), JSON.stringify(rootPackage, null, 2));
 fs.copyFileSync(path.join(repoRoot, 'package-lock.json'), path.join(tmp, 'package-lock.json'));
-['api', 'web', 'desktop'].forEach((w) => {
-  fs.mkdirSync(path.join(tmp, 'apps', w), { recursive: true });
-  fs.copyFileSync(path.join(apps, w, 'package.json'), path.join(tmp, 'apps', w, 'package.json'));
-});
+fs.mkdirSync(path.join(tmp, 'apps', 'api'), { recursive: true });
+fs.copyFileSync(apiPackage, path.join(tmp, 'apps', 'api', 'package.json'));
 
-execSync('npm ci --omit=dev --workspace=@enis/api --install-strategy=nested --no-audit --no-fund', { cwd: tmp, stdio: 'inherit' });
+execSync('npm ci --omit=dev --workspace=@enis/api --no-audit --no-fund', { cwd: tmp, stdio: 'inherit' });
 
-fs.cpSync(path.join(tmp, 'apps', 'api', 'node_modules'), path.join(stage, 'api', 'node_modules'), { recursive: true });
-if (fs.existsSync(path.join(stage, 'api', 'node_modules', '@enis'))) {
-  fs.rmSync(path.join(stage, 'api', 'node_modules', '@enis'), { recursive: true, force: true });
+fs.cpSync(path.join(tmp, 'node_modules'), path.join(stage, 'api', 'node_modules'), { recursive: true });
+fs.cpSync(path.join(tmp, 'apps', 'api', 'node_modules'), path.join(stagedApi, 'node_modules'), { recursive: true });
+for (const nodeModules of [path.join(stage, 'api', 'node_modules'), path.join(stagedApi, 'node_modules')]) {
+  const workspaceLink = path.join(nodeModules, '@enis');
+  if (fs.existsSync(workspaceLink)) fs.rmSync(workspaceLink, { recursive: true, force: true });
 }
-fs.copyFileSync(path.join(apps, 'api', 'package.json'), path.join(stage, 'api', 'package.json'));
+fs.copyFileSync(apiPackage, path.join(stagedApi, 'package.json'));
 fs.rmSync(tmp, { recursive: true, force: true });
 console.log('staged in', stage);
