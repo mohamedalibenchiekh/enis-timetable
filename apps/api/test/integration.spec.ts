@@ -7,9 +7,8 @@ import * as path from 'node:path';
 import JSZip from 'jszip';
 import request from 'supertest';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
-import { ExpressAdapter } from '@nestjs/platform-express';
+import { ExpressAdapter, NestExpressApplication } from '@nestjs/platform-express';
 import { DataSource } from 'typeorm';
 
 const schema = `enis_api_integration_tests_${process.pid}_${randomUUID().replace(/-/g, '')}`;
@@ -31,7 +30,7 @@ async function probeDatabase(): Promise<boolean> {
 }
 
 let databaseAvailable = false;
-let app: INestApplication | undefined;
+let app: NestExpressApplication | undefined;
 let dataSource: DataSource | undefined;
 let timetableId = '';
 
@@ -59,7 +58,8 @@ describe('API integration (PostgreSQL)', () => {
     process.env.DATABASE_URL = url.toString();
     const { AppModule } = apiRequire('../dist/app.module.js') as typeof import('../src/app.module.js');
     const testing = await Test.createTestingModule({ imports: [AppModule] }).compile();
-    app = testing.createNestApplication(new ExpressAdapter());
+    app = testing.createNestApplication<NestExpressApplication>(new ExpressAdapter());
+    app.useBodyParser('json', { limit: '2mb' });
     app.setGlobalPrefix('api');
     await app.init();
     dataSource = app.get(DataSource);
