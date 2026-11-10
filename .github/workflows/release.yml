@@ -95,7 +95,7 @@ jobs:
           const path = require('node:path');
           const metadata = process.env.UPDATE_METADATA;
           const text = fs.readFileSync(metadata, 'utf8');
-          const references = [...text.matchAll(/^\s+(?:url|path):\s*["']?([^"'\s]+)["']?\s*$/gm)]
+          const references = [...text.matchAll(/^[ \t]*(?:-[ \t]*)?(?:url|path):[ \t]*["']?([^"'\s]+)["']?[ \t]*$/gm)]
             .map((match) => match[1]);
           if (references.length === 0) {
             console.error(`::error::${metadata} contains no update asset references`);
