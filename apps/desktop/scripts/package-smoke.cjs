@@ -20,7 +20,7 @@ function isAddressInUse(error) {
   return /EADDRINUSE|address already in use/i.test(String(error));
 }
 
-async function startApi(apiDir, webDir, databaseUrl, log) {
+async function startApi(apiDir, webDir, databaseUrl, logs) {
   for (let attempt = 0; attempt < 5; attempt += 1) {
     const port = await reservePort();
     const child = spawn(process.execPath, [path.join(apiDir, 'dist', 'main.js')], {
@@ -36,11 +36,8 @@ async function startApi(apiDir, webDir, databaseUrl, log) {
     });
     let spawnError;
     child.on('error', (error) => { spawnError = error; });
-    child.stdout.on('data', log);
-    child.stderr.on('data', log);
     const closed = new Promise((resolve) => child.once('close', resolve));
-    let output = '';
-    const capture = (data) => { output += data.toString(); };
+    const capture = (data) => { logs.push(data.toString()); };
     child.stdout.on('data', capture);
     child.stderr.on('data', capture);
 
@@ -49,7 +46,7 @@ async function startApi(apiDir, webDir, databaseUrl, log) {
       while (Date.now() < deadline) {
         if (spawnError) throw spawnError;
         if (child.exitCode !== null || child.signalCode !== null) {
-          throw new Error(`The packaged API exited with code ${child.exitCode} and signal ${child.signalCode}:\n${output}`);
+          throw new Error(`The packaged API exited with code ${child.exitCode} and signal ${child.signalCode}.`);
         }
         try {
           const response = await fetch(`http://127.0.0.1:${port}/api/health`);
@@ -59,7 +56,7 @@ async function startApi(apiDir, webDir, databaseUrl, log) {
         }
         await new Promise((resolve) => setTimeout(resolve, 250));
       }
-      throw new Error(`The packaged API did not become healthy:\n${output}`);
+      throw new Error('The packaged API did not become healthy.');
     } catch (error) {
       if (child.exitCode === null && child.signalCode === null && !spawnError) child.kill();
       await closed;
@@ -96,15 +93,13 @@ async function main() {
   let database;
   let api;
   let apiClosed;
-  let apiLogs = '';
+  const apiLogs = [];
 
   try {
     database = await startDatabase(startEmbeddedPostgres, databaseDir, (message) => {
-      apiLogs += `${message}\n`;
+      apiLogs.push(`${message}\n`);
     });
-    const runningApi = await startApi(apiDir, webDir, database.url, (data) => {
-      apiLogs += data.toString();
-    });
+    const runningApi = await startApi(apiDir, webDir, database.url, apiLogs);
     api = runningApi.child;
     apiClosed = runningApi.closed;
     console.log('Packaged API and embedded PostgreSQL started successfully.');
@@ -112,6 +107,9 @@ async function main() {
     await apiClosed;
     api = undefined;
     apiClosed = undefined;
+  } catch (error) {
+    if (apiLogs.length === 0) throw error;
+    throw new Error(`${String(error)}\n${apiLogs.join('')}`, { cause: error });
   } finally {
     if (api && api.exitCode === null) {
       api.kill();

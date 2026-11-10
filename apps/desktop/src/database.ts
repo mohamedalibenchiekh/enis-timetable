@@ -70,15 +70,17 @@ export async function startEmbeddedPostgres(dir: string, port: number, log: (s: 
     onError: (m: unknown) => log(String(m)),
   });
 
+  let started = false;
   try {
     if (!initialised) {
       fs.rmSync(dataDir, { recursive: true, force: true }); // drop a half-initialised folder
       await pg.initialise();
     }
     await pg.start();
+    started = true;
     await pg.createDatabase('enis_timetable');
   } catch (e) {
-    if (/already exists/i.test(String((e as Error)?.message ?? e))) {
+    if (started && /already exists/i.test(String((e as Error)?.message ?? e))) {
       return {
         url: `postgres://enis:${meta.password}@127.0.0.1:${port}/enis_timetable`,
         stop: () => pg.stop(),
