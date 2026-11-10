@@ -3,7 +3,8 @@ import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import * as fs from 'fs';
 import * as path from 'path';
-import { AppModule } from './app.module';
+import { fileURLToPath } from 'url';
+import { AppModule } from './app.module.js';
 
 // Optional .env file (DATABASE_URL, PORT…) in the working directory.
 try { process.loadEnvFile(path.join(process.cwd(), '.env')); } catch { /* no .env */ }
@@ -15,7 +16,8 @@ async function bootstrap() {
   app.enableCors({ origin: [/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/] });
 
   // In production the exported Next.js site is served by the API itself (same origin → no CORS).
-  const webDir = process.env.WEB_DIR ?? path.join(__dirname, '..', '..', 'web', 'out');
+  const apiDirectory = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+  const webDir = process.env.WEB_DIR ?? path.join(apiDirectory, '..', 'web', 'out');
   if (fs.existsSync(path.join(webDir, 'index.html'))) app.useStaticAssets(webDir);
 
   const port = Number(process.env.PORT ?? 4000);

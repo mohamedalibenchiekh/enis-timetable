@@ -3,7 +3,7 @@ import {
 } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { Response } from 'express';
-import { TimetablesService } from './timetables.service';
+import { TimetablesService } from './timetables.service.js';
 
 const DOCX = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 const attachment = (name: string) => `attachment; filename*=UTF-8''${encodeURIComponent(name)}`;

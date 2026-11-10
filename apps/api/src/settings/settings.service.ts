@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Setting } from '../entities/timetable.entity';
-import { ExportOptions, mergeOptions } from '../export/options';
+import { Setting } from '../entities/timetable.entity.js';
+import { ExportOptions, mergeOptions } from '../export/options.js';
 
 @Injectable()
 export class SettingsService {

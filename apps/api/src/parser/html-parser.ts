@@ -1,5 +1,5 @@
 import * as cheerio from 'cheerio';
-import { ParsedFile, ParsedSession, SlotLabel, SourceKind } from './types';
+import { ParsedFile, ParsedSession, SlotLabel, SourceKind } from './types.js';
 
 const DAY_CODES: Record<string, number> = { L: 0, MA: 1, M: 2, ME: 2, J: 3, V: 4, S: 5 };
 

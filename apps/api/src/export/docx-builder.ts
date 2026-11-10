@@ -2,7 +2,7 @@ import {
   AlignmentType, BorderStyle, Document, HeightRule, Packer, Paragraph, ShadingType, Table, TableCell,
   TableLayoutType, TableRow, TextRun, VerticalAlign, WidthType,
 } from 'docx';
-import { DayGrid } from './grid-builder';
+import { DayGrid } from './grid-builder.js';
 
 // Layout copied from the reference file "Jeudi.docx".
 const FONT = 'Times New Roman';

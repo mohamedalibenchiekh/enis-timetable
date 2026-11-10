@@ -1,14 +1,16 @@
 /* End-to-end check: parse HTML fixtures → cross-check rooms vs teachers → generate .docx files.
-   usage: ts-node test/verify.ts [<dir with 3 html files>] [<out dir>]
+   usage: npm run test:verify -- [<dir with 3 html files>] [<out dir>]
    Defaults to test/fixtures when no directory is given.
    Exit code 1 on any assertion failure. */
 import * as fs from 'fs';
 import * as path from 'path';
-import { detectKind, parseHtml } from '../src/parser/html-parser';
-import { buildDayGrid } from '../src/export/grid-builder';
-import { buildDayDocx } from '../src/export/docx-builder';
-import { DEFAULT_OPTIONS } from '../src/export/options';
+import { fileURLToPath } from 'url';
+import { detectKind, parseHtml } from '../src/parser/html-parser.js';
+import { buildDayGrid } from '../src/export/grid-builder.js';
+import { buildDayDocx } from '../src/export/docx-builder.js';
+import { DEFAULT_OPTIONS } from '../src/export/options.js';
 
+const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 let failures = 0;
 
 function assert(condition: boolean, message: string): void {
@@ -20,7 +22,7 @@ function assert(condition: boolean, message: string): void {
   }
 }
 
-const defaultFixtureDir = path.join(__dirname, 'fixtures');
+const defaultFixtureDir = path.join(scriptDirectory, 'fixtures');
 const dir = process.argv[2] || defaultFixtureDir;
 if (!fs.existsSync(dir)) {
   console.error(`Directory not found: ${dir}`);

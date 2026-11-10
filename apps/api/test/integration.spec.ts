@@ -1,11 +1,10 @@
 import 'reflect-metadata';
-import 'ts-node/register';
 import { randomUUID } from 'node:crypto';
 import * as fs from 'node:fs';
 import { createRequire } from 'node:module';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import JSZip = require('jszip');
+import JSZip from 'jszip';
 import request from 'supertest';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { INestApplication } from '@nestjs/common';
@@ -17,11 +16,11 @@ const schema = `enis_api_integration_tests_${process.pid}_${randomUUID().replace
 const baseUrl = process.env.DATABASE_URL ?? 'postgres://enis:enis@127.0.0.1:5432/enis_timetable';
 const fixtureDir = path.join(__dirname, 'fixtures');
 const fixture = (name: string) => fs.readFileSync(path.join(fixtureDir, name));
-const requireApiSource = createRequire(path.join(__dirname, 'integration-loader.cjs'));
+const apiRequire = createRequire(path.join(__dirname, 'integration-loader.cjs'));
 
 it('Nest core resolves the HTTP adapter from the monorepo API workspace', () => {
   // @nestjs/core must be able to resolve platform-express in the monorepo layout.
-  const requireFromNestCore = createRequire(requireApiSource.resolve('@nestjs/core'));
+  const requireFromNestCore = createRequire(apiRequire.resolve('@nestjs/core'));
   expect(requireFromNestCore.resolve('@nestjs/platform-express')).toBeTruthy();
 });
 
@@ -58,7 +57,7 @@ describe('API integration (PostgreSQL)', () => {
     const url = new URL(baseUrl);
     url.searchParams.set('options', `-csearch_path=${schema},public`);
     process.env.DATABASE_URL = url.toString();
-    const { AppModule } = requireApiSource('../src/app.module.ts') as typeof import('../src/app.module');
+    const { AppModule } = apiRequire('../dist/app.module.js') as typeof import('../src/app.module.js');
     const testing = await Test.createTestingModule({ imports: [AppModule] }).compile();
     app = testing.createNestApplication(new ExpressAdapter());
     app.setGlobalPrefix('api');

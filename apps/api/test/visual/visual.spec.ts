@@ -2,18 +2,19 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import pixelmatch from 'pixelmatch';
 import { PNG } from 'pngjs';
+import { fileURLToPath } from 'node:url';
 import { afterAll, describe, expect, it } from 'vitest';
-import { buildVisualCases, getBaselinePath, VisualCase } from './cases';
+import { buildVisualCases, getBaselinePath, VisualCase } from './cases.js';
 import {
   assertVisualStructure,
   checkRendererPrerequisites,
   describeStructuralFailures,
   orderPageFiles,
   renderDocx,
-} from './renderer';
+} from './renderer.js';
 
 const prerequisites = checkRendererPrerequisites();
-const failureRoot = path.resolve(__dirname, '../../test-output/visual');
+const failureRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../test-output/visual');
 const MAX_DIFFERENCE_RATIO = 0.001;
 const caseNames = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'stress'];
 
