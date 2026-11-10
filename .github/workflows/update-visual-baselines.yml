@@ -1,0 +1,58 @@
+name: Update visual DOCX baselines
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+env:
+  NODE_VERSION: '22'
+  TZ: UTC
+  LANG: C.UTF-8
+  LC_ALL: C.UTF-8
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - name: Install document rendering tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y libreoffice-writer poppler-utils fonts-liberation fontconfig
+      - run: npm ci
+      - run: npm run test:visual:update -w apps/api -- --yes
+      - run: npm run test:visual
+      - uses: peter-evans/create-pull-request@v7
+        with:
+          branch: chore/update-visual-docx-baselines
+          delete-branch: true
+          add-paths: apps/api/test/visual/baselines/*.png
+          commit-message: 'test: update visual DOCX baselines'
+          title: 'test: update visual DOCX baselines'
+          body: |
+            ## Summary
+            <!-- What changed and why? -->
+            Regenerate the seven synthetic DOCX visual references on `ubuntu-latest` with LibreOffice Writer, Poppler, and Liberation fonts.
+
+            ## How tested
+            <!-- Commands run, screenshots, etc. -->
+            - `npm run test:visual:update -w apps/api -- --yes` — passed.
+            - `npm run test:visual` — passed.
+
+            ## Screenshots (if UI or .docx layout changed)
+            <!-- Before/after or attach generated .docx files -->
+            The PNG baseline changes are the visual output for review; no application layout code changes are included.
+
+            ## Checklist
+            - [ ] `npm run build` passes with 0 errors
+            - [ ] `npm run build -w apps/desktop` passes with 0 errors
+            - [ ] `npm test` passes (rooms vs teachers parity check)
+            - [x] No secrets, `.env` files, or private data committed
+            - [x] French used for UI strings; English for code/comments
