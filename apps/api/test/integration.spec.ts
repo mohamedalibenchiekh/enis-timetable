@@ -57,7 +57,7 @@ describe('API integration (PostgreSQL)', () => {
     const url = new URL(baseUrl);
     url.searchParams.set('options', `-csearch_path=${schema},public`);
     process.env.DATABASE_URL = url.toString();
-    const { AppModule } = await import('../src/app.module.js');
+    const { AppModule } = apiRequire('../dist/app.module.js') as typeof import('../src/app.module.js');
     const testing = await Test.createTestingModule({ imports: [AppModule] }).compile();
     app = testing.createNestApplication(new ExpressAdapter());
     app.setGlobalPrefix('api');
