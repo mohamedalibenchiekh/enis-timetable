@@ -40,12 +40,18 @@ jobs:
           - os: windows-latest
             builder-args: --win
             artifact-name: installer-windows
+            update-metadata: latest.yml
+            installer-pattern: '*.exe'
           - os: macos-latest
             builder-args: --mac
             artifact-name: installer-macos
+            update-metadata: latest-mac.yml
+            installer-pattern: '*.dmg'
           - os: ubuntu-latest
             builder-args: --linux
             artifact-name: installer-linux
+            update-metadata: latest-linux.yml
+            installer-pattern: '*.AppImage'
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -66,13 +72,41 @@ jobs:
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
         run: npx electron-builder --publish never ${{ matrix.builder-args }}
+      - name: Verify installer and update metadata
+        shell: bash
+        run: |
+          cd apps/desktop/release
+          if [ ! -f "${{ matrix.update-metadata }}" ]; then
+            echo "::error::Missing ${{ matrix.update-metadata }} update metadata"
+            exit 1
+          fi
+          if ! compgen -G "${{ matrix.installer-pattern }}" > /dev/null; then
+            echo "::error::Missing installer matching ${{ matrix.installer-pattern }}"
+            exit 1
+          fi
+          UPDATE_METADATA="${{ matrix.update-metadata }}" node <<'NODE'
+          const fs = require('node:fs');
+          const path = require('node:path');
+          const metadata = process.env.UPDATE_METADATA;
+          const text = fs.readFileSync(metadata, 'utf8');
+          const references = [...text.matchAll(/^\s+(?:url|path):\s*["']?([^"'\s]+)["']?\s*$/gm)]
+            .map((match) => match[1]);
+          if (references.length === 0) {
+            console.error(`::error::${metadata} contains no update asset references`);
+            process.exit(1);
+          }
+          for (const reference of references) {
+            const assetName = path.basename(new URL(reference, 'https://updates.invalid/').pathname);
+            if (/\s/.test(assetName) || !fs.existsSync(assetName)) {
+              console.error(`::error::${metadata} references a missing or invalid asset: ${reference}`);
+              process.exit(1);
+            }
+          }
+          NODE
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ${{ matrix.artifact-name }}
-          path: |
-            apps/desktop/release/*.exe
-            apps/desktop/release/*.dmg
-            apps/desktop/release/*.AppImage
+          path: apps/desktop/release/*
           if-no-files-found: error
 
   # ── Create GitHub Release ──────────────────────────────────────────
@@ -93,6 +127,8 @@ jobs:
       - uses: softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3 # v3.0.4
         with:
           generate_release_notes: true
+          draft: false
+          prerelease: false
           body: |
             ## ⚠️ Note on code signing
             Unless repository signing certificates (`CSC_LINK`) are configured, these builds are **unsigned**:

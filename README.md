@@ -86,6 +86,8 @@ npx playwright install chromium       # install the browser required for E2E tes
 npm run test:e2e                     # build, then Chromium browser flow (requires PostgreSQL)
 ```
 
+The web component suite also runs the desktop updater, upgrade-backup, PostgreSQL-major guard, and update-banner tests.
+
 To add a fixture, use synthetic names and activities, keep the HTML under `apps/api/test/fixtures/`, and update the parser or integration assertions that consume it. Never add real FET exports. The rooms and teachers fixtures should continue to describe the same (day, slot, room, teacher, subject code) set.
 
 ## Visual checks
@@ -125,31 +127,77 @@ The Monday `DayGrid` golden snapshot is in `apps/api/test/__snapshots__/docx.spe
 |----------|---------|-------------|
 | **CI** (`.github/workflows/ci.yml`) | PR to `main`, push to `main` | Typechecks and builds the workspaces, runs API and web suites against PostgreSQL, uploads API coverage, exercises the Chromium UI flow, and builds an unpacked Electron app on Windows. |
 | **Update visual DOCX baselines** (`.github/workflows/update-visual-baselines.yml`) | Manual (`workflow_dispatch`) | Regenerates synthetic DOCX reference images on `ubuntu-24.04` with pinned renderer packages and opens a pull request with changed baselines. |
-| **Release** (`.github/workflows/release.yml`) | Push of a tag `v*.*.*` | Verifies the tag matches `apps/desktop/package.json` version, builds NSIS `.exe` (Windows), `.dmg` (macOS), and `.AppImage` (Linux) installers, then creates a GitHub Release with all installers attached. Builds are unsigned by default (no code-signing certificate required unless configured). |
+| **Release** (`.github/workflows/release.yml`) | Push of a tag `v*.*.*` | Verifies the tag matches `apps/desktop/package.json` version, builds Windows NSIS, macOS DMG/ZIP, and Linux AppImage assets with update metadata, then creates a published GitHub Release. Builds are unsigned by default. |
 | **Dependabot** (`.github/dependabot.yml`) | Weekly (Monday) | Opens PRs for npm dependency updates (grouped by dependency type, minor+patch together) and GitHub Actions version bumps. |
 
-### How to cut a release
+## Releases and auto-update
 
-1. **Create a release branch and bump the version**:
+### Cutting a release
+
+1. Create a version branch from the latest `main` and update the desktop package version. Replace `1.0.1` with the next version:
    ```bash
    git switch main && git pull
-   git checkout -b chore/bump-version
-   npm version <major|minor|patch> -w apps/desktop
-   git add apps/desktop/package.json
-   git commit -m "chore: bump version to $(node -p "require('./apps/desktop/package.json').version")"
-   git push -u origin chore/bump-version
+   git switch -c chore/release-1-0-1
+   npm version 1.0.1 -w apps/desktop --no-git-tag-version
+   git add apps/desktop/package.json package-lock.json
+   git commit -m "chore: bump desktop version to 1.0.1"
+   git push -u origin chore/release-1-0-1
    ```
 
-2. **Open and merge a Pull Request to `main`** following the standard review workflow.
+2. Open and merge the pull request to `main`. Confirm the desktop package version equals the new tag without the leading `v`.
 
-3. **Tag the merged commit on `main` and push the tag**:
+3. Tag the merged commit and push only the new tag:
    ```bash
    git switch main && git pull
-   git tag v$(node -p "require('./apps/desktop/package.json').version")
-   git push origin v$(node -p "require('./apps/desktop/package.json').version")
+   git tag v1.0.1
+   git push origin v1.0.1
    ```
 
-The Release workflow will automatically build installers for all platforms and create a GitHub Release.
+Never reuse a release tag, edit `latest*.yml` by hand, or create a tag whose version differs from `apps/desktop/package.json`. The workflow keeps `--publish never` in the build jobs and attaches the generated installer assets, update metadata, and blockmaps to one **published** (not draft or prerelease) GitHub Release. Electron-updater only checks published releases.
+
+The generated asset names contain no spaces (for example `ENISo-Setup-1.0.1.exe`), so the URLs in `latest.yml`, `latest-linux.yml`, and `latest-mac.yml` match uploaded names. Updates are enabled only for Windows NSIS and Linux AppImage. macOS and any other unsupported platform show a prompt to open the Releases page instead; macOS auto-install is not supported because these builds are unsigned.
+
+### What users see and data safety
+
+The installed app checks 20 seconds after its main window appears and then every six hours. Checks and downloads run in the background. When a download finishes, the user can choose **Redémarrer maintenant** or **Plus tard**; the latter installs when the app is next quit. The **Fichier → Rechercher des mises à jour…** menu and the sidebar link start a manual check. Offline automatic checks are logged quietly.
+
+GitHub auto-update requires a **public** release repository so clients can download assets without a token. Never put a GitHub token in the app. If this repository must be private, either make it public or publish update releases to a separate public repository and change the updater's release configuration; until configured, update errors are handled quietly and no update is installed.
+
+On the first launch after an app version change, before PostgreSQL starts, the app copies `<userData>/database` to `<userData>/backups/database-<oldVersion>-<timestamp>` and retains the two newest backups. Existing data without `state.json` (from an older app version) receives an initial backup labeled `database-inconnu-…`. The menu item **Fichier → Ouvrir le dossier des sauvegardes** opens that folder. Update logs are in `<userData>/logs/update.log` (one rotated file is retained). The installer does not remove user data on upgrade or uninstall. PostgreSQL is pinned to major version 17; if its data directory reports a different major, startup stops with a French error rather than attempting an unsafe upgrade.
+
+To disable checks, set `"autoUpdate": false` in `<userData>/config.json` (create/open it with **Fichier → Fichier de configuration (base de données)…**). The default is enabled.
+
+### Manual installed-app update test
+
+This test uses two local builds and a generic static server; it does not publish a release or tag. Use a disposable clone or branch so the package version changes do not enter a normal release:
+
+1. In the disposable checkout, ensure `apps/desktop/package.json` is `1.0.0`, then build a Windows installer:
+   ```bash
+   npm run build
+   npm run build -w apps/desktop
+   npm run stage -w apps/desktop
+   (cd apps/desktop && npx electron-builder --publish never --win)
+   ```
+   Save `apps/desktop/release/ENISo-Setup-1.0.0.exe` outside the release directory.
+2. Set the desktop package version to `1.0.1` and repeat the build commands. Keep the 1.0.1 installer, its `latest.yml`, and any `.blockmap` files together in `apps/desktop/release/`. The version can be set with `npm version 1.0.1 -w apps/desktop --no-git-tag-version`.
+3. Start a static server in the repository root, serving that 1.0.1 release directory:
+   ```bash
+   python3 -m http.server 8765 --bind 127.0.0.1 --directory apps/desktop/release
+   ```
+   Install the saved 1.0.0 installer. In the installed app's `app.getAppPath()` directory (the `resources/app` directory), create `dev-app-update.yml` with:
+   ```yaml
+   provider: generic
+   url: http://127.0.0.1:8765
+   ```
+   In PowerShell, launch the installed app with the test-only environment switch:
+   ```powershell
+   $env:ENIS_FORCE_DEV_UPDATE_CONFIG = '1'
+   & "$env:LOCALAPPDATA\Programs\Emplois du temps ENISo\Emplois du temps ENISo.exe"
+   ```
+   This switch enables electron-updater's `forceDevUpdateConfig` so the installed 1.0.0 build reads the generic provider configuration.
+4. Wait at least 20 seconds after the main window appears, or select **Rechercher des mises à jour…**. Verify that 1.0.1 is downloaded, the French ready dialog appears, **Plus tard** leaves the app running without installing, and quitting then relaunching installs 1.0.1. Also import a small test timetable before updating and verify it remains present afterward and a backup exists.
+
+Stop the local server after the test. The update artifacts must be from the same 1.0.1 build; do not hand-edit update metadata.
 
 ### Recommended branch protection settings for `main`
 

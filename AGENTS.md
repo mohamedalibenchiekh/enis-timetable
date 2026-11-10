@@ -85,3 +85,8 @@ Test commands:
 - **DON'T** commit secrets, `.env` files, config overrides, or user database directories (`pgdata/`).
 - **DON'T** put business logic, file I/O, or database queries directly in NestJS or Electron controllers.
 - **DON'T** run raw `npm install` inside workspace subdirectories without understanding monorepo hoisting effects.
+
+## Release rules
+- Never edit generated `latest*.yml` update metadata by hand.
+- Never reuse a release tag.
+- `apps/desktop/package.json` version must exactly match the pushed `vX.Y.Z` tag (without the leading `v`).

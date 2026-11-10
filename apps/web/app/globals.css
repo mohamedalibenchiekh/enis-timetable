@@ -12,7 +12,7 @@ code { background: color-mix(in srgb, var(--ink) 8%, transparent); padding: 1px 
 h1 { font-size: 16px; margin: 0 0 14px; } h2 { font-size: 18px; margin: 0 0 4px; } h3 { font-size: 14px; margin: 18px 0 4px; }
 .muted { color: var(--muted); } .small { font-size: 12px; margin: 2px 0; }
 .app { display: grid; grid-template-columns: 260px 1fr; min-height: 100vh; }
-.side { background: var(--panel); border-right: 1px solid var(--line); padding: 18px 14px; }
+.side { background: var(--panel); border-right: 1px solid var(--line); padding: 18px 14px; display: flex; flex-direction: column; }
 .main { padding: 22px 28px; min-width: 0; }
 @media (max-width: 760px) { .app { grid-template-columns: 1fr; } .side { border-right: 0; border-bottom: 1px solid var(--line); } .main { padding: 16px; } }
 .tlist { list-style: none; margin: 14px 0 0; padding: 0; }
@@ -42,5 +42,8 @@ table.grid { border-collapse: collapse; width: 100%; min-width: 760px; color: #1
 .grid .dayhead { background: var(--c-day); color: #f00; font-size: 20px; } .grid .slothead { background: var(--c-slot); }
 .grid td.bloc { background: var(--c-bloc); } .grid .roomcell { background: var(--c-day); }
 .foot { display: flex; gap: 14px; margin: 16px 0 8px; flex-wrap: wrap; }
+.sidebar-footer { margin-top: auto; padding-top: 16px; border-top: 1px solid var(--line); display: grid; justify-items: start; gap: 4px; }
+.update-banner { margin: 0 0 16px; padding: 10px 14px; border: 1px solid var(--line); border-radius: 8px; background: color-mix(in srgb, var(--accent) 10%, var(--panel)); color: var(--ink); }
+.update-banner .link { font-weight: 600; }
 .options { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px 20px; max-width: 720px; display: grid; gap: 8px; }
 .blocrow { display: grid; grid-template-columns: 1fr 1.4fr auto; gap: 8px; align-items: start; } .blocrow .text { margin: 0; }

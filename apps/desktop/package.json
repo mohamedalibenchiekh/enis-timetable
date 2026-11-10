@@ -3,7 +3,7 @@
   "productName": "Emplois du temps ENISo",
   "version": "1.0.0",
   "private": true,
-  "description": "ENISo timetable \u2192 Word (desktop app)",
+  "description": "ENISo timetable → Word (desktop app)",
   "author": "ENISo",
   "main": "dist/main.js",
   "scripts": {
@@ -15,6 +15,7 @@
     "pack": "npm run build && npm run stage && electron-builder --dir"
   },
   "dependencies": {
+    "electron-updater": "^6.8.11",
     "embedded-postgres": "17.11.0-beta.19"
   },
   "devDependencies": {
@@ -26,6 +27,15 @@
   "build": {
     "appId": "tn.enis.timetable",
     "productName": "Emplois du temps ENISo",
+    "artifactName": "ENISo-Setup-${version}.${ext}",
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "mohamedalibenchiekh",
+        "repo": "enis-timetable",
+        "releaseType": "release"
+      }
+    ],
     "files": [
       "dist/**/*",
       "package.json"
@@ -45,7 +55,7 @@
       "signAndEditExecutable": false
     },
     "mac": {
-      "target": "dmg"
+      "target": ["dmg", "zip"]
     },
     "linux": {
       "target": "AppImage",
@@ -60,7 +70,8 @@
       "allowToChangeInstallationDirectory": true,
       "perMachine": false,
       "createDesktopShortcut": true,
-      "language": "1036"
+      "language": "1036",
+      "deleteAppDataOnUninstall": false
     },
     "npmRebuild": false
   }
