@@ -43,6 +43,8 @@ function ico(pngs) {
 }
 
 function icns(pngs) {
+  // In modern ICNS files, icp6 is a 64x64 PNG slot. The legacy 48x48 image
+  // uses ih32 + h8mk, so do not put a 48x48 PNG under icp6.
   const types = new Map([[16, 'icp4'], [32, 'icp5'], [64, 'icp6'], [128, 'ic07'], [256, 'ic08'], [512, 'ic09'], [1024, 'ic10']]);
   const chunks = pngs.map(({ size, png }) => {
     const chunk = Buffer.alloc(8);
@@ -82,14 +84,54 @@ function bmp24(raw, width, height) {
   return bmp;
 }
 
+const SIDEBAR_GLYPHS = {
+  D: ['1110', '1001', '1001', '1001', '1001', '1001', '1110'],
+  E: ['1111', '1000', '1000', '1110', '1000', '1000', '1111'],
+  I: ['1111', '0110', '0110', '0110', '0110', '0110', '1111'],
+  L: ['1000', '1000', '1000', '1000', '1000', '1000', '1111'],
+  M: ['10001', '11011', '10101', '10101', '10001', '10001', '10001'],
+  N: ['1001', '1101', '1011', '1001', '1001', '1001', '1001'],
+  O: ['0110', '1001', '1001', '1001', '1001', '1001', '0110'],
+  P: ['1110', '1001', '1001', '1110', '1000', '1000', '1000'],
+  S: ['0111', '1000', '1000', '0110', '0001', '0001', '1110'],
+  T: ['1111', '0110', '0110', '0110', '0110', '0110', '0110'],
+  U: ['1001', '1001', '1001', '1001', '1001', '1001', '0110'],
+};
+
+function sidebarPixelText(text, y, scale, color) {
+  const advance = (character) => character === ' ' ? 3 : 6;
+  const width = [...text].reduce((total, character) => total + advance(character), 0) - 1;
+  let cursor = 0;
+  const pixels = [];
+  for (const character of text) {
+    if (character !== ' ') {
+      const glyph = SIDEBAR_GLYPHS[character.toUpperCase()];
+      if (!glyph) throw new Error(`Missing sidebar glyph: ${character}`);
+      glyph.forEach((row, rowIndex) => {
+        [...row].forEach((pixel, columnIndex) => {
+          if (pixel === '1') {
+            pixels.push(`<rect x="${(cursor + columnIndex) * scale}" y="${rowIndex * scale}" width="${scale}" height="${scale}"/>`);
+          }
+        });
+      });
+    }
+    cursor += advance(character);
+  }
+  const left = (164 - width * scale) / 2;
+  return `<g transform="translate(${left} ${y}) scale(1)" fill="${color}" shape-rendering="crispEdges">${pixels.join('')}</g>`;
+}
+
 function sidebarSvg(variant) {
-  const flipped = variant === 'uninstaller';
+  const uninstaller = variant === 'uninstallerSidebar';
+  const markX = uninstaller ? 36 : 26;
+  // The artwork's visible outer tile spans x=96..928 in its 1024 viewBox.
+  // At 0.11 scale these positions keep its bounds inside x=36..139 of 164 px.
   return Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="164" height="314" viewBox="0 0 164 314">
     <rect width="164" height="314" fill="#1D2733"/>
     <path d="M0 0h164v10H0z" fill="#C2D69B"/>
-    <g transform="translate(${flipped ? 108 : 26} 48) scale(.11)">${fs.readFileSync(source, 'utf8').replace(/<\/?svg[^>]*>/g, '')}</g>
-    <text x="18" y="190" fill="#fff" font-family="Arial, sans-serif" font-size="13" font-weight="700">Emplois du temps</text>
-    <text x="18" y="211" fill="#B8CCE4" font-family="Arial, sans-serif" font-size="16" font-weight="700">ENISo</text>
+    <g transform="translate(${markX} 48) scale(.11)">${fs.readFileSync(source, 'utf8').replace(/<\/?svg[^>]*>/g, '')}</g>
+    ${sidebarPixelText('EMPLOIS DU TEMPS', 180, 1.5, '#fff')}
+    ${sidebarPixelText('ENISo', 197, 2, '#B8CCE4')}
     <rect x="18" y="232" width="128" height="2" fill="#C2D69B"/>
   </svg>`);
 }
