@@ -11,7 +11,9 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:integration": "vitest run test/integration.spec.ts",
-    "test:verify": "ts-node test/verify.ts"
+    "test:verify": "ts-node test/verify.ts",
+    "test:visual": "vitest run --config vitest.visual.config.ts",
+    "test:visual:update": "ts-node test/visual/update-baselines.ts"
   },
   "dependencies": {
     "@nestjs/common": "^12.4.0",
@@ -31,8 +33,12 @@
     "@nestjs/testing": "^12.4.0",
     "@types/express": "^5.0.0",
     "@types/node": "^26.6.6",
+    "@types/pixelmatch": "^5.2.6",
+    "@types/pngjs": "^6.0.5",
     "@types/supertest": "^6.0.3",
     "@vitest/coverage-v8": "^3.2.4",
+    "pixelmatch": "^6.0.0",
+    "pngjs": "^7.0.0",
     "supertest": "^7.1.4",
     "ts-node": "^10.9.2",
     "typescript": "^6.0.0",

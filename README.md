@@ -81,11 +81,39 @@ npm run test:coverage -w apps/api     # API coverage (parser/export line thresho
 npm run test:watch -w apps/api        # API watch mode
 npm run test:watch -w apps/web        # web watch mode
 npm run test:verify -w apps/api       # fixture parity check and six sample Word files
+npm run test:visual                   # DOCX visual regression (needs LibreOffice and Poppler)
 npx playwright install chromium       # install the browser required for E2E tests
 npm run test:e2e                     # build, then Chromium browser flow (requires PostgreSQL)
 ```
 
 To add a fixture, use synthetic names and activities, keep the HTML under `apps/api/test/fixtures/`, and update the parser or integration assertions that consume it. Never add real FET exports. The rooms and teachers fixtures should continue to describe the same (day, slot, room, teacher, subject code) set.
+
+## Visual checks
+
+The visual suite builds the six daily Word files and a synthetic long-name stress case through the same parser, `buildDayGrid`, and `buildDayDocx` path used by the app. It converts each DOCX to PDF with LibreOffice, rasterizes at 100 dpi with Poppler, and compares the seven PNGs with reviewed references in `apps/api/test/visual/baselines/`. It also checks that every document is one page, has at least 20 px of blank margin on the left and right, and contains the expected header and bloc-band colors. Only synthetic fixtures are used.
+
+The visual renderer is supported on Ubuntu 24.04 with Node.js 22.22.3, LibreOffice Writer 24.2.7, Poppler 24.02.0, fontconfig 2.15.0, and Liberation fonts 2.1.5. Its isolated fontconfig configuration scans only the Liberation font directory and maps Times New Roman to metric-compatible Liberation Serif. The GitHub CI and baseline-update workflows pin these package versions; macOS and Windows local rendering are not currently supported.
+
+On Ubuntu 24.04, install the pinned renderer packages:
+
+```bash
+sudo apt-get update
+sudo apt-get install --no-install-recommends \
+  libreoffice-writer=4:24.2.7-0ubuntu0.24.04.7 \
+  poppler-utils=24.02.0-1ubuntu9.11 \
+  fonts-liberation=1:2.1.5-3 \
+  fontconfig=2.15.0-1.1ubuntu2
+```
+
+Run the check from the repository root:
+
+```bash
+npm run test:visual
+```
+
+If LibreOffice or Poppler's renderer is not installed locally, the command prints a skip message; CI treats missing tools as a failure. Confirm all seven visual cases pass and the page-ordering test also passes (eight tests total), rather than relying on a skipped suite. On a failure, open `apps/api/test-output/visual/<case>/expected.png`, `actual.png`, and `diff.png`. The diff highlights changed pixels; matching permits a 0.1 pixelmatch threshold and at most 0.1% differing pixels. A failure directory is uploaded by CI for seven days.
+
+Do not edit PNG baselines by hand. The canonical **Update visual DOCX baselines** GitHub Actions workflow renders on `ubuntu-24.04` with the same pinned packages as CI and opens a PR containing the generated images. Review all seven images in that PR before merging. The initial baselines in this change are bootstrapped locally and must be checked by CI; if that run exposes renderer differences, use the workflow to replace them. For local investigation only, `npm run test:visual:update -- --yes` regenerates images and requires the explicit `--yes` confirmation; review the images and diff before using any locally generated output.
 
 The Monday `DayGrid` golden snapshot is in `apps/api/test/__snapshots__/docx.spec.ts.snap`. After an intentional export change, run `npm run test -w apps/api -- -u`, inspect the snapshot diff by hand, and commit the reviewed update with the test change. Word documents themselves are checked as ZIP/XML and are not snapshotted because they contain generated metadata.
 
@@ -96,6 +124,7 @@ The Monday `DayGrid` golden snapshot is in `apps/api/test/__snapshots__/docx.spe
 | Workflow | Trigger | What it does |
 |----------|---------|-------------|
 | **CI** (`.github/workflows/ci.yml`) | PR to `main`, push to `main` | Typechecks and builds the workspaces, runs API and web suites against PostgreSQL, uploads API coverage, exercises the Chromium UI flow, and builds an unpacked Electron app on Windows. |
+| **Update visual DOCX baselines** (`.github/workflows/update-visual-baselines.yml`) | Manual (`workflow_dispatch`) | Regenerates synthetic DOCX reference images on `ubuntu-24.04` with pinned renderer packages and opens a pull request with changed baselines. |
 | **Release** (`.github/workflows/release.yml`) | Push of a tag `v*.*.*` | Verifies the tag matches `apps/desktop/package.json` version, builds NSIS `.exe` (Windows), `.dmg` (macOS), and `.AppImage` (Linux) installers, then creates a GitHub Release with all installers attached. Builds are unsigned by default (no code-signing certificate required unless configured). |
 | **Dependabot** (`.github/dependabot.yml`) | Weekly (Monday) | Opens PRs for npm dependency updates (grouped by dependency type, minor+patch together) and GitHub Actions version bumps. |
 
