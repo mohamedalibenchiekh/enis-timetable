@@ -16,5 +16,8 @@
     "strictPropertyInitialization": false,
     "forceConsistentCasingInFileNames": true
   },
+  "ts-node": {
+    "experimentalResolver": true
+  },
   "include": ["src/**/*", "test/**/*"]
 }

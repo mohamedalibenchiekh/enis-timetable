@@ -1,6 +1,6 @@
-import { ParsedSession, SlotLabel } from '../parser/types';
-import { clean } from '../parser/html-parser';
-import { ExportOptions } from './options';
+import { ParsedSession, SlotLabel } from '../parser/types.js';
+import { clean } from '../parser/html-parser.js';
+import { ExportOptions } from './options.js';
 
 export interface TimetableMeta {
   days: string[];

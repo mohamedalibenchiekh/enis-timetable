@@ -3,13 +3,13 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import * as fs from 'fs';
 import * as path from 'path';
-import JSZip = require('jszip');
-import { SessionEntity, SourceFileInfo, Timetable } from '../entities/timetable.entity';
-import { detectKind, parseHtml } from '../parser/html-parser';
-import { ParsedFile, SourceKind } from '../parser/types';
-import { buildDayGrid, DayGrid } from '../export/grid-builder';
-import { buildDayDocx } from '../export/docx-builder';
-import { SettingsService } from '../settings/settings.service';
+import JSZip from 'jszip';
+import { SessionEntity, SourceFileInfo, Timetable } from '../entities/timetable.entity.js';
+import { detectKind, parseHtml } from '../parser/html-parser.js';
+import { ParsedFile, SourceKind } from '../parser/types.js';
+import { buildDayGrid, DayGrid } from '../export/grid-builder.js';
+import { buildDayDocx } from '../export/docx-builder.js';
+import { SettingsService } from '../settings/settings.service.js';
 
 const PRIORITY: SourceKind[] = ['rooms', 'teachers', 'groups'];
 

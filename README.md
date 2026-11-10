@@ -7,7 +7,7 @@ into one **Word (.docx) file per day** — same layout as your `Jeudi.docx`: roo
 |---|---|
 | Desktop shell | Electron (TypeScript) — starts the API on a free local port and opens the UI |
 | UI | Next.js 15 + React 19 + TypeScript (static export, served by the API) |
-| API | NestJS 11 + TypeORM + TypeScript (parsing, storage, DOCX generation with `docx`) |
+| API | NestJS 12 (ESM) + TypeORM + TypeScript (parsing, storage, DOCX generation with `docx`) |
 | Database | PostgreSQL 17 — **bundled** in the desktop app (`embedded-postgres`), or any external PostgreSQL |
 
 ```

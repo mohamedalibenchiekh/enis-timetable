@@ -1,5 +1,5 @@
 import { Column, CreateDateColumn, Entity, Index, ManyToOne, OneToMany, PrimaryColumn, PrimaryGeneratedColumn } from 'typeorm';
-import { SlotLabel, SourceKind } from '../parser/types';
+import { SlotLabel, SourceKind } from '../parser/types.js';
 
 export interface SourceFileInfo {
   kind: SourceKind;

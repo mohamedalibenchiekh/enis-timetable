@@ -1,11 +1,11 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { Setting, SessionEntity, Timetable } from './entities/timetable.entity';
-import { SettingsController } from './settings/settings.controller';
-import { SettingsService } from './settings/settings.service';
-import { TimetablesController } from './timetables/timetables.controller';
-import { TimetablesService } from './timetables/timetables.service';
-import { HealthController } from './health.controller';
+import { Setting, SessionEntity, Timetable } from './entities/timetable.entity.js';
+import { SettingsController } from './settings/settings.controller.js';
+import { SettingsService } from './settings/settings.service.js';
+import { TimetablesController } from './timetables/timetables.controller.js';
+import { TimetablesService } from './timetables/timetables.service.js';
+import { HealthController } from './health.controller.js';
 
 @Module({
   imports: [

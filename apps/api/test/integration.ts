@@ -5,7 +5,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as http from 'http';
-import JSZip = require('jszip');
+import JSZip from 'jszip';
 
 const API_PORT = Number(process.env.API_PORT ?? process.env.PORT ?? 4000);
 const BASE_URL = `http://127.0.0.1:${API_PORT}`;

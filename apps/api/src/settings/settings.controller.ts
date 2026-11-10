@@ -1,6 +1,6 @@
 import { BadRequestException, Body, Controller, Get, Put } from '@nestjs/common';
-import { ExportOptions } from '../export/options';
-import { SettingsService } from './settings.service';
+import { ExportOptions } from '../export/options.js';
+import { SettingsService } from './settings.service.js';
 
 @Controller('settings')
 export class SettingsController {

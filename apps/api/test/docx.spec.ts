@@ -1,6 +1,6 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import JSZip = require('jszip');
+import JSZip from 'jszip';
 import * as cheerio from 'cheerio';
 import { describe, expect, it } from 'vitest';
 import { buildDayDocx } from '../src/export/docx-builder';
