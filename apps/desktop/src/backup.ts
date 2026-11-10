@@ -41,16 +41,24 @@ export function backupBeforeUpgrade(
   const changed = previousVersion !== null && previousVersion !== currentVersion;
   let backupPath: string | undefined;
   let warning: string | undefined;
+  let backupFailed = false;
 
   if (changed && previousVersion !== null && fs.existsSync(databasePath)) {
     const backupRoot = path.join(userDataPath, 'backups');
     const timestamp = (options.now?.() ?? new Date()).toISOString().replace(/[-:.]/g, '');
     backupPath = path.join(backupRoot, `database-${safeVersion(previousVersion)}-${timestamp}`);
     let copySucceeded = false;
+    let backupCreated = false;
 
     try {
       fs.mkdirSync(backupRoot, { recursive: true });
-      (options.copyDirectory ?? ((source, destination) => fs.cpSync(source, destination, { recursive: true, errorOnExist: true })))(
+      fs.mkdirSync(backupPath);
+      backupCreated = true;
+      (options.copyDirectory ?? ((source, destination) => fs.cpSync(source, destination, {
+        recursive: true,
+        errorOnExist: true,
+        force: false,
+      })))(
         databasePath,
         backupPath,
       );
@@ -70,8 +78,11 @@ export function backupBeforeUpgrade(
         : 'La sauvegarde automatique des données avant mise à jour a échoué.';
       log(`${warning} ${String(error)}`);
       if (!copySucceeded) {
+        backupFailed = true;
         try {
-          if (fs.existsSync(backupPath)) fs.rmSync(backupPath, { recursive: true, force: true });
+          if (backupCreated && fs.existsSync(backupPath)) {
+            fs.rmSync(backupPath, { recursive: true, force: true });
+          }
         } catch (cleanupError) {
           log(`Impossible de supprimer la sauvegarde incomplète: ${String(cleanupError)}`);
         }
@@ -80,14 +91,16 @@ export function backupBeforeUpgrade(
     }
   }
 
-  try {
-    fs.mkdirSync(userDataPath, { recursive: true });
-    const temporaryStatePath = `${statePath}.tmp`;
-    fs.writeFileSync(temporaryStatePath, JSON.stringify({ version: currentVersion }, null, 2));
-    fs.renameSync(temporaryStatePath, statePath);
-  } catch (error) {
-    warning ??= 'La version de l’application n’a pas pu être enregistrée.';
-    log(`${warning} ${String(error)}`);
+  if (!backupFailed) {
+    try {
+      fs.mkdirSync(userDataPath, { recursive: true });
+      const temporaryStatePath = `${statePath}.tmp`;
+      fs.writeFileSync(temporaryStatePath, JSON.stringify({ version: currentVersion }, null, 2));
+      fs.renameSync(temporaryStatePath, statePath);
+    } catch (error) {
+      warning ??= 'La version de l’application n’a pas pu être enregistrée.';
+      log(`${warning} ${String(error)}`);
+    }
   }
 
   return { changed, warning, backupPath };

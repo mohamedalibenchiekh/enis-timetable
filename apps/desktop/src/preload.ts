@@ -1,9 +1,19 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import type { UpdateStatus } from './updater';
 
+const UPDATE_STATUS_NAMES: Record<UpdateStatus['status'], true> = {
+  checking: true,
+  available: true,
+  progress: true,
+  downloaded: true,
+  error: true,
+  none: true,
+};
+
 function isUpdateStatus(value: unknown): value is UpdateStatus {
-  if (!value || typeof value !== 'object' || !('status' in value)) return false;
-  const status = value as { status: unknown; version?: unknown; percent?: unknown; message?: unknown };
+  if (!value || typeof value !== 'object' || !('status' in value)
+    || typeof value.status !== 'string' || !Object.hasOwn(UPDATE_STATUS_NAMES, value.status)) return false;
+  const status = value as UpdateStatus;
   switch (status.status) {
     case 'checking':
     case 'none':
@@ -16,8 +26,10 @@ function isUpdateStatus(value: unknown): value is UpdateStatus {
         && Number.isFinite(status.percent) && status.percent >= 0 && status.percent <= 100;
     case 'error':
       return typeof status.message === 'string';
-    default:
-      return false;
+    default: {
+      const exhaustive: never = status;
+      return exhaustive;
+    }
   }
 }
 
@@ -26,6 +38,7 @@ contextBridge.exposeInMainWorld('enis', {
   chooseFolder: (): Promise<string | null> => ipcRenderer.invoke('choose-folder'),
   showInFolder: (p: string): Promise<void> => ipcRenderer.invoke('show-in-folder', p),
   getVersion: (): Promise<string> => ipcRenderer.invoke('get-version'),
+  getUpdateStatus: (): Promise<UpdateStatus | null> => ipcRenderer.invoke('get-update-status'),
   checkForUpdates: (): Promise<void> => ipcRenderer.invoke('check-for-updates'),
   installUpdate: (): Promise<void> => ipcRenderer.invoke('install-update'),
   onUpdateStatus: (callback: (status: UpdateStatus) => void): (() => void) => {

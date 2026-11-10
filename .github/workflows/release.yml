@@ -106,7 +106,13 @@ jobs:
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ${{ matrix.artifact-name }}
-          path: apps/desktop/release/*
+          path: |
+            apps/desktop/release/*.exe
+            apps/desktop/release/*.dmg
+            apps/desktop/release/*.zip
+            apps/desktop/release/*.AppImage
+            apps/desktop/release/latest*.yml
+            apps/desktop/release/*.blockmap
           if-no-files-found: error
 
   # ── Create GitHub Release ──────────────────────────────────────────

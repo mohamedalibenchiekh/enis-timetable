@@ -56,7 +56,7 @@ On the OS you target (Windows for a `.exe`):
 npm install
 npm run dist
 ```
-Result in `apps/desktop/release/`: **`Emplois du temps ENISo Setup <version>.exe`** (Windows, NSIS), `.dmg` (macOS) or `.AppImage` (Linux).
+Result in `apps/desktop/release/`: **`ENISo-Setup-<version>.exe`** (Windows, NSIS), `ENISo-<version>-<arch>.dmg` (macOS) or `ENISo-<version>-<arch>.AppImage` (Linux).
 Give that single file to the users: they double-click it, install, and open *Emplois du temps ENISo* from the desktop shortcut.
 The installer contains everything (app, API, PostgreSQL); no Node.js or database installation is needed.
 
@@ -155,7 +155,7 @@ The Monday `DayGrid` golden snapshot is in `apps/api/test/__snapshots__/docx.spe
 
 Never reuse a release tag, edit `latest*.yml` by hand, or create a tag whose version differs from `apps/desktop/package.json`. The workflow keeps `--publish never` in the build jobs and attaches the generated installer assets, update metadata, and blockmaps to one **published** (not draft or prerelease) GitHub Release. Electron-updater only checks published releases.
 
-The generated asset names contain no spaces (for example `ENISo-Setup-1.0.1.exe`), so the URLs in `latest.yml`, `latest-linux.yml`, and `latest-mac.yml` match uploaded names. Updates are enabled only for Windows NSIS and Linux AppImage. macOS and any other unsupported platform show a prompt to open the Releases page instead; macOS auto-install is not supported because these builds are unsigned.
+The generated asset names contain no spaces (for example `ENISo-Setup-1.0.1.exe`), so the URLs in `latest.yml`, `latest-linux.yml`, and `latest-mac.yml` match uploaded names. Updates are enabled only for Windows NSIS and Linux AppImage. On macOS and other unsupported platforms, a manual check offers to open the Releases page; automatic checks do nothing. macOS auto-install is not supported because these builds are unsigned.
 
 ### What users see and data safety
 

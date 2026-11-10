@@ -27,7 +27,6 @@
   "build": {
     "appId": "tn.enis.timetable",
     "productName": "Emplois du temps ENISo",
-    "artifactName": "ENISo-Setup-${version}.${ext}",
     "publish": [
       {
         "provider": "github",
@@ -52,13 +51,16 @@
     ],
     "win": {
       "target": "nsis",
+      "artifactName": "ENISo-Setup-${version}.${ext}",
       "signAndEditExecutable": false
     },
     "mac": {
-      "target": ["dmg", "zip"]
+      "target": ["dmg", "zip"],
+      "artifactName": "ENISo-${version}-${arch}.${ext}"
     },
     "linux": {
       "target": "AppImage",
+      "artifactName": "ENISo-${version}-${arch}.${ext}",
       "category": "Office"
     },
     "directories": {

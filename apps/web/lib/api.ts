@@ -30,6 +30,7 @@ declare global {
       chooseFolder: () => Promise<string | null>;
       showInFolder: (p: string) => Promise<void>;
       getVersion: () => Promise<string>;
+      getUpdateStatus: () => Promise<UpdateStatus | null>;
       checkForUpdates: () => Promise<void>;
       installUpdate: () => Promise<void>;
       onUpdateStatus: (callback: (status: UpdateStatus) => void) => () => void;

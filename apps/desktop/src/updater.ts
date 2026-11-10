@@ -49,6 +49,7 @@ export interface UpdateServiceOptions {
   sendStatus(status: UpdateStatus): void;
   openReleasePage(): Promise<void>;
   stopBeforeInstall(): Promise<void>;
+  recoverAfterInstallFailure(): Promise<void> | void;
 }
 
 const INITIAL_CHECK_DELAY_MS = 20_000;
@@ -60,6 +61,14 @@ export function createUpdater(options: UpdateServiceOptions) {
   let manualErrorShown = false;
   let downloadedVersion: string | null = null;
   let updateVersion: string | null = null;
+  let latestStatus: UpdateStatus | null = null;
+  let downloadedStatus: UpdateStatus | null = null;
+
+  const publish = (status: UpdateStatus) => {
+    latestStatus = status;
+    if (status.status === 'downloaded') downloadedStatus = status;
+    options.sendStatus(status);
+  };
 
   const showManualError = (error: Error) => {
     if (!manuallyChecking || manualErrorShown) return;
@@ -74,20 +83,20 @@ export function createUpdater(options: UpdateServiceOptions) {
 
   const reportError = (error: Error) => {
     options.log(`Erreur de mise à jour: ${error.message}`);
-    options.sendStatus({ status: 'error', message: error.message });
+    publish({ status: 'error', message: error.message });
     showManualError(error);
     manuallyChecking = false;
   };
 
-  updater.on('checking-for-update', () => options.sendStatus({ status: 'checking' }));
+  updater.on('checking-for-update', () => publish({ status: 'checking' }));
   updater.on('update-available', (info) => {
     updateVersion = info.version;
     options.log(`Mise à jour disponible: ${info.version}`);
-    options.sendStatus({ status: 'available', version: info.version });
+    publish({ status: 'available', version: info.version });
   });
   updater.on('update-not-available', () => {
     options.log('Aucune mise à jour disponible.');
-    options.sendStatus({ status: 'none' });
+    publish({ status: 'none' });
     if (manuallyChecking) {
       manuallyChecking = false;
       void dialog.showMessageBox({
@@ -99,7 +108,7 @@ export function createUpdater(options: UpdateServiceOptions) {
     }
   });
   updater.on('download-progress', (progress) => {
-    options.sendStatus({
+    publish({
       status: 'progress',
       version: updateVersion ?? app.getVersion(),
       percent: Math.round(progress.percent),
@@ -109,7 +118,7 @@ export function createUpdater(options: UpdateServiceOptions) {
     downloadedVersion = info.version;
     manuallyChecking = false;
     options.log(`Mise à jour téléchargée: ${info.version}`);
-    options.sendStatus({ status: 'downloaded', version: info.version });
+    publish({ status: 'downloaded', version: info.version });
     void dialog.showMessageBox({
       type: 'info',
       title: 'Mise à jour prête',
@@ -131,12 +140,21 @@ export function createUpdater(options: UpdateServiceOptions) {
     } catch (error) {
       const installError = error instanceof Error ? error : new Error(String(error));
       reportError(installError);
-      void dialog.showMessageBox({
-        type: 'error',
-        title: 'Installation de la mise à jour',
-        message: `La mise à jour n’a pas pu être installée : ${installError.message}`,
-        buttons: ['OK'],
-      }).catch((dialogError: unknown) => options.log(`Impossible d’afficher l’erreur d’installation: ${String(dialogError)}`));
+      try {
+        await dialog.showMessageBox({
+          type: 'error',
+          title: 'Installation de la mise à jour',
+          message: `La mise à jour n’a pas pu être installée : ${installError.message}`,
+          buttons: ['OK'],
+        });
+      } catch (dialogError) {
+        options.log(`Impossible d’afficher l’erreur d’installation: ${String(dialogError)}`);
+      }
+      try {
+        await options.recoverAfterInstallFailure();
+      } catch (recoveryError) {
+        options.log(`Impossible de redémarrer l’application après l’échec de mise à jour: ${String(recoveryError)}`);
+      }
     }
   }
 
@@ -211,5 +229,11 @@ export function createUpdater(options: UpdateServiceOptions) {
     setInterval(() => { void checkForUpdates(); }, CHECK_INTERVAL_MS);
   }
 
-  return { start, onMainWindowShown, checkForUpdates, installUpdate };
+  return {
+    start,
+    onMainWindowShown,
+    checkForUpdates,
+    installUpdate,
+    getStatus: () => downloadedStatus ?? latestStatus,
+  };
 }

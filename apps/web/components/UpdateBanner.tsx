@@ -1,19 +1,28 @@
+import { useEffect, useState } from 'react';
 import type { UpdateStatus } from '@/lib/api';
 
 export function UpdateBanner({ status, onInstall }: { status: UpdateStatus | null; onInstall: () => void }) {
-  if (!status || (status.status !== 'available' && status.status !== 'progress' && status.status !== 'downloaded')) return null;
+  const [visibleStatus, setVisibleStatus] = useState(status);
+  useEffect(() => {
+    setVisibleStatus((current) =>
+      current?.status === 'downloaded' && status?.status !== 'downloaded' ? current : status,
+    );
+  }, [status]);
 
-  if (status.status === 'downloaded') {
+  if (!visibleStatus || (visibleStatus.status !== 'available' && visibleStatus.status !== 'progress'
+    && visibleStatus.status !== 'downloaded')) return null;
+
+  if (visibleStatus.status === 'downloaded') {
     return (
       <div className="update-banner" role="status">
-        Version {status.version} prête —{' '}
+        Version {visibleStatus.version} prête —{' '}
         <button className="link" onClick={onInstall}>Redémarrer pour installer</button>
       </div>
     );
   }
 
-  const progress = status.status === 'progress'
-    ? `téléchargement ${status.percent} %…`
+  const progress = visibleStatus.status === 'progress'
+    ? `téléchargement ${visibleStatus.percent} %…`
     : 'téléchargement en cours…';
-  return <div className="update-banner" role="status">Nouvelle version {status.version} disponible — {progress}</div>;
+  return <div className="update-banner" role="status">Nouvelle version {visibleStatus.version} disponible — {progress}</div>;
 }

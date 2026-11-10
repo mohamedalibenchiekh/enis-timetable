@@ -22,10 +22,18 @@ export class DatabaseVersionMismatchError extends Error {
   }
 }
 
+export class DatabaseVersionFileCorruptError extends Error {
+  constructor() {
+    super('Le fichier de version PostgreSQL est vide ou corrompu. Les données n’ont pas été modifiées.');
+    this.name = 'DatabaseVersionFileCorruptError';
+  }
+}
+
 export function assertEmbeddedDatabaseVersion(databaseDir: string): void {
   const versionPath = path.join(databaseDir, 'pgdata', 'PG_VERSION');
   if (!fs.existsSync(versionPath)) return;
   const actualVersion = fs.readFileSync(versionPath, 'utf8').trim();
+  if (!actualVersion) throw new DatabaseVersionFileCorruptError();
   if (actualVersion !== POSTGRES_MAJOR_VERSION) {
     throw new DatabaseVersionMismatchError(actualVersion);
   }

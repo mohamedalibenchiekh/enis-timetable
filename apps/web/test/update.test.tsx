@@ -5,7 +5,11 @@ import * as path from 'node:path';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { backupBeforeUpgrade } from '../../desktop/src/backup';
-import { assertEmbeddedDatabaseVersion, DatabaseVersionMismatchError } from '../../desktop/src/database';
+import {
+  assertEmbeddedDatabaseVersion,
+  DatabaseVersionFileCorruptError,
+  DatabaseVersionMismatchError,
+} from '../../desktop/src/database';
 import { AutoUpdater, createUpdater, UpdateDialog, UpdateInfo, UpdateProgress, UpdateStatus } from '../../desktop/src/updater';
 import { UpdateBanner } from '../components/UpdateBanner';
 
@@ -54,6 +58,7 @@ function createTestUpdater(overrides: {
   };
   const statuses: UpdateStatus[] = [];
   const stopBeforeInstall = vi.fn().mockResolvedValue(undefined);
+  const recoverAfterInstallFailure = vi.fn().mockResolvedValue(undefined);
   const service = createUpdater({
     app: { isPackaged: overrides.isPackaged ?? true, getVersion: () => '1.0.0' },
     updater,
@@ -64,8 +69,9 @@ function createTestUpdater(overrides: {
     sendStatus: (status) => statuses.push(status),
     openReleasePage: vi.fn().mockResolvedValue(undefined),
     stopBeforeInstall,
+    recoverAfterInstallFailure,
   });
-  return { updater, dialog, statuses, service, stopBeforeInstall };
+  return { updater, dialog, statuses, service, stopBeforeInstall, recoverAfterInstallFailure };
 }
 
 function tempDirectory(): string {
@@ -139,6 +145,26 @@ describe('update service', () => {
     expect(stopBeforeInstall).toHaveBeenCalledOnce();
   });
 
+  it('restarts the app after service shutdown or updater installation fails', async () => {
+    const { updater, dialog, service, stopBeforeInstall, recoverAfterInstallFailure } = createTestUpdater({ dialogResponse: 0 });
+    stopBeforeInstall.mockRejectedValue(new Error('database shutdown failed'));
+    service.start();
+    updater.emitDownloaded({ version: '1.0.1' });
+    await vi.waitFor(() => expect(recoverAfterInstallFailure).toHaveBeenCalledOnce());
+    expect(dialog.showMessageBox).toHaveBeenCalledWith(expect.objectContaining({
+      message: expect.stringContaining('database shutdown failed'),
+    }));
+    expect(updater.quitAndInstall).not.toHaveBeenCalled();
+  });
+
+  it('keeps a downloaded update as the replayed status after later transient events', () => {
+    const { updater, service } = createTestUpdater();
+    updater.emitDownloaded({ version: '1.0.1' });
+    updater.emitChecking();
+    updater.emit('error', new Error('offline'));
+    expect(service.getStatus()).toEqual({ status: 'downloaded', version: '1.0.1' });
+  });
+
   it('shows the latest-version message for a manual check', async () => {
     const { updater, dialog, service } = createTestUpdater();
     await service.checkForUpdates(true);
@@ -176,6 +202,8 @@ describe('upgrade backup', () => {
       expect(() => assertEmbeddedDatabaseVersion(directory)).not.toThrow();
       fs.writeFileSync(path.join(pgData, 'PG_VERSION'), '18\n');
       expect(() => assertEmbeddedDatabaseVersion(directory)).toThrow(DatabaseVersionMismatchError);
+      fs.writeFileSync(path.join(pgData, 'PG_VERSION'), '  \n');
+      expect(() => assertEmbeddedDatabaseVersion(directory)).toThrow(DatabaseVersionFileCorruptError);
     } finally {
       fs.rmSync(directory, { recursive: true, force: true });
     }
@@ -236,7 +264,33 @@ describe('upgrade backup', () => {
       expect(result.warning).toContain('a échoué');
       expect(result.backupPath).toBeUndefined();
       expect(log).toHaveBeenCalledWith(expect.stringContaining('disk full'));
-      expect(JSON.parse(fs.readFileSync(path.join(directory, 'state.json'), 'utf8'))).toEqual({ version: '1.0.1' });
+      expect(JSON.parse(fs.readFileSync(path.join(directory, 'state.json'), 'utf8'))).toEqual({ version: '1.0.0' });
+      const retry = backupBeforeUpgrade(directory, '1.0.1', vi.fn());
+      expect(retry.changed).toBe(true);
+    } finally {
+      fs.rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('does not merge into or remove an existing backup with the same name', () => {
+    const directory = tempDirectory();
+    try {
+      const backupDirectory = path.join(directory, 'backups');
+      const existingBackup = path.join(backupDirectory, 'database-1.0.0-20261110T083000000Z');
+      fs.mkdirSync(path.join(directory, 'database'));
+      fs.writeFileSync(path.join(directory, 'database', 'important.db'), 'new data');
+      fs.mkdirSync(existingBackup, { recursive: true });
+      fs.writeFileSync(path.join(existingBackup, 'marker'), 'existing backup');
+      fs.writeFileSync(path.join(directory, 'state.json'), JSON.stringify({ version: '1.0.0' }));
+
+      const result = backupBeforeUpgrade(directory, '1.0.1', vi.fn(), {
+        now: () => new Date('2026-11-10T08:30:00.000Z'),
+      });
+
+      expect(result.warning).toContain('a échoué');
+      expect(result.backupPath).toBeUndefined();
+      expect(fs.readFileSync(path.join(existingBackup, 'marker'), 'utf8')).toBe('existing backup');
+      expect(fs.existsSync(path.join(existingBackup, 'important.db'))).toBe(false);
     } finally {
       fs.rmSync(directory, { recursive: true, force: true });
     }
@@ -253,6 +307,8 @@ describe('UpdateBanner', () => {
     expect(screen.getByText('Nouvelle version 1.0.1 disponible — téléchargement 45 %…')).not.toBeNull();
 
     view.rerender(<UpdateBanner status={{ status: 'downloaded', version: '1.0.1' }} onInstall={onInstall} />);
+    view.rerender(<UpdateBanner status={{ status: 'error', message: 'offline' }} onInstall={onInstall} />);
+    expect(screen.getByRole('status').textContent).toContain('Redémarrer pour installer');
     fireEvent.click(screen.getByRole('button', { name: 'Redémarrer pour installer' }));
     expect(onInstall).toHaveBeenCalledOnce();
   });

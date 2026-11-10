@@ -20,8 +20,8 @@ let backupWarning: string | undefined;
 
 /**
  * By default the app runs its own embedded PostgreSQL. To use an existing server instead, put
- * "autoUpdate": false in <userData>/config.json to disable automatic update checks.
  * { "databaseUrl": "postgres://user:password@host:5432/dbname" } in <userData>/config.json.
+ * Put "autoUpdate": false in <userData>/config.json to disable automatic update checks.
  */
 function configPath() {
   return path.join(app.getPath('userData'), 'config.json');
@@ -187,6 +187,10 @@ ipcMain.handle('get-version', (_event, ...args: unknown[]) => {
   assertNoIpcArguments(args);
   return app.getVersion();
 });
+ipcMain.handle('get-update-status', (_event, ...args: unknown[]) => {
+  assertNoIpcArguments(args);
+  return updaterService?.getStatus() ?? null;
+});
 ipcMain.handle('check-for-updates', async (_event, ...args: unknown[]) => {
   assertNoIpcArguments(args);
   await updaterService?.checkForUpdates(true);
@@ -231,6 +235,16 @@ app.whenReady().then(async () => {
     },
     openReleasePage: () => shell.openExternal('https://github.com/mohamedalibenchiekh/enis-timetable/releases/latest'),
     stopBeforeInstall: stopServices,
+    recoverAfterInstallFailure: async () => {
+      logUpdate('Redémarrage de récupération après échec d’installation de la mise à jour.');
+      try {
+        await stopServices();
+      } catch (error) {
+        logUpdate(`Nouvel échec de l’arrêt avant redémarrage de récupération: ${String(error)}`);
+      }
+      app.relaunch();
+      app.exit(1);
+    },
   });
   updaterService.start();
   Menu.setApplicationMenu(Menu.buildFromTemplate([
@@ -325,6 +339,24 @@ app.on('will-quit', (event) => {
   void stopServices().then(() => app.quit()).catch((error: unknown) => {
     shutdownPromise = null;
     logUpdate(`Arrêt sécurisé impossible: ${String(error)}`);
-    dialog.showErrorBox('Arrêt impossible', 'Le serveur intégré n’a pas pu être arrêté proprement. L’application reste ouverte pour protéger vos données.');
+    void dialog.showMessageBox({
+      type: 'error',
+      title: 'Arrêt impossible',
+      message: 'Le serveur intégré n’a pas pu être arrêté proprement. Vous pouvez réessayer ou quitter quand même.',
+      detail: String(error),
+      buttons: ['Réessayer', 'Quitter quand même'],
+      defaultId: 0,
+      cancelId: 1,
+    }).then(({ response }) => {
+      if (response === 0) {
+        app.quit();
+      } else {
+        logUpdate('Arrêt forcé choisi après échec de l’arrêt sécurisé.');
+        app.exit(1);
+      }
+    }).catch((dialogError: unknown) => {
+      logUpdate(`Impossible d’afficher les options d’arrêt: ${String(dialogError)}; arrêt forcé.`);
+      app.exit(1);
+    });
   });
 });

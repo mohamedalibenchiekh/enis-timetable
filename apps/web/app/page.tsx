@@ -22,6 +22,7 @@ export default function Home() {
   const [error, setError] = useState('');
   const [isDesktop, setIsDesktop] = useState(false);
   const [desktopVersion, setDesktopVersion] = useState<string | null>(null);
+  const [desktopVersionError, setDesktopVersionError] = useState(false);
   const [updateStatus, setUpdateStatus] = useState<UpdateStatus | null>(null);
 
   const reload = useCallback(async (select?: string) => {
@@ -40,8 +41,18 @@ export default function Home() {
     setIsDesktop(true);
     void bridge.getVersion()
       .then(setDesktopVersion)
-      .catch((e: unknown) => setError(`Version de l’application indisponible : ${errorMessage(e)}`));
-    return bridge.onUpdateStatus(setUpdateStatus);
+      .catch(() => setDesktopVersionError(true));
+    let receivedUpdateEvent = false;
+    const unsubscribe = bridge.onUpdateStatus((next) => {
+      receivedUpdateEvent = true;
+      setUpdateStatus(next);
+    });
+    void bridge.getUpdateStatus()
+      .then((current) => {
+        if (!receivedUpdateEvent) setUpdateStatus(current);
+      })
+      .catch((e: unknown) => console.warn(`État des mises à jour indisponible : ${errorMessage(e)}`));
+    return unsubscribe;
   }, []);
 
   const sel = items?.find((t) => t.id === selId) ?? null;
@@ -89,6 +100,7 @@ export default function Home() {
         {isDesktop && (
           <div className="sidebar-footer">
             {desktopVersion && <span className="muted small">v{desktopVersion}</span>}
+            {desktopVersionError && <span className="muted small">Version indisponible</span>}
             <button className="link" onClick={checkForUpdates}>Rechercher les mises à jour</button>
           </div>
         )}
