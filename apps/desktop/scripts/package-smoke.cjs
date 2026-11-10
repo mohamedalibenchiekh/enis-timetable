@@ -1,5 +1,4 @@
 const { spawn } = require('node:child_process');
-const { once } = require('node:events');
 const fs = require('node:fs');
 const net = require('node:net');
 const os = require('node:os');
@@ -17,9 +16,74 @@ async function reservePort() {
   return address.port;
 }
 
+function isAddressInUse(error) {
+  return /EADDRINUSE|address already in use/i.test(String(error));
+}
+
+async function startApi(apiDir, webDir, databaseUrl, log) {
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const port = await reservePort();
+    const child = spawn(process.execPath, [path.join(apiDir, 'dist', 'main.js')], {
+      cwd: apiDir,
+      env: {
+        ...process.env,
+        ELECTRON_RUN_AS_NODE: '1',
+        PORT: String(port),
+        DATABASE_URL: databaseUrl,
+        WEB_DIR: webDir,
+      },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    let spawnError;
+    child.on('error', (error) => { spawnError = error; });
+    child.stdout.on('data', log);
+    child.stderr.on('data', log);
+    const closed = new Promise((resolve) => child.once('close', resolve));
+    let output = '';
+    const capture = (data) => { output += data.toString(); };
+    child.stdout.on('data', capture);
+    child.stderr.on('data', capture);
+
+    try {
+      const deadline = Date.now() + 60_000;
+      while (Date.now() < deadline) {
+        if (spawnError) throw spawnError;
+        if (child.exitCode !== null || child.signalCode !== null) {
+          throw new Error(`The packaged API exited with code ${child.exitCode} and signal ${child.signalCode}:\n${output}`);
+        }
+        try {
+          const response = await fetch(`http://127.0.0.1:${port}/api/health`);
+          if (response.ok) return { child, closed };
+        } catch {
+          // The API is still starting.
+        }
+        await new Promise((resolve) => setTimeout(resolve, 250));
+      }
+      throw new Error(`The packaged API did not become healthy:\n${output}`);
+    } catch (error) {
+      if (child.exitCode === null && child.signalCode === null && !spawnError) child.kill();
+      await closed;
+      if (isAddressInUse(error) && attempt < 4) continue;
+      throw error;
+    }
+  }
+  throw new Error('The packaged API could not bind to a free port after 5 attempts.');
+}
+
+async function startDatabase(startEmbeddedPostgres, databaseDir, log) {
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    try {
+      return await startEmbeddedPostgres(databaseDir, await reservePort(), log);
+    } catch (error) {
+      if (!isAddressInUse(error) || attempt === 4) throw error;
+    }
+  }
+  throw new Error('Embedded PostgreSQL could not bind to a free port after 5 attempts.');
+}
+
 async function main() {
   const releaseDir = path.resolve(__dirname, '..', 'release');
-  const platformDirs = ['win-unpacked', 'linux-unpacked', 'mac'];
+  const platformDirs = ['win-unpacked', 'linux-unpacked'];
   const resourcesDir = platformDirs
     .map((directory) => path.join(releaseDir, directory, 'resources'))
     .find((directory) => fs.existsSync(directory));
@@ -35,44 +99,19 @@ async function main() {
   let apiLogs = '';
 
   try {
-    database = await startEmbeddedPostgres(databaseDir, await reservePort(), (message) => {
+    database = await startDatabase(startEmbeddedPostgres, databaseDir, (message) => {
       apiLogs += `${message}\n`;
     });
-    const port = await reservePort();
-    api = spawn(process.execPath, [path.join(apiDir, 'dist', 'main.js')], {
-      cwd: apiDir,
-      env: {
-        ...process.env,
-        ELECTRON_RUN_AS_NODE: '1',
-        PORT: String(port),
-        DATABASE_URL: database.url,
-        WEB_DIR: webDir,
-      },
-      stdio: ['ignore', 'pipe', 'pipe'],
+    const runningApi = await startApi(apiDir, webDir, database.url, (data) => {
+      apiLogs += data.toString();
     });
-    api.stdout.on('data', (data) => { apiLogs += data.toString(); });
-    api.stderr.on('data', (data) => { apiLogs += data.toString(); });
-    apiClosed = once(api, 'close');
-
-    const deadline = Date.now() + 60_000;
-    while (Date.now() < deadline) {
-      if (api.exitCode !== null) throw new Error(`The packaged API exited with code ${api.exitCode}:\n${apiLogs}`);
-      try {
-        const response = await fetch(`http://127.0.0.1:${port}/api/health`);
-        if (response.ok) {
-          console.log('Packaged API and embedded PostgreSQL started successfully.');
-          api.kill();
-          await apiClosed;
-          api = undefined;
-          apiClosed = undefined;
-          return;
-        }
-      } catch {
-        // The API is still starting.
-      }
-      await new Promise((resolve) => setTimeout(resolve, 250));
-    }
-    throw new Error(`The packaged API did not become healthy:\n${apiLogs}`);
+    api = runningApi.child;
+    apiClosed = runningApi.closed;
+    console.log('Packaged API and embedded PostgreSQL started successfully.');
+    api.kill();
+    await apiClosed;
+    api = undefined;
+    apiClosed = undefined;
   } finally {
     if (api && api.exitCode === null) {
       api.kill();

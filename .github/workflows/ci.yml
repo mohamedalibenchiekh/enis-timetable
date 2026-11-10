@@ -220,7 +220,7 @@ jobs:
         working-directory: apps/desktop
         env:
           ELECTRON_RUN_AS_NODE: '1'
-        run: npx electron --input-type=module -e "await import('./stage/api/dist/app.module.js')"
+        run: npx electron --input-type=module -e "await import('./stage/api/apps/api/dist/app.module.js')"
       - name: Electron Builder (unpacked)
         working-directory: apps/desktop
         run: npx electron-builder --dir --win
