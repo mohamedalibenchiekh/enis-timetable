@@ -15,8 +15,8 @@ fs.mkdirSync(path.join(stage, 'api'), { recursive: true });
 fs.cpSync(path.join(apps, 'api', 'dist'), path.join(stage, 'api', 'dist'), { recursive: true });
 fs.cpSync(path.join(apps, 'web', 'out'), path.join(stage, 'web'), { recursive: true });
 
-// Install the API's production dependencies strictly from the committed package-lock.json
-// in a temp folder OUTSIDE the project tree to avoid modifying the workspace node_modules.
+// Install the API's production dependencies in a nested tree so workspace-only versions
+// cannot overwrite root-hoisted packages with incompatible versions.
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'enis-stage-'));
 fs.copyFileSync(path.join(repoRoot, 'package.json'), path.join(tmp, 'package.json'));
 fs.copyFileSync(path.join(repoRoot, 'package-lock.json'), path.join(tmp, 'package-lock.json'));
@@ -25,12 +25,9 @@ fs.copyFileSync(path.join(repoRoot, 'package-lock.json'), path.join(tmp, 'packag
   fs.copyFileSync(path.join(apps, w, 'package.json'), path.join(tmp, 'apps', w, 'package.json'));
 });
 
-execSync('npm ci --omit=dev --workspace=@enis/api --no-audit --no-fund', { cwd: tmp, stdio: 'inherit' });
+execSync('npm ci --omit=dev --workspace=@enis/api --install-strategy=nested --no-audit --no-fund', { cwd: tmp, stdio: 'inherit' });
 
-fs.cpSync(path.join(tmp, 'node_modules'), path.join(stage, 'api', 'node_modules'), { recursive: true });
-if (fs.existsSync(path.join(tmp, 'apps', 'api', 'node_modules'))) {
-  fs.cpSync(path.join(tmp, 'apps', 'api', 'node_modules'), path.join(stage, 'api', 'node_modules'), { recursive: true });
-}
+fs.cpSync(path.join(tmp, 'apps', 'api', 'node_modules'), path.join(stage, 'api', 'node_modules'), { recursive: true });
 if (fs.existsSync(path.join(stage, 'api', 'node_modules', '@enis'))) {
   fs.rmSync(path.join(stage, 'api', 'node_modules', '@enis'), { recursive: true, force: true });
 }
