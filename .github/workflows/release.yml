@@ -66,12 +66,18 @@ jobs:
       - run: npm run stage -w apps/desktop
       - name: Build installer
         working-directory: apps/desktop
+        shell: bash
         env:
           # Signing certificates are optional — builds are unsigned by default.
           # Set CSC_LINK and CSC_KEY_PASSWORD as repository secrets for signed builds.
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
-        run: npx electron-builder --publish never ${{ matrix.builder-args }}
+        run: |
+          if [[ -z "${CSC_LINK:-}" ]]; then
+            unset CSC_LINK CSC_KEY_PASSWORD
+            echo "No signing certificate configured; building unsigned."
+          fi
+          npx electron-builder --publish never ${{ matrix.builder-args }}
       - name: Verify installer and update metadata
         shell: bash
         run: |
