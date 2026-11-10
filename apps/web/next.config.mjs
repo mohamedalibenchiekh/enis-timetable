@@ -21,6 +21,11 @@ const nextConfig = {
         output: 'export',
         images: { unoptimized: true },
       }),
+  turbopack: {
+    resolveAlias: {
+      '@': dir,
+    },
+  },
   webpack: (config) => {
     config.resolve.alias['@'] = dir;
     return config;
