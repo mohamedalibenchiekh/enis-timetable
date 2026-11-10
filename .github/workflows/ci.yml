@@ -218,7 +218,9 @@ jobs:
       - run: npm run stage -w apps/desktop
       - name: Verify staged API runtime imports
         working-directory: apps/desktop
-        run: node --input-type=module -e "await import('./stage/api/dist/app.module.js')"
+        env:
+          ELECTRON_RUN_AS_NODE: '1'
+        run: npx electron --input-type=module -e "await import('./stage/api/dist/app.module.js')"
       - name: Electron Builder (unpacked)
         working-directory: apps/desktop
         run: npx electron-builder --dir --win
