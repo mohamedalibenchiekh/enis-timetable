@@ -1,19 +1,19 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { buildVisualCases, getBaselinePath } from './cases';
+import { buildVisualCases, getBaselinePath } from './cases.js';
 import {
   assertVisualStructure,
   checkRendererPrerequisites,
   describeStructuralFailures,
   renderDocx,
-} from './renderer';
+} from './renderer.js';
 import { PNG } from 'pngjs';
 
 const MAX_BASELINE_BYTES = 150 * 1024;
 
 async function main(): Promise<void> {
   if (!process.argv.includes('--yes')) {
-    throw new Error('Refusing to overwrite visual baselines. Re-run with an explicit --yes flag.');
+    throw new Error('Refusing to overwrite visual baselines. Re-run with --yes to explicitly allow it.');
   }
 
   const prerequisites = checkRendererPrerequisites();

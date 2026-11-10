@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "build": "nest build && node scripts/mark-dist-esm.cjs",
+    "build": "nest build",
     "start": "node dist/main.js",
     "start:dev": "nest start --watch",
     "typecheck": "tsc --noEmit",
@@ -11,9 +11,9 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:integration": "vitest run test/integration.spec.ts",
-    "test:verify": "ts-node test/verify.ts",
+    "test:verify": "node --loader ts-node/esm test/verify.mts",
     "test:visual": "vitest run --config vitest.visual.config.ts",
-    "test:visual:update": "ts-node test/visual/update-baselines.ts"
+    "test:visual:update": "node --loader ts-node/esm test/visual/update-baselines.mts"
   },
   "dependencies": {
     "@nestjs/common": "^12.4.0",

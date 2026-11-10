@@ -1,12 +1,14 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { buildDayDocx } from '../../src/export/docx-builder';
-import { buildDayGrid } from '../../src/export/grid-builder';
-import { DEFAULT_OPTIONS } from '../../src/export/options';
-import { parseHtml } from '../../src/parser/html-parser';
+import { fileURLToPath } from 'node:url';
+import { buildDayDocx } from '../../src/export/docx-builder.js';
+import { buildDayGrid } from '../../src/export/grid-builder.js';
+import { DEFAULT_OPTIONS } from '../../src/export/options.js';
+import { parseHtml } from '../../src/parser/html-parser.js';
 
-const fixturesDir = path.resolve(__dirname, '../fixtures');
-const baselineDir = path.resolve(__dirname, 'baselines');
+const visualDirectory = path.dirname(fileURLToPath(import.meta.url));
+const fixturesDir = path.resolve(visualDirectory, '../fixtures');
+const baselineDir = path.resolve(visualDirectory, 'baselines');
 
 export interface VisualCase {
   name: string;

@@ -2,7 +2,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { PNG } from 'pngjs';
 
 const RENDER_TIMEOUT_MS = 60_000;
@@ -13,7 +13,7 @@ const REQUIRED_COLORS: ReadonlyArray<readonly [number, number, number]> = [
   [0xb8, 0xcc, 0xe4],
   [0xff, 0xff, 0x99],
 ];
-const FONT_CONFIG = path.join(__dirname, 'fonts.conf');
+const FONT_CONFIG = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fonts.conf');
 
 function rendererEnv(cacheHome: string): NodeJS.ProcessEnv {
   return {
