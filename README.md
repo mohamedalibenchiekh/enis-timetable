@@ -97,6 +97,7 @@ The visual renderer is supported on Ubuntu 24.04 with Node.js 22.22.3, LibreOffi
 On Ubuntu 24.04, install the pinned renderer packages:
 
 ```bash
+sudo apt-get update
 sudo apt-get install --no-install-recommends \
   libreoffice-writer=4:24.2.7-0ubuntu0.24.04.7 \
   poppler-utils=24.02.0-1ubuntu9.11 \
@@ -110,7 +111,7 @@ Run the check from the repository root:
 npm run test:visual
 ```
 
-If LibreOffice or Poppler's renderer is not installed locally, the command prints a skip message; CI treats missing tools as a failure. Confirm Vitest reports seven passing cases rather than a skipped suite. On a failure, open `apps/api/test-output/visual/<case>/expected.png`, `actual.png`, and `diff.png`. The diff highlights changed pixels; matching permits a 0.1 pixelmatch threshold and at most 0.1% differing pixels. A failure directory is uploaded by CI for seven days.
+If LibreOffice or Poppler's renderer is not installed locally, the command prints a skip message; CI treats missing tools as a failure. Confirm all seven visual cases pass and the page-ordering test also passes (eight tests total), rather than relying on a skipped suite. On a failure, open `apps/api/test-output/visual/<case>/expected.png`, `actual.png`, and `diff.png`. The diff highlights changed pixels; matching permits a 0.1 pixelmatch threshold and at most 0.1% differing pixels. A failure directory is uploaded by CI for seven days.
 
 Do not edit PNG baselines by hand. The canonical **Update visual DOCX baselines** GitHub Actions workflow renders on `ubuntu-24.04` with the same pinned packages as CI and opens a PR containing the generated images. Review all seven images in that PR before merging. The initial baselines in this change are bootstrapped locally and must be checked by CI; if that run exposes renderer differences, use the workflow to replace them. For local investigation only, `npm run test:visual:update -- --yes` regenerates images and requires the explicit `--yes` confirmation; review the images and diff before using any locally generated output.
 

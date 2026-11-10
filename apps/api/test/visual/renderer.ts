@@ -14,17 +14,15 @@ const REQUIRED_COLORS: ReadonlyArray<readonly [number, number, number]> = [
   [0xff, 0xff, 0x99],
 ];
 const FONT_CONFIG = path.join(__dirname, 'fonts.conf');
-const FONT_CACHE_HOME = path.join(os.tmpdir(), `enis-visual-font-cache-${process.pid}`);
 
-function rendererEnv(): NodeJS.ProcessEnv {
-  fs.mkdirSync(FONT_CACHE_HOME, { recursive: true });
+function rendererEnv(cacheHome: string): NodeJS.ProcessEnv {
   return {
     ...process.env,
     TZ: 'UTC',
     LANG: 'C.UTF-8',
     LC_ALL: 'C.UTF-8',
     FONTCONFIG_FILE: FONT_CONFIG,
-    XDG_CACHE_HOME: FONT_CACHE_HOME,
+    XDG_CACHE_HOME: cacheHome,
   };
 }
 
@@ -39,10 +37,6 @@ export interface RendererPrerequisites {
   available: boolean;
   missingRenderers: string[];
   error?: string;
-}
-
-export function cleanupRendererCache(): void {
-  fs.rmSync(FONT_CACHE_HOME, { recursive: true, force: true });
 }
 
 interface CommandResult {
@@ -97,12 +91,23 @@ export function checkRendererPrerequisites(): RendererPrerequisites {
   if (missingPdfInfo) {
     return { available: false, missingRenderers: [], error: 'pdfinfo is required (install Poppler utilities).' };
   }
-  const fontMatch = spawnSync('fc-match', ['-f', '%{family}', 'Times New Roman'], {
-    encoding: 'utf8',
-    env: rendererEnv(),
-    timeout: 5_000,
-  });
-  if (fontMatch.error || fontMatch.status !== 0 || !fontMatch.stdout?.startsWith('Liberation Serif')) {
+  const fontCacheHome = fs.mkdtempSync(path.join(os.tmpdir(), 'enis-visual-font-check-'));
+  let fontMatchError: NodeJS.ErrnoException | undefined;
+  let fontMatchStatus: number | null = null;
+  let fontMatchFamily = '';
+  try {
+    const fontMatch = spawnSync('fc-match', ['-f', '%{family}', 'Times New Roman'], {
+      encoding: 'utf8',
+      env: rendererEnv(fontCacheHome),
+      timeout: 5_000,
+    });
+    fontMatchError = fontMatch.error;
+    fontMatchStatus = fontMatch.status;
+    fontMatchFamily = fontMatch.stdout ?? '';
+  } finally {
+    fs.rmSync(fontCacheHome, { recursive: true, force: true });
+  }
+  if (fontMatchError || fontMatchStatus !== 0 || !fontMatchFamily.startsWith('Liberation Serif')) {
     return {
       available: false,
       missingRenderers: [],
@@ -137,9 +142,11 @@ export async function renderDocx(document: Buffer, name: string): Promise<Buffer
   const docxPath = path.join(workDir, `${name}.docx`);
   const pdfPath = path.join(workDir, `${name}.pdf`);
   const imagePrefix = path.join(workDir, `${name}`);
-  const env = rendererEnv();
+  const fontCacheHome = path.join(workDir, 'font-cache');
 
   try {
+    fs.mkdirSync(fontCacheHome, { recursive: true });
+    const env = rendererEnv(fontCacheHome);
     fs.writeFileSync(docxPath, document);
     let firstConversionError: unknown;
     for (let attempt = 0; attempt < 2; attempt++) {

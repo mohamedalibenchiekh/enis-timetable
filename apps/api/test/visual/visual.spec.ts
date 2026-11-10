@@ -7,7 +7,6 @@ import { buildVisualCases, getBaselinePath, VisualCase } from './cases';
 import {
   assertVisualStructure,
   checkRendererPrerequisites,
-  cleanupRendererCache,
   describeStructuralFailures,
   orderPageFiles,
   renderDocx,
@@ -17,6 +16,17 @@ const prerequisites = checkRendererPrerequisites();
 const failureRoot = path.resolve(__dirname, '../../test-output/visual');
 const MAX_DIFFERENCE_RATIO = 0.001;
 const caseNames = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'stress'];
+
+describe('Poppler page file ordering', () => {
+  it('orders zero-padded and unpadded page names numerically', () => {
+    expect(orderPageFiles([
+      'Lundi-10.png',
+      'Lundi-02.png',
+      'Lundi-1.png',
+      'other-1.png',
+    ], 'Lundi')).toEqual(['Lundi-1.png', 'Lundi-02.png', 'Lundi-10.png']);
+  });
+});
 
 async function saveFailureImages(
   name: string,
@@ -91,17 +101,7 @@ if (!prerequisites.available) {
   describe('Visual DOCX regression', () => {
     const visualCases = buildVisualCases();
 
-    it('orders zero-padded and unpadded Poppler page names numerically', () => {
-      expect(orderPageFiles([
-        'Lundi-10.png',
-        'Lundi-02.png',
-        'Lundi-1.png',
-        'other-1.png',
-      ], 'Lundi')).toEqual(['Lundi-1.png', 'Lundi-02.png', 'Lundi-10.png']);
-    });
-
     afterAll(() => {
-      cleanupRendererCache();
       if (fs.existsSync(failureRoot) && fs.readdirSync(failureRoot).length === 0) fs.rmdirSync(failureRoot);
     });
 
