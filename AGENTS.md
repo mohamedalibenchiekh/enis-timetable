@@ -67,7 +67,7 @@ Before considering any task complete:
 1. **Typecheck & Build**: Verify `npm run build` and `npm run build -w apps/desktop` complete with 0 errors.
 2. **Data Consistency**: Run `npm run test:verify -w apps/api -- <html-dir>` when parser or grid logic changes; ensure zero discrepancy between rooms and teachers views (fails with non-zero exit code on mismatch).
 3. **DOCX Visual Inspection**: When modifying `docx-builder.ts` or layout settings, generate and visually inspect the output `.docx` against `Jeudi.docx` (margins, column widths in twips, background colors, fonts).
-4. If a change touches `apps/api/src/export` or the DOCX layout, run `npm run test:visual` and review the diff images before committing.
+4. If a change touches `apps/api/src/export` or the DOCX layout, run `npm run test:visual`, confirm all seven cases ran and passed (not skipped), and review any diff images before committing.
 
 Test commands:
 - `npm test`: API unit/integration and web component suites.

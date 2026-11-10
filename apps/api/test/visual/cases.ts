@@ -32,6 +32,7 @@ export async function buildVisualCases(): Promise<VisualCase[]> {
   const stress = parseHtml(stressHtml, 'rooms');
   if (
     stress.sessions.length !== 1 ||
+    stress.sessions[0].day !== 0 ||
     stress.sessions[0].teachers.split(',').length !== 3 ||
     stress.sessions[0].frequency !== '1/15' ||
     !stress.sessions[0].teachers.split(',').every((teacher) => teacher.length >= 30)

@@ -14,6 +14,19 @@ const REQUIRED_COLORS: ReadonlyArray<readonly [number, number, number]> = [
   [0xff, 0xff, 0x99],
 ];
 const FONT_CONFIG = path.join(__dirname, 'fonts.conf');
+const FONT_CACHE_HOME = path.join(os.tmpdir(), `enis-visual-font-cache-${process.pid}`);
+
+function rendererEnv(): NodeJS.ProcessEnv {
+  fs.mkdirSync(FONT_CACHE_HOME, { recursive: true });
+  return {
+    ...process.env,
+    TZ: 'UTC',
+    LANG: 'C.UTF-8',
+    LC_ALL: 'C.UTF-8',
+    FONTCONFIG_FILE: FONT_CONFIG,
+    XDG_CACHE_HOME: FONT_CACHE_HOME,
+  };
+}
 
 export interface VisualAssertions {
   pageCount: number;
@@ -26,6 +39,10 @@ export interface RendererPrerequisites {
   available: boolean;
   missingRenderers: string[];
   error?: string;
+}
+
+export function cleanupRendererCache(): void {
+  fs.rmSync(FONT_CACHE_HOME, { recursive: true, force: true });
 }
 
 interface CommandResult {
@@ -82,7 +99,7 @@ export function checkRendererPrerequisites(): RendererPrerequisites {
   }
   const fontMatch = spawnSync('fc-match', ['-f', '%{family}', 'Times New Roman'], {
     encoding: 'utf8',
-    env: { ...process.env, FONTCONFIG_FILE: FONT_CONFIG },
+    env: rendererEnv(),
     timeout: 5_000,
   });
   if (fontMatch.error || fontMatch.status !== 0 || !fontMatch.stdout?.startsWith('Liberation Serif')) {
@@ -120,13 +137,7 @@ export async function renderDocx(document: Buffer, name: string): Promise<Buffer
   const docxPath = path.join(workDir, `${name}.docx`);
   const pdfPath = path.join(workDir, `${name}.pdf`);
   const imagePrefix = path.join(workDir, `${name}`);
-  const env = {
-    ...process.env,
-    TZ: 'UTC',
-    LANG: 'C.UTF-8',
-    LC_ALL: 'C.UTF-8',
-    FONTCONFIG_FILE: FONT_CONFIG,
-  };
+  const env = rendererEnv();
 
   try {
     fs.writeFileSync(docxPath, document);
@@ -160,15 +171,26 @@ export async function renderDocx(document: Buffer, name: string): Promise<Buffer
     const pageCount = Number(pageMatch[1]);
 
     await retryCommand('pdftoppm', ['-r', String(DPI), '-png', pdfPath, imagePrefix], env);
-    const images = Array.from({ length: pageCount }, (_, index) => {
-      const imagePath = `${imagePrefix}-${index + 1}.png`;
-      if (!fs.existsSync(imagePath)) throw new Error(`Expected rendered page image is missing: ${imagePath}`);
-      return fs.readFileSync(imagePath);
-    });
+    const pagePaths = orderPageFiles(fs.readdirSync(workDir), name)
+      .map((file) => path.join(workDir, file));
+    if (pagePaths.length !== pageCount) {
+      throw new Error(`PDF reports ${pageCount} page(s), but pdftoppm produced ${pagePaths.length} page image(s).`);
+    }
+    const images = pagePaths.map((imagePath) => fs.readFileSync(imagePath));
     return images;
   } finally {
     fs.rmSync(workDir, { recursive: true, force: true });
   }
+}
+
+export function orderPageFiles(files: string[], name: string): string[] {
+  const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const pagePattern = new RegExp(`^${escapedName}-(\\d+)\\.png$`);
+  return files
+    .map((file) => ({ file, match: file.match(pagePattern) }))
+    .filter((entry): entry is { file: string; match: RegExpMatchArray } => entry.match !== null)
+    .sort((left, right) => Number(left.match[1]) - Number(right.match[1]))
+    .map(({ file }) => file);
 }
 
 function countColor(png: PNG, target: readonly [number, number, number]): number {

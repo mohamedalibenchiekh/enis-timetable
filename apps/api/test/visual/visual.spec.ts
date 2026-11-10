@@ -2,12 +2,14 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import pixelmatch from 'pixelmatch';
 import { PNG } from 'pngjs';
-import { afterAll, describe, it } from 'vitest';
+import { afterAll, describe, expect, it } from 'vitest';
 import { buildVisualCases, getBaselinePath, VisualCase } from './cases';
 import {
   assertVisualStructure,
   checkRendererPrerequisites,
+  cleanupRendererCache,
   describeStructuralFailures,
+  orderPageFiles,
   renderDocx,
 } from './renderer';
 
@@ -89,7 +91,17 @@ if (!prerequisites.available) {
   describe('Visual DOCX regression', () => {
     const visualCases = buildVisualCases();
 
+    it('orders zero-padded and unpadded Poppler page names numerically', () => {
+      expect(orderPageFiles([
+        'Lundi-10.png',
+        'Lundi-02.png',
+        'Lundi-1.png',
+        'other-1.png',
+      ], 'Lundi')).toEqual(['Lundi-1.png', 'Lundi-02.png', 'Lundi-10.png']);
+    });
+
     afterAll(() => {
+      cleanupRendererCache();
       if (fs.existsSync(failureRoot) && fs.readdirSync(failureRoot).length === 0) fs.rmdirSync(failureRoot);
     });
 
@@ -99,6 +111,7 @@ if (!prerequisites.available) {
         if (!visualCase) throw new Error(`Visual fixture did not produce the expected case: ${name}`);
         const images = await renderDocx(visualCase.document, visualCase.name);
         const actual = images[0];
+        if (!actual) throw new Error(`${visualCase.name}: renderer returned no page images.`);
         const baselinePath = getBaselinePath(visualCase.name);
         const expected = fs.existsSync(baselinePath) ? fs.readFileSync(baselinePath) : undefined;
         const failures: string[] = [];

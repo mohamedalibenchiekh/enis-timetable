@@ -12,7 +12,6 @@ concurrency:
 
 permissions:
   contents: read
-  pull-requests: read
 
 env:
   NODE_VERSION: '22'
@@ -21,13 +20,16 @@ jobs:
   # ── Keep a visible status check while only running visual work for relevant changes ──
   changes:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
     outputs:
       visual: ${{ steps.filter.outputs.visual }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-      - uses: dorny/paths-filter@v3
+      - uses: dorny/paths-filter@0e4a8c6effa4802afeda77dc8d303f8176d7dfad # v3
         id: filter
         with:
           filters: |
@@ -46,10 +48,12 @@ jobs:
   # ── DOCX visual regression ────────────────────────────────────────
   visual-docx:
     name: Visual DOCX
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: changes
     if: needs.changes.outputs.visual == 'true'
     env:
+      NODE_VERSION: '22.22.3'
+      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
       TZ: UTC
       LANG: C.UTF-8
       LC_ALL: C.UTF-8
@@ -62,7 +66,11 @@ jobs:
       - name: Install document rendering tools
         run: |
           sudo apt-get update
-          sudo apt-get install --no-install-recommends -y libreoffice-writer poppler-utils fonts-liberation fontconfig
+          sudo apt-get install --no-install-recommends -y \
+            libreoffice-writer=4:24.2.7-0ubuntu0.24.04.7 \
+            poppler-utils=24.02.0-1ubuntu9.11 \
+            fonts-liberation=1:2.1.5-3 \
+            fontconfig=2.15.0-1.1ubuntu2
       - run: npm ci
       - run: npm run test:visual
       - name: Summarize visual failures
