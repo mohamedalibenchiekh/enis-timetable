@@ -10,11 +10,41 @@ export interface EmbeddedDb {
   stop(): Promise<void>;
 }
 
+export const POSTGRES_MAJOR_VERSION = '17';
+
+export class DatabaseVersionMismatchError extends Error {
+  constructor(actualVersion: string, expectedVersion = POSTGRES_MAJOR_VERSION) {
+    super(
+      `La base de données utilise PostgreSQL ${actualVersion}, mais cette version de l’application nécessite PostgreSQL ${expectedVersion}. ` +
+      'Les données n’ont pas été modifiées. Restaurez une sauvegarde compatible ou contactez le support.',
+    );
+    this.name = 'DatabaseVersionMismatchError';
+  }
+}
+
+export class DatabaseVersionFileCorruptError extends Error {
+  constructor() {
+    super('Le fichier de version PostgreSQL est vide ou corrompu. Les données n’ont pas été modifiées.');
+    this.name = 'DatabaseVersionFileCorruptError';
+  }
+}
+
+export function assertEmbeddedDatabaseVersion(databaseDir: string): void {
+  const versionPath = path.join(databaseDir, 'pgdata', 'PG_VERSION');
+  if (!fs.existsSync(versionPath)) return;
+  const actualVersion = fs.readFileSync(versionPath, 'utf8').trim();
+  if (!actualVersion) throw new DatabaseVersionFileCorruptError();
+  if (actualVersion !== POSTGRES_MAJOR_VERSION) {
+    throw new DatabaseVersionMismatchError(actualVersion);
+  }
+}
+
 /**
  * Starts a private PostgreSQL server bundled with the app (no installation needed).
  * Data lives in <dir>/pgdata and survives updates; the server listens on 127.0.0.1 only, on a free port.
  */
 export async function startEmbeddedPostgres(dir: string, port: number, log: (s: string) => void): Promise<EmbeddedDb> {
+  assertEmbeddedDatabaseVersion(dir);
   const { default: EmbeddedPostgres } = await importEsm('embedded-postgres');
   fs.mkdirSync(dir, { recursive: true });
 

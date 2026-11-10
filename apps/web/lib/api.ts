@@ -15,9 +15,27 @@ export interface ExportOptions {
   blocs: BlocConfig[]; abbreviateBen: boolean; showFrequency: boolean; pauseLabel: string; includeEmptyRooms: boolean;
 }
 
+export type UpdateStatus =
+  | { status: 'checking' }
+  | { status: 'available'; version: string }
+  | { status: 'progress'; version: string; percent: number }
+  | { status: 'downloaded'; version: string }
+  | { status: 'error'; message: string }
+  | { status: 'none' };
+
 /** Bridge exposed by the Electron preload script (undefined in a normal browser). */
 declare global {
-  interface Window { enis?: { chooseFolder: () => Promise<string | null>; showInFolder: (p: string) => Promise<void> } }
+  interface Window {
+    enis?: {
+      chooseFolder: () => Promise<string | null>;
+      showInFolder: (p: string) => Promise<void>;
+      getVersion: () => Promise<string>;
+      getUpdateStatus: () => Promise<UpdateStatus | null>;
+      checkForUpdates: () => Promise<void>;
+      installUpdate: () => Promise<void>;
+      onUpdateStatus: (callback: (status: UpdateStatus) => void) => () => void;
+    };
+  }
 }
 
 async function req<T>(url: string, init?: RequestInit): Promise<T> {

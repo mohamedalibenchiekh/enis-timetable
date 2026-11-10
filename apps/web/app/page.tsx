@@ -4,6 +4,12 @@ import { api, KIND_LABEL, SourceKind, Timetable } from '@/lib/api';
 import { ImportPanel } from '@/components/ImportPanel';
 import { DayPreview } from '@/components/DayPreview';
 import { OptionsPanel } from '@/components/OptionsPanel';
+import { UpdateBanner } from '@/components/UpdateBanner';
+import type { UpdateStatus } from '@/lib/api';
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
 
 export default function Home() {
   const [items, setItems] = useState<Timetable[] | null>(null);
@@ -14,6 +20,10 @@ export default function Home() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [status, setStatus] = useState('');
   const [error, setError] = useState('');
+  const [isDesktop, setIsDesktop] = useState(false);
+  const [desktopVersion, setDesktopVersion] = useState<string | null>(null);
+  const [desktopVersionError, setDesktopVersionError] = useState(false);
+  const [updateStatus, setUpdateStatus] = useState<UpdateStatus | null>(null);
 
   const reload = useCallback(async (select?: string) => {
     try {
@@ -25,6 +35,25 @@ export default function Home() {
     }
   }, []);
   useEffect(() => { reload(); }, [reload]);
+  useEffect(() => {
+    const bridge = window.enis;
+    if (!bridge) return;
+    setIsDesktop(true);
+    void bridge.getVersion()
+      .then(setDesktopVersion)
+      .catch(() => setDesktopVersionError(true));
+    let receivedUpdateEvent = false;
+    const unsubscribe = bridge.onUpdateStatus((next) => {
+      receivedUpdateEvent = true;
+      setUpdateStatus(next);
+    });
+    void bridge.getUpdateStatus()
+      .then((current) => {
+        if (!receivedUpdateEvent) setUpdateStatus(current);
+      })
+      .catch((e: unknown) => console.warn(`État des mises à jour indisponible : ${errorMessage(e)}`));
+    return unsubscribe;
+  }, []);
 
   const sel = items?.find((t) => t.id === selId) ?? null;
   useEffect(() => { if (sel && day >= sel.days.length) setDay(0); }, [sel, day]);
@@ -48,6 +77,13 @@ export default function Home() {
     reload();
   };
 
+  const checkForUpdates = () => {
+    if (window.enis) void window.enis.checkForUpdates().catch((e: unknown) => setError(errorMessage(e)));
+  };
+  const installUpdate = () => {
+    if (window.enis) void window.enis.installUpdate().catch((e: unknown) => setError(errorMessage(e)));
+  };
+
   return (
     <div className="app">
       <aside className="side">
@@ -61,9 +97,17 @@ export default function Home() {
             </li>
           ))}
         </ul>
+        {isDesktop && (
+          <div className="sidebar-footer">
+            {desktopVersion && <span className="muted small">v{desktopVersion}</span>}
+            {desktopVersionError && <span className="muted small">Version indisponible</span>}
+            <button className="link" onClick={checkForUpdates}>Rechercher les mises à jour</button>
+          </div>
+        )}
       </aside>
 
       <main className="main">
+        {isDesktop && <UpdateBanner status={updateStatus} onInstall={installUpdate} />}
         {error && <p className="error">{error}</p>}
         {items && (importMode || !sel) && (
           <ImportPanel

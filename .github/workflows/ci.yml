@@ -116,7 +116,8 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm run build
-      - run: npm test
+      - name: Unit tests (API, web, updater, backups)
+        run: npm test
       - run: npm run test:coverage -w apps/api
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
