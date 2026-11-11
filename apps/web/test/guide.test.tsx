@@ -84,6 +84,21 @@ describe('guide screenshot publishing', () => {
     expect(fs.existsSync(path.join(published, 'removed.png'))).toBe(false);
     expect(fs.existsSync(path.join(published, 'keep.txt'))).toBe(true);
   });
+
+  it('removes a temporary PNG if replacing a published capture fails', () => {
+    const directory = fixtureRoot();
+    const staged = path.join(directory, 'staged');
+    const published = path.join(directory, 'apps/web/public/guide');
+    const blockedCapture = path.join(published, 'blocked.png');
+    fs.mkdirSync(staged, { recursive: true });
+    fs.writeFileSync(path.join(staged, 'blocked.png'), 'new capture');
+    fs.mkdirSync(blockedCapture);
+    const temporaryFile = `${blockedCapture}.tmp-${process.pid}`;
+
+    expect(() => publishScreenshots(staged, published)).toThrow();
+    expect(fs.existsSync(temporaryFile)).toBe(false);
+    expect(fs.statSync(blockedCapture).isDirectory()).toBe(true);
+  });
 });
 
 describe('guide drift protection', () => {
