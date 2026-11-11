@@ -179,7 +179,7 @@ export default function Home() {
                   </label>
                 )}
                 <DayPreview id={sel.id} day={day} refreshKey={refreshKey} highlightCells={highlightCells} showHighlight={showHighlight} source={highlightSource} />
-
+ 
                 <div className="foot">
                   <button className="link" onClick={() => setShowOptions(!showOptions)}>{showOptions ? '▾' : '▸'} Options du document Word</button>
                   <button className="link" onClick={() => setImportMode('add')}>Ajouter / remplacer des fichiers</button>
