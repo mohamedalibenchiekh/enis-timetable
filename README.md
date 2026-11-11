@@ -144,6 +144,24 @@ The Monday `DayGrid` golden snapshot is in `apps/api/test/__snapshots__/docx.spe
 
 ## Releases and auto-update
 
+### Releases non signées: ce que cela signifie
+
+Les installateurs de ce projet ne sont pas signés par un certificat de signature de code. Une signature de code permet au système d’exploitation d’associer l’exécutable à un éditeur identifié ; son absence peut donc déclencher SmartScreen sous Windows. Si le fichier provient de la page officielle des versions, l’utilisateur peut choisir **Informations complémentaires**, puis **Exécuter quand même**. Cet avertissement ne constitue pas, à lui seul, une détection de logiciel malveillant.
+
+Chaque publication fournit un fichier `SHA256SUMS.txt` et affiche les mêmes sommes dans ses notes. Vérifiez un téléchargement Windows avec `Get-FileHash .\<fichier> -Algorithm SHA256`, puis comparez `Hash` à la ligne du même fichier dans la publication. Les installateurs ont aussi une attestation de provenance GitHub : après téléchargement, exécutez `gh attestation verify <fichier> --repo mohamedalibenchiekh/enis-timetable --signer-workflow mohamedalibenchiekh/enis-timetable/.github/workflows/release.yml`. Ces contrôles aident à vérifier le fichier téléchargé et son origine de compilation ; ils ne remplacent pas une signature de code.
+
+Les mises à jour automatiques restent disponibles sous Windows et Linux AppImage. Electron-updater vérifie la somme `sha512` indiquée dans `latest.yml` ou `latest-linux.yml` avant l’installation. Il n’y a pas de `publisherName` configuré ni de modification de `verifyUpdateCodeSignature` : aucune vérification de mise à jour n’est affaiblie.
+
+### Faux positifs antivirus
+
+Les applications non signées peuvent parfois être signalées à tort par un antivirus, notamment juste après une nouvelle publication. Si Microsoft Defender signale un installateur officiel, soumettez le fichier à [Microsoft Security Intelligence](https://www.microsoft.com/wdsi/filesubmission) et attendez son analyse avant de conseiller un contournement :
+
+1. Téléchargez l’installateur depuis la version GitHub concernée et vérifiez sa somme SHA-256.
+2. Dans le portail Microsoft, choisissez l’envoi destiné aux éditeurs de logiciels, joignez l’installateur et indiquez l’URL de la version ainsi que sa somme SHA-256.
+3. Conservez le numéro de dossier et la réponse de Microsoft ; ne joignez aucune donnée utilisateur.
+
+Pour les responsables de publication : soumettez l’installateur Windows de chaque nouvelle version une fois après sa publication. Si une version est signalée, consignez le résultat, la date d’envoi et l’état de l’analyse dans les notes de version ; ne présentez jamais un signalement comme un faux positif avant confirmation de Microsoft.
+
 ### Cutting a release
 
 1. Create a version branch from the latest `main` and update the desktop package version. Replace `1.0.3` with the next unused version:
@@ -165,7 +183,7 @@ The Monday `DayGrid` golden snapshot is in `apps/api/test/__snapshots__/docx.spe
    git push origin v1.0.3
    ```
 
-Never reuse a release tag, edit `latest*.yml` by hand, or create a tag whose version differs from `apps/desktop/package.json`. The workflow keeps `--publish never` in the build jobs and attaches the generated installer assets, update metadata, and blockmaps to one **published** (not draft or prerelease) GitHub Release. Electron-updater only checks published releases.
+Never reuse a release tag, edit `latest*.yml` by hand, or create a tag whose version differs from `apps/desktop/package.json`. The workflow keeps `--publish never` in the build jobs, creates a draft GitHub Release, uploads the installer assets, update metadata, blockmaps, and `SHA256SUMS.txt`, then re-downloads and verifies every installer SHA-256 before publishing it. Electron-updater only checks published releases.
 
 The generated asset names contain no spaces (for example `ENISo-Setup-1.0.3.exe`), so the URLs in `latest.yml`, `latest-linux.yml`, and `latest-mac.yml` match uploaded names. Updates are enabled only for Windows NSIS and Linux AppImage. On macOS and other unsupported platforms, a manual check offers to open the Releases page; automatic checks do nothing. macOS auto-install is not supported because these builds are unsigned.
 
