@@ -13,6 +13,7 @@ const fixtureDir = path.join(root, 'apps/api/test/fixtures');
 const outputDir = path.join(root, 'apps/web/public/guide');
 const previewDir = path.join(root, 'apps/web/test-output/guide-preview');
 const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'enis-guide-'));
+const stagedOutputDir = path.join(tempDir, 'guide-assets');
 const children = [];
 let postgres;
 
@@ -68,7 +69,7 @@ async function startDatabase() {
 async function capture(page, file, selector) {
   await page.addStyleTag({ content: `.tlist .small { visibility: hidden !important; } ${selector} { outline: 4px solid #ff2828 !important; outline-offset: 4px !important; }` });
   const buffer = await page.screenshot({ fullPage: false, animations: 'disabled' });
-  await sharp(buffer).png({ palette: true, quality: 86, effort: 10 }).toFile(path.join(outputDir, file));
+  await sharp(buffer).png({ palette: true, quality: 86, effort: 10 }).toFile(path.join(stagedOutputDir, file));
   await page.evaluate(() => document.querySelectorAll('style').item(document.querySelectorAll('style').length - 1)?.remove());
 }
 
@@ -101,17 +102,26 @@ async function createBeforeAfter(fixtureFile, docxFile) {
       { input: left, left: 12, top: 58 },
       { input: right, left: 648, top: 58 },
     ]).png({ palette: true, quality: 86, effort: 10 }).toBuffer();
-  await sharp(composed).toFile(path.join(outputDir, 'apercu-html-vers-word.png'));
+  await sharp(composed).toFile(path.join(stagedOutputDir, 'apercu-html-vers-word.png'));
+}
+
+function publishScreenshots() {
+  fs.mkdirSync(outputDir, { recursive: true });
+  for (const file of fs.readdirSync(stagedOutputDir).filter((entry) => entry.endsWith('.png'))) {
+    const destination = path.join(outputDir, file);
+    const temporaryFile = `${destination}.tmp-${process.pid}`;
+    fs.copyFileSync(path.join(stagedOutputDir, file), temporaryFile);
+    fs.renameSync(temporaryFile, destination);
+  }
 }
 
 async function main() {
-  fs.mkdirSync(outputDir, { recursive: true });
+  fs.mkdirSync(stagedOutputDir, { recursive: true });
   fs.mkdirSync(previewDir, { recursive: true });
   const apiPort = await freePort();
   const webPort = await freePort();
-  const databaseUrl = process.env.DATABASE_URL || await startDatabase();
+  const databaseUrl = await startDatabase();
   runTool('npm', ['run', 'build', '-w', 'apps/api']);
-  for (const entry of fs.readdirSync(outputDir)) if (entry.endsWith('.png')) fs.unlinkSync(path.join(outputDir, entry));
   const apiServer = start(process.execPath, [path.join(root, 'apps/api/dist/main.js')], {
     cwd: path.join(root, 'apps/api'), env: { ...process.env, PORT: String(apiPort), WEB_DIR: path.join(root, 'apps/web/out'), DATABASE_URL: databaseUrl },
   });
@@ -228,12 +238,13 @@ async function main() {
   if (pageErrors.length) throw new Error(`Erreurs JavaScript dans l’interface : ${pageErrors.join('\n')}`);
   await browser.close();
 
-  const sizes = fs.readdirSync(outputDir).filter((file) => file.endsWith('.png'))
-    .map((file) => [file, fs.statSync(path.join(outputDir, file)).size]);
+  const sizes = fs.readdirSync(stagedOutputDir).filter((file) => file.endsWith('.png'))
+    .map((file) => [file, fs.statSync(path.join(stagedOutputDir, file)).size]);
   const total = sizes.reduce((sum, [, size]) => sum + size, 0);
   if (sizes.some(([, size]) => size > 200 * 1024) || total > 3 * 1024 * 1024) {
     throw new Error(`Captures trop volumineuses : ${JSON.stringify(sizes)} (total ${total} octets)`);
   }
+  publishScreenshots();
   console.log(`Captures générées (${total} octets) : ${sizes.map(([name]) => name).join(', ')}`);
   console.log(`Aperçus du guide : ${previewDir}`);
 }

@@ -39,11 +39,15 @@ Sélectionnez **[Aide]**, puis **[Guide d’utilisation]** dans le menu de l’a
 
 **Résultat attendu :** le guide s’ouvre dans la fenêtre ENISo ou un fichier PDF est enregistré à l’emplacement choisi.
 
+Si « Le guide PDF n’a pas pu être enregistré » apparaît, vérifiez que le dossier choisi existe et qu’il reste de l’espace libre, puis réessayez.
+
 ## Premier démarrage et import des fichiers
 
 ### Importer les fichiers HTML
 
 FET peut produire des fichiers dont le nom contient `rooms`, `teachers` ou `groups`. Dans l’application, ces types apparaissent comme **[Salles]**, **[Enseignants]** et **[Groupes]**. Le fichier des salles suffit pour créer les documents Word. Les deux autres fichiers apportent des informations complémentaires.
+
+Si « Type de fichier inconnu » apparaît, vérifiez que le nom du fichier contient l’un des types attendus : `rooms`, `teachers` ou `groups`. Le message précise « attendu : teachers, rooms ou groups dans le nom ».
 
 Les étapes exactes pour produire les trois fichiers dans FET et choisir l’affichage des jours à l’horizontale restent **à confirmer** par le responsable du projet.
 
@@ -118,7 +122,7 @@ Le champ des expressions accepte plusieurs règles séparées par des virgules. 
 3. Répétez l’opération pour les enseignants ou les salles à corriger.
 4. Sélectionnez **[Enregistrer]** dans la barre des modifications.
 
-Les corrections s’appliquent à tous les emplois du temps de cette base. Elles ne modifient pas les fichiers HTML importés. Pour revenir au nom automatique d’une entrée, sélectionnez **[Réinitialiser]** sur sa ligne, puis enregistrez.
+Les corrections s’appliquent à tous les emplois du temps de cette base. Elles ne modifient pas les fichiers HTML importés. Pour revenir au nom automatique d’une entrée, utilisez le bouton de réinitialisation sur sa ligne, puis enregistrez.
 
 **Résultat attendu :** le message **[Noms enregistrés]** apparaît et les prochains documents utilisent les corrections.
 
@@ -205,13 +209,13 @@ Les erreurs qui commencent par « Ligne » indiquent l’entrée à corriger : �
 
 ### Une mise à jour ou le serveur ne répond pas
 
-Si la recherche affiche « La recherche de mises à jour a échoué », vérifiez la connexion Internet et réessayez plus tard. Si « La mise à jour n’a pas pu être installée » apparaît, fermez l’application puis relancez-la.
+Si la recherche affiche « La recherche de mises à jour a échoué », vérifiez la connexion Internet et réessayez plus tard. Si « La mise à jour n’a pas pu être installée » apparaît, fermez l’application puis relancez-la. Si « Impossible d’ouvrir la page des versions » apparaît, ouvrez la page des versions depuis un navigateur.
 
 Si « La mise à jour automatique n’est pas disponible sur cette plateforme » apparaît, l’application peut proposer d’ouvrir la page des versions. Si « La recherche de mises à jour est disponible uniquement dans une version installée » ou « Les mises à jour automatiques sont désactivées dans le fichier de configuration » apparaît, utilisez la version installée ou contactez la personne qui gère l’application.
 
 Les messages « Le serveur ne répond pas » et « Le serveur s’est arrêté au démarrage » signalent un problème de démarrage. Fermez les autres fenêtres ENISo puis relancez l’application. Si « Le serveur intégré n’a pas pu être arrêté proprement » apparaît, choisissez **[Réessayer]**. Pour un message détaillé, contactez la personne qui vous a fourni l’application.
 
-Si une mise à jour indique « La version … est prête. Redémarrer maintenant pour l’installer ? », sélectionnez **[Redémarrer maintenant]** pour l’installer ou **[Plus tard]** pour attendre. Si le guide PDF n’a pas pu être enregistré, vérifiez que le dossier choisi existe et qu’il reste de l’espace libre.
+Si une mise à jour indique « La version … est prête. Redémarrer maintenant pour l’installer ? », sélectionnez **[Redémarrer maintenant]** pour l’installer ou **[Plus tard]** pour attendre.
 
 Si le message « Le serveur intégré n’a pas pu être arrêté proprement. Vous pouvez réessayer ou quitter quand même » apparaît, sélectionnez **[Réessayer]**. Si l’application indique que « Le processus API ne répond pas à l’arrêt », « Le processus API ne s’est pas arrêté après SIGKILL » ou « Impossible d’arrêter le processus API », fermez les autres fenêtres ENISo puis relancez l’application.
 

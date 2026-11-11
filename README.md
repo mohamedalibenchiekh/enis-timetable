@@ -221,7 +221,7 @@ Stop the local server after the test. The update artifacts must be from the same
 
 ## Documentation utilisateur
 
-Le guide français maintenu se trouve dans `docs/guide-utilisateur.fr.md`. Les mentions d’interface suivent la convention `**[Libellé exact]**`, vérifiée par un test contre les textes de l’application.
+Le guide français maintenu se trouve dans `docs/guide-utilisateur.fr.md`. Les mentions d’interface suivent la convention `**[Libellé exact]**`, vérifiée par un test qui compare les valeurs statiques entières des textes et libellés de l’interface.
 
 Pour régénérer les captures synthétiques avec Playwright et construire le fragment HTML statique du guide :
 

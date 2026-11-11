@@ -312,20 +312,26 @@ async function saveGuideAsPdf() {
     filters: [{ name: 'Document PDF', extensions: ['pdf'] }],
   });
   if (result.canceled || !result.filePath) return;
-  const returnUrl = win.webContents.getURL();
+  let printWindow: BrowserWindow | undefined;
   try {
-    const origin = new URL(returnUrl).origin;
-    await win.loadURL(`${origin}/aide/`);
-    const pdf = await win.webContents.printToPDF({ pageSize: 'A4', printBackground: true, preferCSSPageSize: true });
+    const origin = new URL(win.webContents.getURL()).origin;
+    printWindow = new BrowserWindow({
+      show: false,
+      width: 1280,
+      height: 900,
+      webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true },
+    });
+    await printWindow.loadURL(`${origin}/aide/`);
+    const pdf = await printWindow.webContents.printToPDF({ pageSize: 'A4', printBackground: true, preferCSSPageSize: true });
     fs.writeFileSync(result.filePath, pdf);
   } catch (error) {
-    await dialog.showMessageBox(win, {
+    if (win && !win.isDestroyed()) await dialog.showMessageBox(win, {
       type: 'error', title: 'Enregistrement impossible',
       message: `Le guide PDF n’a pas pu être enregistré : ${String(error)}`,
       buttons: ['OK'],
     });
   } finally {
-    if (returnUrl && win && !win.isDestroyed()) await win.loadURL(returnUrl).catch(() => {});
+    if (printWindow && !printWindow.isDestroyed()) printWindow.destroy();
   }
 }
 

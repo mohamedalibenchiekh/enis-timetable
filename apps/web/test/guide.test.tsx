@@ -4,6 +4,8 @@ import path from 'node:path';
 import ts from 'typescript';
 import { afterEach, describe, expect, it } from 'vitest';
 import { renderGuide } from '../../../scripts/guide-build.mjs';
+import Guide from '../app/aide/guide';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 
 const root = path.resolve(__dirname, '../../..');
 const temporary: string[] = [];
@@ -33,6 +35,15 @@ describe('guide build', () => {
     expect(html).toContain('id="chapitre"');
     expect(html).toContain('href="#chapitre"');
     expect(html).toContain('src="/guide/example.png"');
+    expect(html).toContain('alt="Exemple"');
+  });
+
+  it('decodes a percent-encoded image filename before checking it exists', () => {
+    const directory = fixtureRoot();
+    fs.writeFileSync(path.join(directory, 'apps/web/public/guide/été.png'), 'fake image');
+    const html = renderGuide('# Guide\n\n![Été](../apps/web/public/guide/%C3%A9t%C3%A9.png)', directory);
+    expect(html).toContain('src="/guide/%C3%A9t%C3%A9.png"');
+    expect(html).toContain('alt="Été"');
   });
 
   it('rejects a broken internal anchor', () => {
@@ -54,12 +65,26 @@ describe('guide build', () => {
 });
 
 describe('guide drift protection', () => {
-  it('keeps every bracketed UI label verbatim in the web or desktop source', () => {
+  it('keeps every bracketed UI label as an exact static value in the web or desktop source', () => {
     const guide = fs.readFileSync(path.join(root, 'docs/guide-utilisateur.fr.md'), 'utf8');
-    const source = sourceFiles.map((file) => fs.readFileSync(path.join(root, file), 'utf8')).join('\n');
+    const sourceValues = new Set<string>();
+    const addValue = (value: string) => {
+      const normalized = value.replace(/\s+/g, ' ').trim();
+      if (normalized) sourceValues.add(normalized);
+    };
+    for (const file of sourceFiles) {
+      const source = fs.readFileSync(path.join(root, file), 'utf8');
+      const ast = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+      const visit = (node: ts.Node) => {
+        if (ts.isJsxText(node)) addValue(node.text);
+        if (ts.isStringLiteralLike(node) || ts.isNoSubstitutionTemplateLiteral(node)) addValue(node.text);
+        ts.forEachChild(node, visit);
+      };
+      visit(ast);
+    }
     const labels = [...guide.matchAll(/\*\*\[([^\]]+)\]\*\*/g)].map((match) => match[1]);
     expect(labels.length).toBeGreaterThan(20);
-    const missing = [...new Set(labels)].filter((label) => !source.includes(label));
+    const missing = [...new Set(labels)].filter((label) => !sourceValues.has(label.replace(/\s+/g, ' ').trim()));
     expect(missing, `Labels absents des sources : ${missing.join(', ')}`).toEqual([]);
   });
 
@@ -69,6 +94,8 @@ describe('guide drift protection', () => {
       'Le rappel de mise à jour doit être une fonction': 'Invalid preload callback; internal IPC programming error, not an end-user message.',
       'Backend introuvable': 'Packaging integrity error that needs support; the missing backend path is technical and cannot be repaired by staff.',
       'Vous avez la dernière version': 'Informational success message, not an error.',
+      'Arguments IPC inattendus': 'Internal IPC validation guard; malformed calls can only come from application code, not a user action.',
+      'Chemin de fichier invalide': 'Internal IPC validation guard; the file path is supplied by the application after the native save dialog.',
     };
     const sources = ['apps/api/src', 'apps/desktop/src'].flatMap((directory) => {
       const walk = (current: string): string[] => fs.readdirSync(path.join(root, current), { withFileTypes: true })
@@ -89,15 +116,15 @@ describe('guide drift protection', () => {
       const visit = (node: ts.Node) => {
         if (ts.isNewExpression(node) && ts.isIdentifier(node.expression) && exceptionNames.test(node.expression.text) && node.arguments?.[0]) {
           const message = staticMessage(node.arguments[0]).replace(/[^\p{L}\p{N}’']+$/gu, '').trim();
-          if (/[À-ÿ]/u.test(message)) messages.add(message);
+          if (message) messages.add(message);
         }
         if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.SuperKeyword && node.arguments[0]) {
           const message = staticMessage(node.arguments[0]).replace(/[^\p{L}\p{N}’']+$/gu, '').trim();
-          if (/[À-ÿ]/u.test(message)) messages.add(message);
+          if (message) messages.add(message);
         }
         if (ts.isPropertyAssignment(node) && node.name.getText(ast).replaceAll("'", '').replaceAll('"', '') === 'message' && ts.isExpression(node.initializer)) {
           const message = staticMessage(node.initializer).replace(/[^\p{L}\p{N}’']+$/gu, '').trim();
-          if (/[À-ÿ]/u.test(message)) messages.add(message);
+          if (message) messages.add(message);
         }
         ts.forEachChild(node, visit);
       };
@@ -113,7 +140,20 @@ describe('guide drift protection', () => {
     });
     expect(missing, `Messages d’erreur non couverts : ${missing.map((message) => `${message} => ${message.split(/\s+…\s+|[.!?]\s*/u).map(normalize).map((chunk) => `${chunk}:${normalizedGuide.includes(chunk)}`).join(' | ')}`).join(', ')}`).toEqual([]);
     expect(messages.size).toBeGreaterThan(20);
+    expect(messages).toContain('Jour invalide');
+    expect(messages).toContain('Dossier invalide');
     const invalidWhitelist = Object.entries(whitelisted).filter(([message, reason]) => ![...messages].some((entry) => entry.startsWith(message)) || reason.length <= 10);
     expect(invalidWhitelist).toEqual([]);
+  });
+});
+
+describe('guide search highlighting', () => {
+  it('normalizes text after clearing marks so later queries can span old match boundaries', async () => {
+    const { container } = render(<Guide html={'<h1 id="guide">Guide</h1><h2 id="chapitre">Chapitre</h2><p>abcdefgh</p>'} version="1.0.0" />);
+    const search = screen.getByRole('searchbox', { name: 'Rechercher dans le guide' });
+    fireEvent.change(search, { target: { value: 'cde' } });
+    await waitFor(() => expect(container.querySelector('.guide-content mark')?.textContent).toBe('cde'));
+    fireEvent.change(search, { target: { value: 'efg' } });
+    await waitFor(() => expect(container.querySelector('.guide-content mark')?.textContent).toBe('efg'));
   });
 });

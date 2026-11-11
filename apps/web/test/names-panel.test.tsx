@@ -65,6 +65,21 @@ describe('NamesPanel', () => {
     expect(screen.getByText(/deux enseignants auront le même nom affiché/)).not.toBeNull();
   });
 
+  it('asks before leaving with unsaved name changes and cancels navigation when declined', async () => {
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    try {
+      render(<NamesPanel id="fixture-id" onSaved={vi.fn()} />);
+      const input = await screen.findByRole('textbox', { name: 'Affiché dans Word pour Prof Dupont' });
+      fireEvent.change(input, { target: { value: 'Dupont corrigé' } });
+      const helpLink = screen.getByRole('link', { name: 'Aide sur les noms' });
+      expect(fireEvent.click(helpLink)).toBe(false);
+      expect(confirm).toHaveBeenCalledWith('Des modifications ne sont pas enregistrées. Quitter cette page sans les enregistrer ?');
+      expect(helpLink.getAttribute('href')).toBe('/aide/#noms-et-libelles');
+    } finally {
+      confirm.mockRestore();
+    }
+  });
+
   it('searches names and moves focus to the next visible row with Enter', async () => {
     render(<NamesPanel id="fixture-id" onSaved={vi.fn()} />);
     const first = await screen.findByRole('textbox', { name: 'Affiché dans Word pour Prof Benali' });

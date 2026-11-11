@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "next dev -p 3000",
+    "dev": "node ../../scripts/guide-build.mjs && next dev -p 3000",
     "build": "npm run typecheck && next build",
     "start": "next start -p 3000",
     "typecheck": "node ../../scripts/guide-build.mjs && tsc --noEmit",

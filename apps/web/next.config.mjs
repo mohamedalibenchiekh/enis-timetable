@@ -9,8 +9,9 @@ const root = path.join(dir, '..', '..');
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   trailingSlash: true,
-  // The build script runs tsc before Next. Next's detached TypeScript worker emits no --showConfig output here.
-  typescript: { ignoreBuildErrors: true },
+  // Keep Next's build typecheck enabled but use the TypeScript API: the CLI worker cannot open
+  // its detached stdout pipes in this sandbox and returns empty --showConfig output.
+  experimental: { useTypeScriptCli: false },
   outputFileTracingRoot: root,
   ...(dev
     ? {

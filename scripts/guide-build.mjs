@@ -42,12 +42,19 @@ export function renderGuide(markdown, projectRoot = root) {
     const alt = token.content.trim();
     if (!alt) throw new Error(`Image sans texte alternatif : ${src}`);
     if (!src || /^(?:https?:)?\/\//i.test(src)) throw new Error(`L’image doit être locale : ${src}`);
-    const imagePath = path.resolve(path.dirname(path.join(projectRoot, 'docs/guide-utilisateur.fr.md')), src);
+    let decodedSrc;
+    try {
+      decodedSrc = decodeURIComponent(src);
+    } catch {
+      throw new Error(`Chemin d’image mal encodé : ${src}`);
+    }
+    const imagePath = path.resolve(path.dirname(path.join(projectRoot, 'docs/guide-utilisateur.fr.md')), decodedSrc);
     const publicRoot = path.join(projectRoot, 'apps/web/public');
     const relativePublicPath = path.relative(publicRoot, imagePath);
     if (relativePublicPath.startsWith('..') || path.isAbsolute(relativePublicPath)) throw new Error(`Image hors du dossier public : ${src}`);
     if (!fs.existsSync(imagePath)) throw new Error(`Image manquante : ${src}`);
-    token.attrSet('src', `/${relativePublicPath.split(path.sep).join('/')}`);
+    token.attrSet('src', `/${relativePublicPath.split(path.sep).map(encodeURIComponent).join('/')}`);
+    token.attrSet('alt', alt);
     return self.renderToken(tokens, idx, options);
   };
   const html = md.renderer.render(tokens, md.options, {});

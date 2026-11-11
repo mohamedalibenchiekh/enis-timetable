@@ -53,10 +53,15 @@ export default function Guide({ html, version }: { html: string; version: string
       }
     }
     const escaped = query.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const normalizedParents = new Set<Node>();
     for (const mark of root.querySelectorAll('mark[data-guide-search]')) {
       const parent = mark.parentNode;
-      if (parent) parent.replaceChild(document.createTextNode(mark.textContent ?? ''), mark);
+      if (parent) {
+        parent.replaceChild(document.createTextNode(mark.textContent ?? ''), mark);
+        normalizedParents.add(parent);
+      }
     }
+    for (const parent of normalizedParents) parent.normalize();
     if (escaped) {
       const expression = new RegExp(escaped, 'giu');
       const containsExpression = new RegExp(escaped, 'iu');

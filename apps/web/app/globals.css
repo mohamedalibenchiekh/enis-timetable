@@ -76,7 +76,7 @@ table.grid { border-collapse: collapse; width: 100%; min-width: 760px; color: #1
 .names-savebar { position: sticky; bottom: 10px; z-index: 5; display: flex; align-items: center; justify-content: flex-end; gap: 10px; padding: 10px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); box-shadow: 0 4px 18px color-mix(in srgb, #000 18%, transparent); }
 .warning { color: #9a6700; background: color-mix(in srgb, #e6a700 12%, var(--panel)); border: 1px solid color-mix(in srgb, #e6a700 35%, var(--line)); border-radius: 8px; padding: 8px 12px; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
-button:focus-visible, a:focus-visible, input:focus-visible, main:focus-visible { outline: 3px solid #ff4d4f; outline-offset: 2px; }
+.guide-shell button:focus-visible, .guide-shell a:focus-visible, .guide-shell input:focus-visible, .guide-shell main:focus-visible { outline: 3px solid #ff4d4f; outline-offset: 2px; }
 .guide-shell { --guide-bg: #fff; --guide-ink: #202936; --guide-muted: #596675; --guide-line: #ccd4dd; --guide-accent: #145ca8; min-height: 100vh; background: var(--guide-bg); color: var(--guide-ink); font: 16px/1.65 system-ui, 'Segoe UI', sans-serif; }
 @media (prefers-color-scheme: dark) { .guide-shell { --guide-bg: #161b21; --guide-ink: #edf2f7; --guide-muted: #b5c0cc; --guide-line: #3b4652; --guide-accent: #8bc4ff; } }
 .guide-skip { position: absolute; left: -10000px; top: 8px; z-index: 30; background: var(--guide-bg); color: var(--guide-ink); padding: 8px; }

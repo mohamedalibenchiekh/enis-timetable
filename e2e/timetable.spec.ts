@@ -53,7 +53,7 @@ test('imports fixtures, previews a day, downloads Word, and updates an export op
     await expect(page.getByText('Hanafi Latifa')).toBeVisible();
 
     const downloadWait = page.waitForEvent('download');
-    await page.getByRole('link', { name: 'Télécharger Lundi.docx' }).click();
+    await page.getByRole('link', { name: 'Télécharger le document du jour' }).click();
     const download = await downloadWait;
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'enis-e2e-'));
     const file = path.join(tempDir, download.suggestedFilename());
@@ -79,7 +79,7 @@ test('imports fixtures, previews a day, downloads Word, and updates an export op
     await expect(page.getByRole('row', { name: /A 0-1/ })).toBeVisible();
 
     const resetDownloadWait = page.waitForEvent('download');
-    await page.getByRole('link', { name: 'Télécharger Lundi.docx' }).click();
+    await page.getByRole('link', { name: 'Télécharger le document du jour' }).click();
     const resetDownload = await resetDownloadWait;
     const resetFile = path.join(tempDir, resetDownload.suggestedFilename());
     await resetDownload.saveAs(resetFile);
