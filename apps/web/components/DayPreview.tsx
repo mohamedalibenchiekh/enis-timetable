@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { api, DayGrid } from '@/lib/api';
+import { api, DayGrid, normalizeName } from '@/lib/api';
 
 export function DayPreview({ id, day, refreshKey, highlightCells, showHighlight }: {
   id: string; day: number; refreshKey: number;
@@ -35,7 +35,7 @@ export function DayPreview({ id, day, refreshKey, highlightCells, showHighlight 
         </thead>
         <tbody>
           {grid.blocs.map((b) => (
-            <FragmentRows key={b.title} title={b.title} span={span} rows={b.rows} headers={grid.headers} highlightCells={hl} />
+            <FragmentRows key={b.title} title={b.title} span={span} rows={b.rows} headers={grid.headers} day={day} highlightCells={hl} />
           ))}
         </tbody>
       </table>
@@ -44,10 +44,11 @@ export function DayPreview({ id, day, refreshKey, highlightCells, showHighlight 
   );
 }
 
-function FragmentRows({ title, span, rows, headers, highlightCells }: {
+function FragmentRows({ title, span, rows, headers, day, highlightCells }: {
   title: string; span: number;
   rows: DayGrid['blocs'][number]['rows'];
   headers: string[][];
+  day: number;
   highlightCells?: Set<string>;
 }) {
   return (
@@ -58,7 +59,7 @@ function FragmentRows({ title, span, rows, headers, highlightCells }: {
           <th className="roomcell" title={r.room}>{r.label}</th>
           {r.cells.map((c, i) => {
             const slotHeader = headers[i]?.join(' ') ?? '';
-            const isHl = !!highlightCells?.has(`${r.label}|${slotHeader}`) && c !== '';
+            const isHl = !!highlightCells?.has(`${day}|${normalizeName(r.room)}|${slotHeader}`);
             return <td key={i} className={isHl ? 'hl' : undefined}>{c}</td>;
           })}
         </tr>

@@ -118,7 +118,9 @@ const TYPE_LABELS: Record<string, string> = {
 };
 
 function csvCell(value: string): string {
-  return /[";\n\r]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
+  // Prefix formula-like values so spreadsheets never evaluate imported content.
+  const safe = /^[=+\-@\t]/.test(value) ? `'${value}` : value;
+  return /[";\n\r]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
 }
 
 function toCsv(result: CompareResult): string {

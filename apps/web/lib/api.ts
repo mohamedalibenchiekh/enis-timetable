@@ -16,7 +16,7 @@ export interface CompareSnapshot {
 export interface CompareChange {
   type: ChangeType; activity: CompareActivity; before: CompareSnapshot | null; after: CompareSnapshot | null; days: string[];
 }
-export interface CompareDayCell { room: string; slotHeader: string; before: string; after: string }
+export interface CompareDayCell { room: string; roomKey: string; slotHeader: string; before: string; after: string }
 export interface CompareDay { day: number; dayName: string; cells: CompareDayCell[] }
 export interface CompareSummary {
   total: number; byType: Record<ChangeType, number>; teachers: number; rooms: number;
@@ -131,6 +131,16 @@ export const api = {
       method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(data),
     }),
 };
+
+/** Same normalization as the API's normalizeName — used to match highlight cells. */
+export function normalizeName(value: string): string {
+  return value
+    .replace(/[\s ]+/gu, ' ')
+    .trim()
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .toLowerCase();
+}
 
 export function guessKind(name: string): SourceKind | null {
   const n = name.toLowerCase();

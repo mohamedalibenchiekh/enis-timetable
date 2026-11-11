@@ -68,6 +68,25 @@ describe('buildBlocks', () => {
     ]);
     expect(blocks).toHaveLength(3);
   });
+
+  it('merges a rowspan session even when a parallel activity is interleaved', () => {
+    // Same room+activity on slots 0-2, another activity in between must not split the block.
+    const blocks = buildBlocks([
+      sess({ day: 0, slot: 0 }),
+      sess({ day: 0, slot: 1, teachers: 'Prof X', subjectCode: 'TX', groups: 'GX' }),
+      sess({ day: 0, slot: 1 }),
+      sess({ day: 0, slot: 2 }),
+    ]);
+    const main = blocks.filter((b) => b.activity.subjectCode === 'T1');
+    expect(main).toHaveLength(1);
+    expect(main[0].firstSlot).toBe(0);
+    expect(main[0].lastSlot).toBe(2);
+  });
+
+  it('deduplicates identical same-slot rows (one row per teacher table)', () => {
+    const blocks = buildBlocks([sess({ day: 0, slot: 0 }), sess({ day: 0, slot: 0 })]);
+    expect(blocks).toHaveLength(1);
+  });
 });
 
 describe('matchBlocks passes', () => {
@@ -89,6 +108,12 @@ describe('matchBlocks passes', () => {
 
   it('detects group_changed when only the group differs', () => {
     expect(types([sess({ day: 0, slot: 0, groups: 'Grp-1' })], [sess({ day: 0, slot: 0, groups: 'Grp-2' })])).toEqual(['group_changed']);
+  });
+
+  it('does not report group_changed when the subject or frequency also changed', () => {
+    expect(types([sess({ day: 0, slot: 0, groups: 'Grp-1' })], [sess({ day: 0, slot: 0, groups: 'Grp-2', subject: 'Autre' })]).sort()).toEqual(['added', 'removed']);
+    expect(types([sess({ day: 0, slot: 0, groups: 'Grp-1' })], [sess({ day: 0, slot: 0, groups: 'Grp-2', frequency: '1/15' })]).sort()).toEqual(['added', 'removed']);
+    expect(types([sess({ day: 0, slot: 0, groups: 'Grp-1' })], [sess({ day: 0, slot: 0, groups: 'Grp-2', room: 'B01' })]).sort()).toEqual(['added', 'removed']);
   });
 
   it('detects teachers_changed when only the teacher set differs', () => {
@@ -192,13 +217,20 @@ describe('compare invariants', () => {
     expect(r.summary.warning).toBe('Ces deux emplois du temps semblent très différents');
   });
 
+  it('keeps comparison keys injective when names contain the separator', () => {
+    // "A|B" as one teacher must not collide with teachers "A" and "B".
+    const a = [sess({ day: 0, slot: 0, teachers: 'Prof|X' })];
+    const b = [sess({ day: 0, slot: 0, teachers: 'Prof, X' })];
+    expect(compare(a, b).changes.length).toBeGreaterThan(0);
+  });
+
   it('matches 2000 sessions in under 200 ms (O(n log n) guard)', () => {
     const rand = rng(7);
     const gen = (): SessionLike[] =>
       Array.from({ length: 2000 }, (_, i) =>
         sess({
           day: Math.floor(rand() * 6),
-          slot: Math.floor(rand() * 6),
+          slot: Math.floor(rand() * META.slots.length),
           room: rand() > 0.5 ? 'A01' : 'B01',
           teachers: `Prof ${i % 50}`,
           groups: `Grp-${i % 20}`,
@@ -227,7 +259,7 @@ describe('compare invariants', () => {
       Array.from({ length: 2000 }, (_, i) =>
         sess({
           day: Math.floor(rand() * 6),
-          slot: Math.floor(rand() * 6),
+          slot: Math.floor(rand() * META.slots.length),
           room: rand() > 0.5 ? 'A01' : 'B01',
           teachers: `Prof ${i % 50}`,
           groups: `Grp-${i % 20}`,

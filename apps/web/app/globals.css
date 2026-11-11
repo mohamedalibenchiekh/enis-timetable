@@ -11,6 +11,7 @@
   --c-day: #c2d69b;
   --c-slot: #b8cce4;
   --c-bloc: #ffff99;
+  --accent-soft: #e8f0fe;
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -23,6 +24,7 @@
     --accent-ink: #0b1620;
     --danger: #ff8a80;
     --ok: #6bd78a;
+    --accent-soft: #1d3350;
   }
   .warning {
     color: #f5c542;
@@ -781,8 +783,8 @@ table.grid {
   margin-bottom: 12px;
 }
 .chip {
-  background: var(--accent-soft, #e8f0fe);
-  color: var(--accent, #1a56db);
+  background: var(--accent-soft);
+  color: var(--accent);
   border-radius: 999px;
   padding: 3px 10px;
   font-size: 0.85rem;
@@ -795,6 +797,8 @@ table.grid {
 }
 .compare-filters .text {
   min-width: 130px;
+  width: auto;
+  flex: 1 1 140px;
 }
 .compare-day-group h3 {
   margin: 16px 0 6px;

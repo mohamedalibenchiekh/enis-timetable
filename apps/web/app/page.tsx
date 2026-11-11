@@ -62,6 +62,7 @@ export default function Home() {
 
   const sel = items?.find((t) => t.id === selId) ?? null;
   useEffect(() => { if (sel && day >= sel.days.length) setDay(0); }, [sel, day]);
+  useEffect(() => { setHighlightCells(null); setShowHighlight(false); }, [selId]);
 
   const exportToFolder = async () => {
     if (!sel || !window.enis) return;
@@ -120,7 +121,7 @@ export default function Home() {
         {items && (importMode || !sel) && (
           <ImportPanel
             timetable={importMode === 'add' ? sel ?? undefined : undefined}
-            onDone={(t) => { setImportMode(null); setActiveTab('schedule'); setRefreshKey((k) => k + 1); reload(t.id); }}
+            onDone={(t) => { setImportMode(null); setActiveTab(t.previousTimetableId ? 'changes' : 'schedule'); setRefreshKey((k) => k + 1); reload(t.id); }}
           />
         )}
 
@@ -150,9 +151,11 @@ export default function Home() {
               <button aria-pressed={activeTab === 'changes'} className={activeTab === 'changes' ? 'on' : ''} onClick={() => setActiveTab('changes')}>Changements</button>
               <button aria-pressed={activeTab === 'names'} className={activeTab === 'names' ? 'on' : ''} onClick={() => setActiveTab('names')}>Noms</button>
             </div>
-            {activeTab === 'changes' ? (
+            {/* ComparePanel stays mounted (hidden) so its highlight set survives tab switches. */}
+            <div hidden={activeTab !== 'changes'}>
               <ComparePanel timetable={sel} versions={items ?? []} onHighlight={setHighlightCells} />
-            ) : activeTab === 'schedule' ? (
+            </div>
+            {activeTab === 'schedule' ? (
               <>
                 <div className="tabs day-tabs" role="group" aria-label="Jours">
                   {sel.days.map((d, i) => <button key={d} aria-pressed={i === day} className={i === day ? 'on' : ''} onClick={() => setDay(i)}>{d}</button>)}
@@ -172,9 +175,9 @@ export default function Home() {
                 </div>
                 {showOptions && <OptionsPanel onSaved={() => setRefreshKey((k) => k + 1)} />}
               </>
-            ) : (
+            ) : activeTab === 'names' ? (
               <NamesPanel id={sel.id} onSaved={() => setRefreshKey((key) => key + 1)} />
-            )}
+            ) : null}
           </>
         )}
       </main>

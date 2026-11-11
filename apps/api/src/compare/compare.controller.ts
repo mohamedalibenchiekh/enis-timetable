@@ -3,7 +3,8 @@ import { Response } from 'express';
 import { CompareService } from './compare.service.js';
 
 const DOCX = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-const attachment = (name: string) => `attachment; filename*=UTF-8''${encodeURIComponent(name)}`;
+const attachment = (name: string) =>
+  `attachment; filename*=UTF-8''${encodeURIComponent(name).replace(/['()*]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`)}`;
 
 @Controller('timetables')
 export class CompareController {

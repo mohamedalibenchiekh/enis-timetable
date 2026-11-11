@@ -115,21 +115,24 @@ function toChange(match: BlockMatch, baseMeta: TimetableMeta, targetMeta: Timeta
 
 interface CellEntry {
   room: string;
+  roomKey: string;
   slotHeader: string;
   text: string;
 }
 
 function gridCells(grid: ReturnType<typeof buildDayGrid>): Map<string, CellEntry> {
   const map = new Map<string, CellEntry>();
-  grid.blocs.forEach((bloc, bi) => {
+  for (const bloc of grid.blocs) {
     for (const row of bloc.rows) {
-      const roomKey = normalizeName(row.label);
+      // Key by the source room, not the display label: two rooms can share a label
+      // through overrides, and bloc membership must not affect cell identity.
+      const roomKey = normalizeName(row.room);
       row.cells.forEach((text, slot) => {
         const header = grid.headers[slot]?.join(' ') ?? `Créneau ${slot + 1}`;
-        map.set(`${roomKey}|${slot}|${bi}`, { room: row.label, slotHeader: header, text });
+        map.set(`${roomKey}|${slot}`, { room: row.label, roomKey, slotHeader: header, text });
       });
     }
-  });
+  }
   return map;
 }
 
@@ -163,6 +166,16 @@ function dayImpact(base: CompareInput, target: CompareInput, options: ExportOpti
     const targetCells = gridCells(targetGrid);
     const keys = new Set([...baseCells.keys(), ...targetCells.keys()]);
     const cells: DayCellChange[] = [];
+    // A changed slot header (time range, per-day override, pause label) alters the
+    // exported Word header even when every cell text is identical.
+    const headerCount = Math.max(baseGrid.headers.length, targetGrid.headers.length);
+    for (let slot = 0; slot < headerCount; slot++) {
+      const before = baseGrid.headers[slot]?.join(' ') ?? '';
+      const after = targetGrid.headers[slot]?.join(' ') ?? '';
+      if (before !== after) {
+        cells.push({ room: '(horaire)', roomKey: '', slotHeader: after || before, before, after });
+      }
+    }
     for (const key of keys) {
       const b = baseCells.get(key);
       const t = targetCells.get(key);
@@ -171,6 +184,7 @@ function dayImpact(base: CompareInput, target: CompareInput, options: ExportOpti
       if (before === after) continue;
       cells.push({
         room: t?.room ?? b!.room,
+        roomKey: t?.roomKey ?? b!.roomKey,
         slotHeader: t?.slotHeader ?? b!.slotHeader,
         before,
         after,

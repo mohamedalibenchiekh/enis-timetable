@@ -8,13 +8,22 @@ export function ImportPanel({ timetable, onDone }: { timetable?: Timetable; onDo
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [over, setOver] = useState(false);
-  const [versions, setVersions] = useState<Timetable[]>([]);
+  const [versions, setVersions] = useState<Timetable[] | null>(null);
+  const [versionsError, setVersionsError] = useState('');
   const [previousId, setPreviousId] = useState('');
   const input = useRef<HTMLInputElement>(null);
 
+  const loadVersions = () => {
+    setVersions(null);
+    setVersionsError('');
+    api.list().then(setVersions).catch((e) => {
+      setVersions([]);
+      setVersionsError((e as Error).message);
+    });
+  };
+
   useEffect(() => {
-    if (timetable) return;
-    api.list().then(setVersions).catch(() => setVersions([]));
+    if (!timetable) loadVersions();
   }, [timetable]);
 
   const add = (list: FileList | File[]) => {
@@ -86,7 +95,14 @@ export function ImportPanel({ timetable, onDone }: { timetable?: Timetable; onDo
       {!timetable && (
         <>
           <input className="text" placeholder="Nom (facultatif) — ex. S1 2026-2027" value={name} onChange={(e) => setName(e.target.value)} />
-          {versions.length > 0 && (
+          {versions === null && <p className="muted small">Chargement des versions…</p>}
+          {versionsError && (
+            <p className="error small">
+              Impossible de charger les versions : {versionsError}{' '}
+              <button className="link" onClick={loadVersions}>Réessayer</button>
+            </p>
+          )}
+          {versions !== null && versions.length > 0 && (
             <label className="field">
               <span>Nouvelle version de…</span>
               <select className="text" value={previousId} onChange={(e) => setPreviousId(e.target.value)}>
@@ -103,7 +119,7 @@ export function ImportPanel({ timetable, onDone }: { timetable?: Timetable; onDo
         </>
       )}
       {error && <p className="error">{error}</p>}
-      <button className="primary" disabled={!files.length || busy} onClick={submit}>
+      <button className="primary" disabled={!files.length || busy || versions === null} onClick={submit}>
         {busy ? 'Import en cours…' : 'Importer'}
       </button>
     </div>

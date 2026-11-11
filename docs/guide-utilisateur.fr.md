@@ -183,7 +183,7 @@ Depuis l’onglet **[Emploi du temps]**, activez **[Surligner les changements]**
 
 ### Limites de la comparaison
 
-La comparaison rapproche les séances par leur identité (enseignants, groupe, matière, horaire et salle). Une séance dont plusieurs attributs changent en même temps peut apparaître comme une suppression suivie d’un ajout plutôt que comme un déplacement. Un groupe renommé n’est reconnu comme **[Groupe changé]** que si l’enseignant, la matière et l’horaire restent identiques ; sinon la séance apparaît comme supprimée puis ajoutée. Les messages « Les deux emplois du temps ne partagent aucune vue commune (teachers/rooms/groups) », « Source de comparaison invalide : … (attendu : auto, teachers, rooms ou groups) », « La vue … est absente de l’un des deux emplois du temps » et « Impossible de comparer un emploi du temps avec lui-même » signalent une comparaison impossible.
+La comparaison rapproche les séances par leur identité (enseignants, groupe, matière, horaire et salle). Une séance dont plusieurs attributs changent en même temps peut apparaître comme une suppression suivie d’un ajout plutôt que comme un déplacement. Un groupe renommé n’est reconnu comme **[Groupe changé]** que si tout le reste est identique : enseignant, matière (code et intitulé), horaire, salle et fréquence. Sinon la séance apparaît comme supprimée puis ajoutée. Les messages « Les deux emplois du temps ne partagent aucune vue commune (teachers/rooms/groups) », « Source de comparaison invalide : … (attendu : auto, teachers, rooms ou groups) », « La vue … est absente de l’un des deux emplois du temps » et « Impossible de comparer un emploi du temps avec lui-même » signalent une comparaison impossible.
 
 ## Vos données et sauvegardes
 

@@ -28,7 +28,7 @@ const result: CompareResult = {
     { type: 'added', activity: { teachers: 'Prof B', groups: 'Grp-2', subjectCode: 'T2', subject: 'Physique', frequency: '' }, before: null, after: snap('Samedi', '10:00-11:30', 'B 0-1'), days: ['Samedi'] },
     { type: 'removed', activity: { teachers: 'Prof C', groups: 'Grp-3', subjectCode: 'T3', subject: 'Chimie', frequency: '' }, before: snap('Jeudi', '14:00-15:30', 'A 0-2'), after: null, days: ['Jeudi'] },
   ],
-  days: [{ day: 0, dayName: 'Lundi', cells: [{ room: 'A 0-1', slotHeader: '8:00-9:30', before: 'Prof A', after: '' }] }],
+  days: [{ day: 0, dayName: 'Lundi', cells: [{ room: 'A 0-1', roomKey: 'a01', slotHeader: '8:00-9:30', before: 'Prof A', after: '' }] }],
 };
 
 const response = (body: unknown, ok = true) => ({ ok, statusText: 'Bad Request', json: async () => body });
@@ -57,20 +57,20 @@ describe('ComparePanel', () => {
     // Highlight callback received the changed cells.
     await waitFor(() => expect(onHighlight).toHaveBeenCalled());
     const cells = onHighlight.mock.calls.at(-1)?.[0] as Set<string>;
-    expect(cells.has('A 0-1|8:00-9:30')).toBe(true);
+    expect(cells.has('0|a01|8:00-9:30')).toBe(true);
 
     // Type filter narrows the list.
     const selects = screen.getAllByRole('combobox');
     const typeSelect = selects[2]; // Comparer avec, Vue, type, jour
     fireEvent.change(typeSelect, { target: { value: 'added' } });
-    expect(screen.getByText('Prof B — Grp-2 — T2 Physique')).not.toBeNull();
-    expect(screen.queryByText('Prof A — Grp-1 — T1 Maths')).toBeNull();
+    expect(screen.getByText('Prof B — Grp-2 — T2 | Physique')).not.toBeNull();
+    expect(screen.queryByText('Prof A — Grp-1 — T1 | Maths')).toBeNull();
 
     // Teacher filter.
     fireEvent.change(typeSelect, { target: { value: '' } });
     fireEvent.change(screen.getByPlaceholderText('Enseignant'), { target: { value: 'Prof C' } });
-    expect(screen.getByText('Prof C — Grp-3 — T3 Chimie')).not.toBeNull();
-    expect(screen.queryByText('Prof A — Grp-1 — T1 Maths')).toBeNull();
+    expect(screen.getByText('Prof C — Grp-3 — T3 | Chimie')).not.toBeNull();
+    expect(screen.queryByText('Prof A — Grp-1 — T1 | Maths')).toBeNull();
   });
 
   it('shows the empty state when there is no change', async () => {

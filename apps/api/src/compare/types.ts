@@ -93,7 +93,10 @@ export interface Change {
 }
 
 export interface DayCellChange {
+  /** Display room label (NameResolver + automatic formatting). */
   room: string;
+  /** Normalized source room name — stable cell identity for highlighting. */
+  roomKey: string;
   slotHeader: string;
   before: string;
   after: string;

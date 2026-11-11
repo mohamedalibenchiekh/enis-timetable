@@ -19,70 +19,25 @@
   },
   "source": "teachers",
   "summary": {
-    "total": 7,
+    "total": 6,
     "byType": {
       "added": 1,
       "removed": 1,
       "moved": 2,
       "room_changed": 1,
       "group_changed": 0,
-      "teachers_changed": 2
+      "teachers_changed": 1
     },
     "teachers": 6,
     "rooms": 4,
     "similarity": 0,
     "warning": "Ces deux emplois du temps semblent très différents",
-    "baseBlocks": 6,
-    "targetBlocks": 6,
+    "baseBlocks": 5,
+    "targetBlocks": 5,
     "unchanged": 0,
-    "changed": 7
+    "changed": 6
   },
   "changes": [
-    {
-      "type": "teachers_changed",
-      "activity": {
-        "teachers": "Prof Roche, Prof Bernard",
-        "groups": "Grp-D4",
-        "subjectCode": "T401",
-        "subject": "Mécanique",
-        "frequency": ""
-      },
-      "before": {
-        "day": 0,
-        "dayName": "Lundi",
-        "firstSlot": 0,
-        "lastSlot": 0,
-        "timeRange": "8:00-9:30",
-        "room": "B 0-1",
-        "roomKey": "b01",
-        "activity": {
-          "teachers": "Prof Moreau, Prof Bernard",
-          "groups": "Grp-D4",
-          "subjectCode": "T401",
-          "subject": "Mécanique",
-          "frequency": ""
-        }
-      },
-      "after": {
-        "day": 0,
-        "dayName": "Lundi",
-        "firstSlot": 0,
-        "lastSlot": 0,
-        "timeRange": "8:00-9:30",
-        "room": "B 0-1",
-        "roomKey": "b01",
-        "activity": {
-          "teachers": "Prof Roche, Prof Bernard",
-          "groups": "Grp-D4",
-          "subjectCode": "T401",
-          "subject": "Mécanique",
-          "frequency": ""
-        }
-      },
-      "days": [
-        "Lundi"
-      ]
-    },
     {
       "type": "teachers_changed",
       "activity": {
@@ -333,42 +288,42 @@
       "cells": [
         {
           "room": "A 0-1",
+          "roomKey": "a01",
           "slotHeader": "11:30-13:00",
           "before": "Prof Laurent",
           "after": ""
         },
         {
           "room": "A 0-1",
+          "roomKey": "a01",
           "slotHeader": "8:00-9:30",
           "before": "Prof Dupont 1/15",
           "after": ""
         },
         {
           "room": "Amphi",
+          "roomKey": "amphi",
           "slotHeader": "8:00-9:30",
           "before": "",
           "after": "Prof Bernard"
         },
         {
           "room": "B 0-1",
+          "roomKey": "b01",
           "slotHeader": "8:00-9:30",
           "before": "Prof Moreau / Prof Bernard",
-          "after": ""
-        },
-        {
-          "room": "B 0-1",
-          "slotHeader": "8:00-9:30",
-          "before": "",
           "after": "Prof Roche / Prof Bernard"
         },
         {
           "room": "B 0-2",
+          "roomKey": "b02",
           "slotHeader": "8:00-9:30",
           "before": "Prof Bernard",
           "after": ""
         },
         {
           "room": "A 0-1",
+          "roomKey": "a01",
           "slotHeader": "9:45-11:15",
           "before": "Prof Laurent",
           "after": ""
@@ -381,18 +336,21 @@
       "cells": [
         {
           "room": "A 0-1",
+          "roomKey": "a01",
           "slotHeader": "11:30-13:00",
           "before": "",
           "after": "Prof Laurent"
         },
         {
           "room": "A 0-1",
+          "roomKey": "a01",
           "slotHeader": "8:00-9:30",
           "before": "",
           "after": "Prof Martin"
         },
         {
           "room": "A 0-1",
+          "roomKey": "a01",
           "slotHeader": "9:45-11:15",
           "before": "",
           "after": "Prof Laurent"
@@ -405,6 +363,7 @@
       "cells": [
         {
           "room": "A 0-1",
+          "roomKey": "a01",
           "slotHeader": "8:00-9:30",
           "before": "Prof Martin",
           "after": ""
@@ -417,6 +376,7 @@
       "cells": [
         {
           "room": "A 0-1",
+          "roomKey": "a01",
           "slotHeader": "8:00-9:30",
           "before": "",
           "after": "Prof Dupont"

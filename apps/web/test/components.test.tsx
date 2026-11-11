@@ -30,6 +30,8 @@ describe('ImportPanel', () => {
     expect(screen.getByText('Groupes')).not.toBeNull();
     fireEvent.click(screen.getAllByText('retirer')[0]);
     expect(screen.queryByText('test_rooms.html')).toBeNull();
+    // The version list lookup must settle before the import button is enabled.
+    await waitFor(() => expect(screen.getByText(/Impossible de charger les versions/)).not.toBeNull());
     fireEvent.click(screen.getByRole('button', { name: 'Importer' }));
     await waitFor(() => expect(screen.getByText('Import impossible')).not.toBeNull());
     expect(onDone).not.toHaveBeenCalled();

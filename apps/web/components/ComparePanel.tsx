@@ -20,7 +20,7 @@ function location(s: { dayName: string; timeRange: string; room: string } | null
 
 function activityLabel(c: CompareResult['changes'][number]): string {
   const a = c.activity;
-  const subject = [a.subjectCode, a.subject].filter(Boolean).join(' ');
+  const subject = [a.subjectCode, a.subject].filter(Boolean).join(' | ');
   return [a.teachers, a.groups, subject, a.frequency].filter(Boolean).join(' — ');
 }
 
@@ -101,7 +101,7 @@ export function ComparePanel({ timetable, versions, onHighlight }: {
     }
     const cells = new Set<string>();
     for (const d of result.days) {
-      for (const c of d.cells) cells.add(`${c.room}|${c.slotHeader}`);
+      for (const c of d.cells) cells.add(`${d.day}|${c.roomKey}|${c.slotHeader}`);
     }
     onHighlight(cells);
     return () => onHighlight(null);
@@ -166,17 +166,17 @@ export function ComparePanel({ timetable, versions, onHighlight }: {
               </div>
 
               <div className="compare-filters">
-                <select className="text" value={typeFilter} onChange={(e) => { setTypeFilter(e.target.value as ChangeType | ''); setVisible(PAGE_SIZE); }}>
+                <select className="text" aria-label="Type de changement" value={typeFilter} onChange={(e) => { setTypeFilter(e.target.value as ChangeType | ''); setVisible(PAGE_SIZE); }}>
                   <option value="">Tous les types</option>
                   {TYPE_ORDER.map((t) => <option key={t} value={t}>{TYPE_LABEL[t]}</option>)}
                 </select>
-                <input className="text" placeholder="Enseignant" value={teacherFilter} onChange={(e) => { setTeacherFilter(e.target.value); setVisible(PAGE_SIZE); }} />
-                <input className="text" placeholder="Salle" value={roomFilter} onChange={(e) => { setRoomFilter(e.target.value); setVisible(PAGE_SIZE); }} />
-                <select className="text" value={dayFilter} onChange={(e) => { setDayFilter(e.target.value); setVisible(PAGE_SIZE); }}>
+                <input className="text" aria-label="Filtrer par enseignant" placeholder="Enseignant" value={teacherFilter} onChange={(e) => { setTeacherFilter(e.target.value); setVisible(PAGE_SIZE); }} />
+                <input className="text" aria-label="Filtrer par salle" placeholder="Salle" value={roomFilter} onChange={(e) => { setRoomFilter(e.target.value); setVisible(PAGE_SIZE); }} />
+                <select className="text" aria-label="Filtrer par jour" value={dayFilter} onChange={(e) => { setDayFilter(e.target.value); setVisible(PAGE_SIZE); }}>
                   <option value="">Tous les jours</option>
                   {[...new Set(result.changes.flatMap((c) => c.days))].map((d) => <option key={d} value={d}>{d}</option>)}
                 </select>
-                <input className="text" placeholder="Rechercher…" value={query} onChange={(e) => { setQuery(e.target.value); setVisible(PAGE_SIZE); }} />
+                <input className="text" aria-label="Rechercher un changement" placeholder="Rechercher…" value={query} onChange={(e) => { setQuery(e.target.value); setVisible(PAGE_SIZE); }} />
               </div>
 
               {filtered.length === 0 && <p className="muted">Aucun changement ne correspond aux filtres.</p>}

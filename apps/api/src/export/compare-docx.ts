@@ -19,6 +19,8 @@ const TYPE_LABELS: Record<ChangeType, string> = {
   teachers_changed: 'Enseignant changé',
 };
 
+const SOURCE_LABELS: Record<string, string> = { teachers: 'Enseignants', rooms: 'Salles', groups: 'Groupes' };
+
 function cell(lines: string[], width: number, o: { bold?: boolean; size?: number; color?: string; fill?: string; span?: number } = {}): TableCell {
   return new TableCell({
     width: { size: width, type: WidthType.DXA },
@@ -79,7 +81,7 @@ export function buildCompareDocument(result: CompareResult, baseName: string, ta
   const summaryLines: [string, string][] = [
     ['Version de base', baseName],
     ['Nouvelle version', targetName],
-    ['Vue comparée', result.source],
+    ['Vue comparée', SOURCE_LABELS[result.source] ?? result.source],
     ['Séances inchangées', String(s.unchanged)],
     ['Blocs comparés', `${s.baseBlocks} → ${s.targetBlocks}`],
     ['Similarité', `${Math.round(s.similarity * 100)} %`],
@@ -101,7 +103,7 @@ export function buildCompareDocument(result: CompareResult, baseName: string, ta
     ...(s.warning ? [para(`⚠ ${s.warning}`, { bold: true, color: 'B42318' })] : []),
     new Table({
       width: { size: totalWidth, type: WidthType.DXA },
-      columnWidths: [colW[0], colW[1] + colW[2] + colW[3] + colW[4]],
+      columnWidths: colW,
       layout: TableLayoutType.FIXED,
       rows,
     }),

@@ -28,16 +28,18 @@ function sameActivity(a: Activity, b: Activity): boolean {
  * deterministically by (day, slot, room, activity).
  */
 export function buildBlocks(sessions: SessionLike[]): Block[] {
+  // Sort by identity first and slot last so every slot of the same session is adjacent:
+  // a parallel activity in another room/slot can no longer split a rowspan block.
   const sorted = [...sessions].sort(
     (a, b) =>
       a.day - b.day ||
-      a.slot - b.slot ||
       cmp(a.room, b.room) ||
       cmp(a.teachers, b.teachers) ||
       cmp(a.groups, b.groups) ||
       cmp(a.subjectCode, b.subjectCode) ||
       cmp(a.subject, b.subject) ||
-      cmp(a.frequency, b.frequency),
+      cmp(a.frequency, b.frequency) ||
+      a.slot - b.slot,
   );
 
   const blocks: Block[] = [];
@@ -52,15 +54,12 @@ export function buildBlocks(sessions: SessionLike[]): Block[] {
     };
     const roomK = roomKey(s.room);
     const last = blocks[blocks.length - 1];
-    if (
-      last &&
-      last.day === s.day &&
-      last.roomKey === roomK &&
-      sameActivity(last.activity, activity) &&
-      s.slot === last.lastSlot + 1
-    ) {
-      last.lastSlot = s.slot;
-      continue;
+    if (last && last.day === s.day && last.roomKey === roomK && sameActivity(last.activity, activity)) {
+      if (s.slot === last.lastSlot) continue; // duplicate row (e.g. one per teacher table)
+      if (s.slot === last.lastSlot + 1) {
+        last.lastSlot = s.slot;
+        continue;
+      }
     }
     blocks.push({ day: s.day, firstSlot: s.slot, lastSlot: s.slot, room: s.room, roomKey: roomK, activity });
   }

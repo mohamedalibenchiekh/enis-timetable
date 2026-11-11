@@ -57,9 +57,18 @@ const teachersChangedKey = (b: Block): string =>
 /** Same activity, same day + slot range, any room (room must differ — checked by caller). */
 const roomChangedKey = (b: Block): string => [activityKey(b.activity), b.day, b.firstSlot, b.lastSlot].join('|');
 
-/** Same teachers + subject code + day + slot range, any groups (groups must differ). */
+/** Same everything except groups: teachers + subject (code, title) + frequency + room + day/slots. */
 const groupChangedKey = (b: Block): string =>
-  [b.activity.teachersKey, b.activity.subjectCodeKey, b.day, b.firstSlot, b.lastSlot].join('|');
+  [
+    b.activity.teachersKey,
+    b.activity.subjectCodeKey,
+    b.activity.subjectKey,
+    b.activity.frequencyKey,
+    b.roomKey,
+    b.day,
+    b.firstSlot,
+    b.lastSlot,
+  ].join('|');
 
 const sameLocation = (a: Block, b: Block): boolean =>
   a.day === b.day && a.firstSlot === b.firstSlot && a.lastSlot === b.lastSlot && a.roomKey === b.roomKey;

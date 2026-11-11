@@ -53,11 +53,13 @@ export class TimetablesService {
     if (!files?.length) throw new BadRequestException('Aucun fichier HTML reçu');
     if (opts.previousTimetableId && opts.timetableId)
       throw new BadRequestException('« Nouvelle version de… » ne peut être utilisé qu’à la création d’un emploi du temps');
+    let previous: Timetable | undefined;
     if (opts.previousTimetableId) {
       if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(opts.previousTimetableId))
         throw new BadRequestException('Version précédente invalide');
-      await this.get(opts.previousTimetableId).catch(() => {
-        throw new NotFoundException('Version précédente introuvable');
+      previous = await this.get(opts.previousTimetableId).catch((e) => {
+        if (e instanceof NotFoundException) throw new NotFoundException('Version précédente introuvable');
+        throw e;
       });
     }
     const parsed: { file: UploadedHtml; data: ParsedFile }[] = [];
@@ -71,6 +73,9 @@ export class TimetablesService {
     }
     const kinds = parsed.map((p) => p.data.kind);
     if (new Set(kinds).size !== kinds.length) throw new BadRequestException('Deux fichiers du même type (teachers/rooms/groups) ont été envoyés');
+    // Fail before saving when the two versions share no comparable view.
+    if (previous && !['teachers', 'rooms', 'groups'].some((k) => kinds.includes(k as SourceKind) && previous!.files?.some((f) => f.kind === k)))
+      throw new BadRequestException('Les deux emplois du temps ne partagent aucune vue commune (teachers/rooms/groups)');
 
     return this.ds.transaction(async (em) => {
       let t: Timetable;
@@ -105,8 +110,8 @@ export class TimetablesService {
       return saved;
     }).then(async (saved) => {
       if (!opts.previousTimetableId) return saved;
-      const comparison = await this.compare.compareSummary(opts.previousTimetableId, saved.id).catch(() => null);
-      return { ...saved, comparison } as Timetable & { comparison: CompareSummary | null };
+      const comparison = await this.compare.compareSummary(opts.previousTimetableId!, saved.id);
+      return { ...saved, comparison } as Timetable & { comparison: CompareSummary };
     });
   }
 
