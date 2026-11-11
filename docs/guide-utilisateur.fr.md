@@ -33,6 +33,18 @@ L’installateur place l’application dans le dossier choisi pendant l’instal
 
 **Résultat attendu :** la fenêtre **[Emplois du temps]** s’ouvre et affiche l’écran d’import.
 
+### Vérifier le fichier téléchargé (facultatif)
+
+Vous pouvez vérifier que le fichier téléchargé correspond à celui publié. Sur la page de la version GitHub, relevez la somme SHA-256 associée au nom du fichier dans la section « Sommes SHA-256 » ou dans le fichier joint `SHA256SUMS.txt`. Ouvrez PowerShell dans le dossier qui contient le fichier, puis exécutez :
+
+```powershell
+Get-FileHash .\<fichier> -Algorithm SHA256
+```
+
+Comparez la valeur affichée après `Hash` avec la somme publiée pour le même nom de fichier. Si les valeurs diffèrent, ne poursuivez pas l’installation et téléchargez à nouveau le fichier depuis la source prévue par votre établissement.
+
+**Résultat attendu :** la valeur `Hash` est identique à la somme SHA-256 publiée pour le fichier vérifié.
+
 ## Ouvrir l’aide dans l’application
 
 Sélectionnez **[Aide]**, puis **[Guide d’utilisation]** dans le menu de l’application. La touche **[F1]** ouvre aussi le guide. Pour garder une copie imprimable, sélectionnez **[Enregistrer le guide en PDF…]**. Le menu **[À propos]** indique le nom, la version et le dossier des données.

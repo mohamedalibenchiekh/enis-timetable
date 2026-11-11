@@ -53,6 +53,10 @@ jobs:
             update-metadata: latest-linux.yml
             installer-pattern: '*.AppImage'
     runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -64,20 +68,10 @@ jobs:
       - run: npm run build
       - run: npm run build -w apps/desktop
       - run: npm run stage -w apps/desktop
-      - name: Build installer
+      - name: Build unsigned installer
         working-directory: apps/desktop
         shell: bash
-        env:
-          # Signing certificates are optional — builds are unsigned by default.
-          # Set CSC_LINK and CSC_KEY_PASSWORD as repository secrets for signed builds.
-          CSC_LINK: ${{ secrets.CSC_LINK }}
-          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
-        run: |
-          if [[ -z "${CSC_LINK:-}" ]]; then
-            unset CSC_LINK CSC_KEY_PASSWORD
-            echo "No signing certificate configured; building unsigned."
-          fi
-          npx electron-builder --publish never ${{ matrix.builder-args }}
+        run: npx electron-builder --publish never ${{ matrix.builder-args }}
       - name: Verify installer and update metadata
         shell: bash
         run: |
@@ -109,6 +103,10 @@ jobs:
             }
           }
           NODE
+      - name: Attest installer provenance
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2.4.0
+        with:
+          subject-path: apps/desktop/release/${{ matrix.installer-pattern }}
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ${{ matrix.artifact-name }}
@@ -136,14 +134,82 @@ jobs:
           merge-multiple: true
       - name: List artifacts
         run: ls -lR release-artifacts
-      - uses: softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3 # v3.0.4
-        with:
-          generate_release_notes: true
-          draft: false
-          prerelease: false
-          body: |
-            ## ⚠️ Note on code signing
-            Unless repository signing certificates (`CSC_LINK`) are configured, these builds are **unsigned**:
-            - **Windows**: If SmartScreen warns, click *More info* → *Run anyway*.
-            - **macOS**: You may need to right-click → Open and confirm.
-          files: release-artifacts/*
+      - name: Generate SHA-256 checksums and release body
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd release-artifacts
+          shopt -s nullglob
+          installers=( *.exe *.dmg *.AppImage )
+          if [ "${#installers[@]}" -eq 0 ]; then
+            echo "::error::No installer assets were downloaded"
+            exit 1
+          fi
+          printf '%s\0' "${installers[@]}" | LC_ALL=C sort -z | xargs -0 sha256sum > SHA256SUMS.txt
+          if [ "$(wc -l < SHA256SUMS.txt)" -ne "${#installers[@]}" ]; then
+            echo "::error::Checksum list does not contain exactly one line per installer"
+            exit 1
+          fi
+          cd ..
+          cp .github/release-template.fr.md release-body.md
+          sed '/<!-- SHA256SUMS -->/r release-artifacts/SHA256SUMS.txt' release-body.md > release-body-with-checksums.md
+          sed -i '/<!-- SHA256SUMS -->/d' release-body-with-checksums.md
+      - name: Create or reuse draft release with generated notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if gh release view "$GITHUB_REF_NAME" --json isDraft --jq '.isDraft' > release-is-draft.txt; then
+            if [ "$(<release-is-draft.txt)" != 'true' ]; then
+              echo "::error::A release for $GITHUB_REF_NAME is already published and cannot be republished"
+              exit 1
+            fi
+            echo "Reusing existing draft release for $GITHUB_REF_NAME."
+            existing_body=$(gh release view "$GITHUB_REF_NAME" --json body --jq '.body')
+            notes_marker='Les notes de version générées par GitHub sont ajoutées après ce texte.'
+            case "$existing_body" in
+              *"$notes_marker"*) ;;
+              *)
+                echo "::error::Existing draft release body is missing the release-notes marker"
+                exit 1
+                ;;
+            esac
+            generated_notes=$(printf '%s\n' "$existing_body" | sed "1,/^${notes_marker}$/d")
+            {
+              cat release-body-with-checksums.md
+              if [ -n "$generated_notes" ]; then
+                printf '\n%s\n' "$generated_notes"
+              fi
+            } > refreshed-release-body.md
+            gh release edit "$GITHUB_REF_NAME" --notes-file refreshed-release-body.md
+          else
+            gh api --method POST "repos/${GITHUB_REPOSITORY}/releases" \
+              -f tag_name="$GITHUB_REF_NAME" \
+              -f name="ENISo $GITHUB_REF_NAME" \
+              -f body="$(<release-body-with-checksums.md)" \
+              -F draft=true \
+              -F prerelease=false \
+              -F generate_release_notes=true
+          fi
+      - name: Upload release assets to draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$GITHUB_REF_NAME" release-artifacts/* --clobber
+      - name: Verify uploaded installers match SHA-256 checksums
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir verified-assets
+          while read -r _hash asset; do
+            gh release download "$GITHUB_REF_NAME" --pattern "$asset" --dir verified-assets --clobber
+          done < release-artifacts/SHA256SUMS.txt
+          (
+            cd verified-assets
+            sha256sum -c ../release-artifacts/SHA256SUMS.txt
+          )
+      - name: Publish verified release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release edit "$GITHUB_REF_NAME" --draft=false
