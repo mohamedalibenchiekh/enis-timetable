@@ -6,7 +6,9 @@ import * as net from 'net';
 import * as path from 'path';
 import { backupBeforeUpgrade } from './backup';
 import { assertEmbeddedDatabaseVersion, DatabaseVersionMismatchError, EmbeddedDb, startEmbeddedPostgres } from './database';
+import { buildApplicationMenu } from './menu';
 import { createUpdater } from './updater';
+import { showMessageBoxWithOptionalParent } from './window-dialog';
 
 let api: ChildProcess | null = null;
 let win: BrowserWindow | null = null;
@@ -258,22 +260,33 @@ app.whenReady().then(async () => {
     },
   });
   updaterService.start();
-  Menu.setApplicationMenu(Menu.buildFromTemplate([
-    { label: 'Fichier', submenu: [
-      { label: 'Fichier de configuration (base de données)…', click: () => shell.showItemInFolder(ensureConfigFile()) },
-      { label: 'Rechercher des mises à jour…', click: () => { void updaterService?.checkForUpdates(true); } },
-      { label: 'Ouvrir le dossier des sauvegardes', click: () => {
+  Menu.setApplicationMenu(Menu.buildFromTemplate(buildApplicationMenu({
+    openGuide: () => {
+      if (!win || win.isDestroyed()) return;
+      const origin = new URL(win.webContents.getURL()).origin;
+      void win.loadURL(`${origin}/aide/`);
+    },
+    saveGuidePdf: () => { void saveGuideAsPdf(); },
+    showAbout: () => {
+      const options = {
+        title: 'À propos',
+        message: 'Emplois du temps ENISo',
+        detail: `Version ${app.getVersion()}\nDossier des données : ${app.getPath('userData')}`,
+        buttons: ['OK'],
+      };
+      if (win && !win.isDestroyed()) void dialog.showMessageBox(win, options);
+      else void dialog.showMessageBox(options);
+    },
+    openConfig: () => shell.showItemInFolder(ensureConfigFile()),
+    checkForUpdates: () => { void updaterService?.checkForUpdates(true); },
+    openBackups: () => {
         const directory = path.join(app.getPath('userData'), 'backups');
         fs.mkdirSync(directory, { recursive: true });
         void shell.openPath(directory).then((error) => {
           if (error) dialog.showErrorBox('Ouverture impossible', error);
         });
-      } },
-      { role: 'quit', label: 'Quitter' },
-    ] },
-    { label: 'Édition', submenu: [{ role: 'copy', label: 'Copier' }, { role: 'paste', label: 'Coller' }, { role: 'selectAll', label: 'Tout sélectionner' }] },
-    { label: 'Affichage', submenu: [{ role: 'reload', label: 'Recharger' }, { role: 'toggleDevTools', label: 'Outils de développement' }, { role: 'togglefullscreen', label: 'Plein écran' }] },
-  ]));
+    },
+  })));
   try {
     await createWindow(await startApi());
     if (backupWarning) {
@@ -291,6 +304,37 @@ app.whenReady().then(async () => {
 });
 
 app.on('window-all-closed', () => app.quit());
+
+async function saveGuideAsPdf() {
+  if (!win || win.isDestroyed()) return;
+  const result = await dialog.showSaveDialog(win, {
+    title: 'Enregistrer le guide en PDF',
+    defaultPath: path.join(app.getPath('documents'), 'Guide-utilisateur-ENISo.pdf'),
+    filters: [{ name: 'Document PDF', extensions: ['pdf'] }],
+  });
+  if (result.canceled || !result.filePath) return;
+  let printWindow: BrowserWindow | undefined;
+  try {
+    const origin = new URL(win.webContents.getURL()).origin;
+    printWindow = new BrowserWindow({
+      show: false,
+      width: 1280,
+      height: 900,
+      webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true },
+    });
+    await printWindow.loadURL(`${origin}/aide/`);
+    const pdf = await printWindow.webContents.printToPDF({ pageSize: 'A4', printBackground: true, preferCSSPageSize: true });
+    fs.writeFileSync(result.filePath, pdf);
+  } catch (error) {
+    await showMessageBoxWithOptionalParent(dialog, win ?? undefined, {
+      type: 'error', title: 'Enregistrement impossible',
+      message: `Le guide PDF n’a pas pu être enregistré : ${String(error)}`,
+      buttons: ['OK'],
+    });
+  } finally {
+    if (printWindow && !printWindow.isDestroyed()) printWindow.destroy();
+  }
+}
 
 function stopServices(): Promise<void> {
   if (shutdownPromise) return shutdownPromise;

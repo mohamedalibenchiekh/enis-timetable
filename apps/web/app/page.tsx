@@ -104,9 +104,11 @@ export default function Home() {
           <div className="sidebar-footer">
             {desktopVersion && <span className="muted small">v{desktopVersion}</span>}
             {desktopVersionError && <span className="muted small">Version indisponible</span>}
+            <a className="link" href="/aide/">Aide</a>
             <button className="link" onClick={checkForUpdates}>Rechercher les mises à jour</button>
           </div>
         )}
+        {!isDesktop && <div className="sidebar-footer"><a className="link" href="/aide/">Aide</a></div>}
       </aside>
 
       <main className="main">
@@ -133,7 +135,7 @@ export default function Home() {
                 </p>
               </div>
               <div className="actions">
-                <a className="primary btn" href={api.docxUrl(sel.id, day)}>Télécharger {sel.days[day]}.docx</a>
+                <a className="primary btn" href={api.docxUrl(sel.id, day)}>Télécharger le document du jour</a>
                 <a className="btn" href={api.zipUrl(sel.id)}>Tous les jours (.zip)</a>
                 {typeof window !== 'undefined' && window.enis && <button onClick={exportToFolder}>Enregistrer dans un dossier…</button>}
               </div>

@@ -11,7 +11,10 @@
     "build": "npm run build -w apps/api && npm run build -w apps/web",
     "desktop": "npm run build && npm run start -w apps/desktop",
     "dist": "npm run build && npm run dist -w apps/desktop",
-    "test": "npm run test -w apps/api && npm run test -w apps/web",
+    "guide:build": "node scripts/guide-build.mjs",
+    "guide:screenshots": "node scripts/guide-screenshots.mjs",
+    "guide:test": "npm run test -w apps/web -- --run test/guide.test.tsx",
+    "test": "npm run test -w apps/api && npm run test -w apps/web && npm run test -w apps/desktop",
     "test:visual": "npm run test:visual -w apps/api",
     "test:visual:update": "npm run test:visual:update -w apps/api --",
     "test:e2e": "npm run build && playwright test",
@@ -19,6 +22,7 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.56.1",
+    "markdown-it": "^15.0.3",
     "sharp": "^0.35.5"
   }
 }

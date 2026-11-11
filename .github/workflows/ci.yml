@@ -101,7 +101,7 @@ jobs:
   # ── Typecheck + Build + Unit Tests ─────────────────────────────────
   checks:
     name: Typecheck · Build · Test
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     env:
       # Electron binary is not needed for typecheck/build/test
       ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
@@ -114,10 +114,30 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
       - run: npm ci
+      - name: Install guide screenshot tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            libreoffice-writer=4:24.2.7-0ubuntu0.24.04.7 \
+            poppler-utils=24.02.0-1ubuntu9.11 \
+            fonts-liberation=1:2.1.5-3 \
+            fontconfig=2.15.0-1.1ubuntu2
+      - run: npx playwright install --with-deps chromium
       - run: npm run typecheck
       - run: npm run build
       - name: Unit tests (API, web, updater, backups)
         run: npm test
+      - name: Generate and verify guide screenshots
+        run: npm run guide:screenshots
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: user-guide-screenshots
+          path: |
+            apps/web/public/guide/*.png
+            apps/web/test-output/guide-preview/*.png
+          if-no-files-found: warn
+          retention-days: 7
       - run: npm run test:coverage -w apps/api
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()

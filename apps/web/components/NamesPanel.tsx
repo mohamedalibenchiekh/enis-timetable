@@ -174,6 +174,16 @@ export function NamesPanel({ id, onSaved }: { id: string; onSaved: () => void })
       <div className="names-toolbar">
         <p className="muted">Les corrections s’appliquent à tous les emplois du temps de cette base.</p>
         <div className="actions">
+          <a
+            className="btn"
+            href="/aide/#noms-et-libelles"
+            aria-label="Aide sur les noms"
+            onClick={(event) => {
+              if (dirtyCount > 0 && !window.confirm('Des modifications ne sont pas enregistrées. Quitter cette page sans les enregistrer ?')) {
+                event.preventDefault();
+              }
+            }}
+          >? Aide sur les noms</a>
           <button onClick={() => void exportNames()}>Exporter les noms (.json)</button>
           <button
             onClick={() => fileInput.current?.click()}

@@ -218,3 +218,16 @@ Stop the local server after the test. The update artifacts must be from the same
 - Require branches to be up to date before merging
 - Do not allow force pushes
 - Do not allow deletions
+
+## Documentation utilisateur
+
+Le guide français maintenu se trouve dans `docs/guide-utilisateur.fr.md`. Les mentions d’interface suivent la convention `**[Libellé exact]**`, vérifiée par un test qui compare les valeurs statiques entières des textes et libellés de l’interface.
+
+Pour régénérer les captures synthétiques avec Playwright et construire le fragment HTML statique du guide :
+
+```bash
+npm run guide:screenshots
+npm run guide:build
+```
+
+La génération des captures nécessite Chromium, LibreOffice Writer et Poppler (`pdftoppm`). Elle utilise uniquement les fichiers de test synthétiques dans `apps/api/test/fixtures/`. Le guide est compilé dans l’export Web et s’ouvre hors connexion depuis **Aide**.
