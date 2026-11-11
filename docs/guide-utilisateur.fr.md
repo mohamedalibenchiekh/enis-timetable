@@ -35,7 +35,7 @@ L’installateur place l’application dans le dossier choisi pendant l’instal
 
 ### Vérifier le fichier téléchargé (facultatif)
 
-Vous pouvez vérifier que le fichier téléchargé correspond à celui publié avant de l’ouvrir. Sur la page de la version GitHub, relevez la somme SHA-256 associée au nom du fichier dans la section « Sommes SHA-256 » ou dans le fichier joint `SHA256SUMS.txt`. Ouvrez PowerShell dans le dossier qui contient le fichier, puis exécutez :
+Vous pouvez vérifier que le fichier téléchargé correspond à celui publié. Sur la page de la version GitHub, relevez la somme SHA-256 associée au nom du fichier dans la section « Sommes SHA-256 » ou dans le fichier joint `SHA256SUMS.txt`. Ouvrez PowerShell dans le dossier qui contient le fichier, puis exécutez :
 
 ```powershell
 Get-FileHash .\<fichier> -Algorithm SHA256

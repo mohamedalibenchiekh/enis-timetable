@@ -165,6 +165,20 @@ jobs:
               exit 1
             fi
             echo "Reusing existing draft release for $GITHUB_REF_NAME."
+            existing_body=$(gh release view "$GITHUB_REF_NAME" --json body --jq '.body')
+            notes_marker='Les notes de version générées par GitHub sont ajoutées après ce texte.'
+            if ! printf '%s\n' "$existing_body" | grep -Fxq "$notes_marker"; then
+              echo "::error::Existing draft release body is missing the release-notes marker"
+              exit 1
+            fi
+            generated_notes=$(printf '%s\n' "$existing_body" | sed "1,/^${notes_marker}$/d")
+            {
+              cat release-body-with-checksums.md
+              if [ -n "$generated_notes" ]; then
+                printf '\n%s\n' "$generated_notes"
+              fi
+            } > refreshed-release-body.md
+            gh release edit "$GITHUB_REF_NAME" --notes-file refreshed-release-body.md
           else
             gh api --method POST "repos/${GITHUB_REPOSITORY}/releases" \
               -f tag_name="$GITHUB_REF_NAME" \
