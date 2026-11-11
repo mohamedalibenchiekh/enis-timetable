@@ -4,9 +4,9 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p 3000",
-    "build": "next build",
+    "build": "npm run typecheck && next build",
     "start": "next start -p 3000",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "node ../../scripts/guide-build.mjs && tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage"

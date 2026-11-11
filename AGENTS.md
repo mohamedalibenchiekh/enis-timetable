@@ -80,6 +80,7 @@ Test commands:
 - `npm run test:verify -w apps/api -- <html-dir> [out-dir]`: fixture parity check and sample DOCX generation.
 
 ## Do / Don't
+- When a UI label or user-visible behaviour changes, update `docs/guide-utilisateur.fr.md` and run `npm run guide:screenshots`.
 - **DO** keep HTTP and DB listeners strictly bound to `127.0.0.1`.
 - **DO** write pure, deterministic functions in parser and export modules.
 - **DO** ask before introducing new dependencies or changing package versions.

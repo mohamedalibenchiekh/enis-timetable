@@ -114,10 +114,28 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
       - run: npm ci
+      - name: Install guide screenshot tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y libreoffice-writer poppler-utils
+      - run: npx playwright install --with-deps chromium
       - run: npm run typecheck
       - run: npm run build
       - name: Unit tests (API, web, updater, backups)
         run: npm test
+      - name: Guide tests
+        run: npm run guide:test
+      - name: Generate and verify guide screenshots
+        run: npm run guide:screenshots
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: user-guide-screenshots
+          path: |
+            apps/web/public/guide/*.png
+            apps/web/test-output/guide-preview/*.png
+          if-no-files-found: warn
+          retention-days: 7
       - run: npm run test:coverage -w apps/api
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()

@@ -33,6 +33,7 @@ export function ImportPanel({ timetable, onDone }: { timetable?: Timetable; onDo
 
   return (
     <div className="card">
+      {!timetable && <><h2>Bienvenue — 3 étapes pour commencer</h2><p><a href="/aide/">Ouvrir le guide d’utilisation</a></p></>}
       <h2>{timetable ? 'Ajouter ou remplacer des fichiers' : 'Importer un emploi du temps'}</h2>
       <p className="muted">
         Fichiers HTML exportés par FET (<code>…_rooms_days_horizontal.html</code>, <code>…_teachers_…</code>, <code>…_groups_…</code>).

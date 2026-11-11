@@ -8,6 +8,9 @@ const root = path.join(dir, '..', '..');
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  trailingSlash: true,
+  // The build script runs tsc before Next. Next's detached TypeScript worker emits no --showConfig output here.
+  typescript: { ignoreBuildErrors: true },
   outputFileTracingRoot: root,
   ...(dev
     ? {

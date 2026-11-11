@@ -19,6 +19,7 @@ export function OptionsPanel({ onSaved }: { onSaved: () => void }) {
 
   return (
     <div className="options">
+      <p><a href="/aide/#options-du-document-word" aria-label="Aide sur les options">? Aide sur les options</a></p>
       <label><input type="checkbox" checked={o.abbreviateBen} onChange={(e) => set('abbreviateBen', e.target.checked)} /> Abréger « BEN » en « B » (ex. B Rhouma Asma)</label>
       <label><input type="checkbox" checked={o.showFrequency} onChange={(e) => set('showFrequency', e.target.checked)} /> Afficher « 1/15 » pour les séances une semaine sur deux</label>
       <label><input type="checkbox" checked={o.includeEmptyRooms} onChange={(e) => set('includeEmptyRooms', e.target.checked)} /> Lister aussi les salles libres</label>
