@@ -1,0 +1,427 @@
+{
+  "base": {
+    "id": "v1",
+    "name": "v1",
+    "institution": "ENISo Test",
+    "comment": "Fixture test data",
+    "generatedAt": "FET v6.20.3",
+    "createdAt": "",
+    "files": []
+  },
+  "target": {
+    "id": "v2",
+    "name": "v2",
+    "institution": "ENISo Test",
+    "comment": "Fixture test data",
+    "generatedAt": "FET v6.20.3",
+    "createdAt": "",
+    "files": []
+  },
+  "source": "teachers",
+  "summary": {
+    "total": 7,
+    "byType": {
+      "added": 1,
+      "removed": 1,
+      "moved": 2,
+      "room_changed": 1,
+      "group_changed": 0,
+      "teachers_changed": 2
+    },
+    "teachers": 6,
+    "rooms": 4,
+    "similarity": 0,
+    "warning": "Ces deux emplois du temps semblent très différents",
+    "baseBlocks": 6,
+    "targetBlocks": 6,
+    "unchanged": 0,
+    "changed": 7
+  },
+  "changes": [
+    {
+      "type": "teachers_changed",
+      "activity": {
+        "teachers": "Prof Roche, Prof Bernard",
+        "groups": "Grp-D4",
+        "subjectCode": "T401",
+        "subject": "Mécanique",
+        "frequency": ""
+      },
+      "before": {
+        "day": 0,
+        "dayName": "Lundi",
+        "firstSlot": 0,
+        "lastSlot": 0,
+        "timeRange": "8:00-9:30",
+        "room": "B 0-1",
+        "roomKey": "b01",
+        "activity": {
+          "teachers": "Prof Moreau, Prof Bernard",
+          "groups": "Grp-D4",
+          "subjectCode": "T401",
+          "subject": "Mécanique",
+          "frequency": ""
+        }
+      },
+      "after": {
+        "day": 0,
+        "dayName": "Lundi",
+        "firstSlot": 0,
+        "lastSlot": 0,
+        "timeRange": "8:00-9:30",
+        "room": "B 0-1",
+        "roomKey": "b01",
+        "activity": {
+          "teachers": "Prof Roche, Prof Bernard",
+          "groups": "Grp-D4",
+          "subjectCode": "T401",
+          "subject": "Mécanique",
+          "frequency": ""
+        }
+      },
+      "days": [
+        "Lundi"
+      ]
+    },
+    {
+      "type": "teachers_changed",
+      "activity": {
+        "teachers": "Prof Roche, Prof Bernard",
+        "groups": "Grp-D4",
+        "subjectCode": "T401",
+        "subject": "Mécanique",
+        "frequency": ""
+      },
+      "before": {
+        "day": 0,
+        "dayName": "Lundi",
+        "firstSlot": 0,
+        "lastSlot": 0,
+        "timeRange": "8:00-9:30",
+        "room": "B 0-1",
+        "roomKey": "b01",
+        "activity": {
+          "teachers": "Prof Moreau, Prof Bernard",
+          "groups": "Grp-D4",
+          "subjectCode": "T401",
+          "subject": "Mécanique",
+          "frequency": ""
+        }
+      },
+      "after": {
+        "day": 0,
+        "dayName": "Lundi",
+        "firstSlot": 0,
+        "lastSlot": 0,
+        "timeRange": "8:00-9:30",
+        "room": "B 0-1",
+        "roomKey": "b01",
+        "activity": {
+          "teachers": "Prof Roche, Prof Bernard",
+          "groups": "Grp-D4",
+          "subjectCode": "T401",
+          "subject": "Mécanique",
+          "frequency": ""
+        }
+      },
+      "days": [
+        "Lundi"
+      ]
+    },
+    {
+      "type": "room_changed",
+      "activity": {
+        "teachers": "Prof Bernard",
+        "groups": "Grp-E5",
+        "subjectCode": "T501",
+        "subject": "Optique",
+        "frequency": ""
+      },
+      "before": {
+        "day": 0,
+        "dayName": "Lundi",
+        "firstSlot": 0,
+        "lastSlot": 0,
+        "timeRange": "8:00-9:30",
+        "room": "B 0-2",
+        "roomKey": "b02",
+        "activity": {
+          "teachers": "Prof Bernard",
+          "groups": "Grp-E5",
+          "subjectCode": "T501",
+          "subject": "Optique",
+          "frequency": ""
+        }
+      },
+      "after": {
+        "day": 0,
+        "dayName": "Lundi",
+        "firstSlot": 0,
+        "lastSlot": 0,
+        "timeRange": "8:00-9:30",
+        "room": "Amphi",
+        "roomKey": "amphi",
+        "activity": {
+          "teachers": "Prof Bernard",
+          "groups": "Grp-E5",
+          "subjectCode": "T501",
+          "subject": "Optique",
+          "frequency": ""
+        }
+      },
+      "days": [
+        "Lundi"
+      ]
+    },
+    {
+      "type": "removed",
+      "activity": {
+        "teachers": "Prof Dupont",
+        "groups": "Grp-A1",
+        "subjectCode": "T101",
+        "subject": "Analyse",
+        "frequency": "1/15"
+      },
+      "before": {
+        "day": 0,
+        "dayName": "Lundi",
+        "firstSlot": 0,
+        "lastSlot": 0,
+        "timeRange": "8:00-9:30",
+        "room": "A 0-1",
+        "roomKey": "a01",
+        "activity": {
+          "teachers": "Prof Dupont",
+          "groups": "Grp-A1",
+          "subjectCode": "T101",
+          "subject": "Analyse",
+          "frequency": "1/15"
+        }
+      },
+      "after": null,
+      "days": [
+        "Lundi"
+      ]
+    },
+    {
+      "type": "moved",
+      "activity": {
+        "teachers": "Prof Laurent",
+        "groups": "Grp-C3",
+        "subjectCode": "T301",
+        "subject": "Physique",
+        "frequency": ""
+      },
+      "before": {
+        "day": 0,
+        "dayName": "Lundi",
+        "firstSlot": 1,
+        "lastSlot": 2,
+        "timeRange": "9:45-13:00",
+        "room": "A 0-1",
+        "roomKey": "a01",
+        "activity": {
+          "teachers": "Prof Laurent",
+          "groups": "Grp-C3",
+          "subjectCode": "T301",
+          "subject": "Physique",
+          "frequency": ""
+        }
+      },
+      "after": {
+        "day": 1,
+        "dayName": "Mardi",
+        "firstSlot": 1,
+        "lastSlot": 2,
+        "timeRange": "9:45-13:00",
+        "room": "A 0-1",
+        "roomKey": "a01",
+        "activity": {
+          "teachers": "Prof Laurent",
+          "groups": "Grp-C3",
+          "subjectCode": "T301",
+          "subject": "Physique",
+          "frequency": ""
+        }
+      },
+      "days": [
+        "Lundi",
+        "Mardi"
+      ]
+    },
+    {
+      "type": "moved",
+      "activity": {
+        "teachers": "Prof Martin",
+        "groups": "Grp-B2",
+        "subjectCode": "T201",
+        "subject": "Algèbre",
+        "frequency": ""
+      },
+      "before": {
+        "day": 3,
+        "dayName": "Jeudi",
+        "firstSlot": 0,
+        "lastSlot": 0,
+        "timeRange": "8:00-9:30",
+        "room": "A 0-1",
+        "roomKey": "a01",
+        "activity": {
+          "teachers": "Prof Martin",
+          "groups": "Grp-B2",
+          "subjectCode": "T201",
+          "subject": "Algèbre",
+          "frequency": ""
+        }
+      },
+      "after": {
+        "day": 1,
+        "dayName": "Mardi",
+        "firstSlot": 0,
+        "lastSlot": 0,
+        "timeRange": "8:00-9:30",
+        "room": "A 0-1",
+        "roomKey": "a01",
+        "activity": {
+          "teachers": "Prof Martin",
+          "groups": "Grp-B2",
+          "subjectCode": "T201",
+          "subject": "Algèbre",
+          "frequency": ""
+        }
+      },
+      "days": [
+        "Mardi",
+        "Jeudi"
+      ]
+    },
+    {
+      "type": "added",
+      "activity": {
+        "teachers": "Prof Dupont",
+        "groups": "Grp-A1",
+        "subjectCode": "T802",
+        "subject": "Projet tutoré",
+        "frequency": ""
+      },
+      "before": null,
+      "after": {
+        "day": 5,
+        "dayName": "Samedi",
+        "firstSlot": 0,
+        "lastSlot": 0,
+        "timeRange": "8:00-9:30",
+        "room": "A 0-1",
+        "roomKey": "a01",
+        "activity": {
+          "teachers": "Prof Dupont",
+          "groups": "Grp-A1",
+          "subjectCode": "T802",
+          "subject": "Projet tutoré",
+          "frequency": ""
+        }
+      },
+      "days": [
+        "Samedi"
+      ]
+    }
+  ],
+  "days": [
+    {
+      "day": 0,
+      "dayName": "Lundi",
+      "cells": [
+        {
+          "room": "A 0-1",
+          "slotHeader": "11:30-13:00",
+          "before": "Prof Laurent",
+          "after": ""
+        },
+        {
+          "room": "A 0-1",
+          "slotHeader": "8:00-9:30",
+          "before": "Prof Dupont 1/15",
+          "after": ""
+        },
+        {
+          "room": "Amphi",
+          "slotHeader": "8:00-9:30",
+          "before": "",
+          "after": "Prof Bernard"
+        },
+        {
+          "room": "B 0-1",
+          "slotHeader": "8:00-9:30",
+          "before": "Prof Moreau / Prof Bernard",
+          "after": ""
+        },
+        {
+          "room": "B 0-1",
+          "slotHeader": "8:00-9:30",
+          "before": "",
+          "after": "Prof Roche / Prof Bernard"
+        },
+        {
+          "room": "B 0-2",
+          "slotHeader": "8:00-9:30",
+          "before": "Prof Bernard",
+          "after": ""
+        },
+        {
+          "room": "A 0-1",
+          "slotHeader": "9:45-11:15",
+          "before": "Prof Laurent",
+          "after": ""
+        }
+      ]
+    },
+    {
+      "day": 1,
+      "dayName": "Mardi",
+      "cells": [
+        {
+          "room": "A 0-1",
+          "slotHeader": "11:30-13:00",
+          "before": "",
+          "after": "Prof Laurent"
+        },
+        {
+          "room": "A 0-1",
+          "slotHeader": "8:00-9:30",
+          "before": "",
+          "after": "Prof Martin"
+        },
+        {
+          "room": "A 0-1",
+          "slotHeader": "9:45-11:15",
+          "before": "",
+          "after": "Prof Laurent"
+        }
+      ]
+    },
+    {
+      "day": 3,
+      "dayName": "Jeudi",
+      "cells": [
+        {
+          "room": "A 0-1",
+          "slotHeader": "8:00-9:30",
+          "before": "Prof Martin",
+          "after": ""
+        }
+      ]
+    },
+    {
+      "day": 5,
+      "dayName": "Samedi",
+      "cells": [
+        {
+          "room": "A 0-1",
+          "slotHeader": "8:00-9:30",
+          "before": "",
+          "after": "Prof Dupont"
+        }
+      ]
+    }
+  ]
+}

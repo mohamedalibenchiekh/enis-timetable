@@ -12,6 +12,8 @@ import { buildDayDocx } from '../export/docx-builder.js';
 import { SettingsService } from '../settings/settings.service.js';
 import { NamesService } from '../names/names.service.js';
 import { NameResolver } from '../export/name-resolver.js';
+import { CompareService } from '../compare/compare.service.js';
+import type { CompareSummary } from '../compare/types.js';
 
 const PRIORITY: SourceKind[] = ['rooms', 'teachers', 'groups'];
 
@@ -28,6 +30,7 @@ export class TimetablesService {
     private ds: DataSource,
     private settings: SettingsService,
     private names: NamesService,
+    private compare: CompareService,
   ) {}
 
   list() {
@@ -46,8 +49,17 @@ export class TimetablesService {
   }
 
   /** Parse the uploaded HTML files and store them (new timetable, or add/replace views of an existing one). */
-  async importFiles(files: UploadedHtml[], opts: { name?: string; timetableId?: string }) {
+  async importFiles(files: UploadedHtml[], opts: { name?: string; timetableId?: string; previousTimetableId?: string }) {
     if (!files?.length) throw new BadRequestException('Aucun fichier HTML reçu');
+    if (opts.previousTimetableId && opts.timetableId)
+      throw new BadRequestException('« Nouvelle version de… » ne peut être utilisé qu’à la création d’un emploi du temps');
+    if (opts.previousTimetableId) {
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(opts.previousTimetableId))
+        throw new BadRequestException('Version précédente invalide');
+      await this.get(opts.previousTimetableId).catch(() => {
+        throw new NotFoundException('Version précédente introuvable');
+      });
+    }
     const parsed: { file: UploadedHtml; data: ParsedFile }[] = [];
     for (const f of files) {
       const html = f.buffer.toString('utf8');
@@ -71,6 +83,7 @@ export class TimetablesService {
         t = em.create(Timetable, {
           name: opts.name?.trim() || ref.data.comment || path.parse(ref.file.originalname).name,
           files: [],
+          previousTimetableId: opts.previousTimetableId ?? null,
         });
       }
       t = await em.save(Timetable, t);
@@ -88,7 +101,12 @@ export class TimetablesService {
         if (data.slots.length) t.slots = data.slots;
         if (data.kind === 'rooms') t.rooms = data.owners;
       }
-      return em.save(Timetable, t);
+      const saved = await em.save(Timetable, t);
+      return saved;
+    }).then(async (saved) => {
+      if (!opts.previousTimetableId) return saved;
+      const comparison = await this.compare.compareSummary(opts.previousTimetableId, saved.id).catch(() => null);
+      return { ...saved, comparison } as Timetable & { comparison: CompareSummary | null };
     });
   }
 

@@ -31,10 +31,11 @@ export class TimetablesController {
     @UploadedFiles() files: { originalname: string; buffer: Buffer }[],
     @Body('name') name?: string,
     @Body('timetableId') timetableId?: string,
+    @Body('previousTimetableId') previousTimetableId?: string,
   ) {
     // browsers send file names as latin1 in multipart: restore UTF-8
     const fixed = (files ?? []).map((f) => ({ originalname: Buffer.from(f.originalname, 'latin1').toString('utf8'), buffer: f.buffer }));
-    return this.svc.importFiles(fixed, { name, timetableId: timetableId || undefined });
+    return this.svc.importFiles(fixed, { name, timetableId: timetableId || undefined, previousTimetableId: previousTimetableId || undefined });
   }
 
   @Get(':id/days/:day/preview')

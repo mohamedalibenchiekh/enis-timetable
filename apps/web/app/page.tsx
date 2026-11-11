@@ -6,6 +6,7 @@ import { DayPreview } from '@/components/DayPreview';
 import { OptionsPanel } from '@/components/OptionsPanel';
 import { UpdateBanner } from '@/components/UpdateBanner';
 import { NamesPanel } from '@/components/NamesPanel';
+import { ComparePanel } from '@/components/ComparePanel';
 import type { UpdateStatus } from '@/lib/api';
 
 function errorMessage(error: unknown): string {
@@ -16,7 +17,9 @@ export default function Home() {
   const [items, setItems] = useState<Timetable[] | null>(null);
   const [selId, setSelId] = useState<string | null>(null);
   const [day, setDay] = useState(0);
-  const [activeTab, setActiveTab] = useState<'schedule' | 'names'>('schedule');
+  const [activeTab, setActiveTab] = useState<'schedule' | 'names' | 'changes'>('schedule');
+  const [highlightCells, setHighlightCells] = useState<Set<string> | null>(null);
+  const [showHighlight, setShowHighlight] = useState(false);
   const [importMode, setImportMode] = useState<null | 'new' | 'add'>(null);
   const [showOptions, setShowOptions] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -144,14 +147,23 @@ export default function Home() {
 
             <div className="tabs view-tabs" role="group" aria-label="Vue de l’emploi du temps">
               <button aria-pressed={activeTab === 'schedule'} className={activeTab === 'schedule' ? 'on' : ''} onClick={() => setActiveTab('schedule')}>Emploi du temps</button>
+              <button aria-pressed={activeTab === 'changes'} className={activeTab === 'changes' ? 'on' : ''} onClick={() => setActiveTab('changes')}>Changements</button>
               <button aria-pressed={activeTab === 'names'} className={activeTab === 'names' ? 'on' : ''} onClick={() => setActiveTab('names')}>Noms</button>
             </div>
-            {activeTab === 'schedule' ? (
+            {activeTab === 'changes' ? (
+              <ComparePanel timetable={sel} versions={items ?? []} onHighlight={setHighlightCells} />
+            ) : activeTab === 'schedule' ? (
               <>
                 <div className="tabs day-tabs" role="group" aria-label="Jours">
                   {sel.days.map((d, i) => <button key={d} aria-pressed={i === day} className={i === day ? 'on' : ''} onClick={() => setDay(i)}>{d}</button>)}
                 </div>
-                <DayPreview id={sel.id} day={day} refreshKey={refreshKey} />
+                {highlightCells && highlightCells.size > 0 && (
+                  <label className="highlight-toggle">
+                    <input type="checkbox" checked={showHighlight} onChange={(e) => setShowHighlight(e.target.checked)} />
+                    Surligner les changements
+                  </label>
+                )}
+                <DayPreview id={sel.id} day={day} refreshKey={refreshKey} highlightCells={highlightCells} showHighlight={showHighlight} />
 
                 <div className="foot">
                   <button className="link" onClick={() => setShowOptions(!showOptions)}>{showOptions ? '▾' : '▸'} Options du document Word</button>

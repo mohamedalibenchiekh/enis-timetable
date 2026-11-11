@@ -8,6 +8,8 @@ import { TimetablesService } from './timetables/timetables.service.js';
 import { HealthController } from './health.controller.js';
 import { NamesController } from './names/names.controller.js';
 import { NamesService } from './names/names.service.js';
+import { CompareController } from './compare/compare.controller.js';
+import { CompareService } from './compare/compare.service.js';
 
 @Module({
   imports: [
@@ -21,7 +23,7 @@ import { NamesService } from './names/names.service.js';
     }),
     TypeOrmModule.forFeature([Timetable, SessionEntity, Setting, TeacherName, RoomLabel]),
   ],
-  controllers: [TimetablesController, SettingsController, HealthController, NamesController],
-  providers: [TimetablesService, SettingsService, NamesService],
+  controllers: [TimetablesController, SettingsController, HealthController, NamesController, CompareController],
+  providers: [TimetablesService, SettingsService, NamesService, CompareService],
 })
 export class AppModule {}

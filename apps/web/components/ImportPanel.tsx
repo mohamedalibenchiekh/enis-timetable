@@ -1,14 +1,21 @@
 'use client';
-import { useRef, useState } from 'react';
-import { api, guessKind, KIND_LABEL, Timetable } from '@/lib/api';
+import { useEffect, useRef, useState } from 'react';
+import { api, guessKind, KIND_LABEL, Timetable, UploadResult } from '@/lib/api';
 
-export function ImportPanel({ timetable, onDone }: { timetable?: Timetable; onDone: (t: Timetable) => void }) {
+export function ImportPanel({ timetable, onDone }: { timetable?: Timetable; onDone: (t: UploadResult) => void }) {
   const [files, setFiles] = useState<File[]>([]);
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [over, setOver] = useState(false);
+  const [versions, setVersions] = useState<Timetable[]>([]);
+  const [previousId, setPreviousId] = useState('');
   const input = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (timetable) return;
+    api.list().then(setVersions).catch(() => setVersions([]));
+  }, [timetable]);
 
   const add = (list: FileList | File[]) => {
     const html = Array.from(list).filter((f) => /\.html?$/i.test(f.name));
@@ -20,9 +27,14 @@ export function ImportPanel({ timetable, onDone }: { timetable?: Timetable; onDo
     setBusy(true);
     setError('');
     try {
-      const t = await api.upload(files, { name: name || undefined, timetableId: timetable?.id });
+      const t = await api.upload(files, {
+        name: name || undefined,
+        timetableId: timetable?.id,
+        previousTimetableId: !timetable && previousId ? previousId : undefined,
+      });
       setFiles([]);
       setName('');
+      setPreviousId('');
       onDone(t);
     } catch (e) {
       setError((e as Error).message);
@@ -72,7 +84,23 @@ export function ImportPanel({ timetable, onDone }: { timetable?: Timetable; onDo
         </ul>
       )}
       {!timetable && (
-        <input className="text" placeholder="Nom (facultatif) — ex. S1 2026-2027" value={name} onChange={(e) => setName(e.target.value)} />
+        <>
+          <input className="text" placeholder="Nom (facultatif) — ex. S1 2026-2027" value={name} onChange={(e) => setName(e.target.value)} />
+          {versions.length > 0 && (
+            <label className="field">
+              <span>Nouvelle version de…</span>
+              <select className="text" value={previousId} onChange={(e) => setPreviousId(e.target.value)}>
+                <option value="">— Aucun (première version) —</option>
+                {versions.map((v) => (
+                  <option key={v.id} value={v.id}>
+                    {v.name}{v.generatedAt ? ` (${v.generatedAt})` : ''}
+                  </option>
+                ))}
+              </select>
+              <small className="muted">Si cet import remplace une version existante, choisissez-la ici : l’onglet « Changements » comparera les deux versions.</small>
+            </label>
+          )}
+        </>
       )}
       {error && <p className="error">{error}</p>}
       <button className="primary" disabled={!files.length || busy} onClick={submit}>
