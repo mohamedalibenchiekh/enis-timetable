@@ -101,7 +101,7 @@ jobs:
   # ── Typecheck + Build + Unit Tests ─────────────────────────────────
   checks:
     name: Typecheck · Build · Test
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     env:
       # Electron binary is not needed for typecheck/build/test
       ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
