@@ -8,6 +8,7 @@ import { backupBeforeUpgrade } from './backup';
 import { assertEmbeddedDatabaseVersion, DatabaseVersionMismatchError, EmbeddedDb, startEmbeddedPostgres } from './database';
 import { buildApplicationMenu } from './menu';
 import { createUpdater } from './updater';
+import { showMessageBoxWithOptionalParent } from './window-dialog';
 
 let api: ChildProcess | null = null;
 let win: BrowserWindow | null = null;
@@ -325,7 +326,7 @@ async function saveGuideAsPdf() {
     const pdf = await printWindow.webContents.printToPDF({ pageSize: 'A4', printBackground: true, preferCSSPageSize: true });
     fs.writeFileSync(result.filePath, pdf);
   } catch (error) {
-    if (win && !win.isDestroyed()) await dialog.showMessageBox(win, {
+    await showMessageBoxWithOptionalParent(dialog, win ?? undefined, {
       type: 'error', title: 'Enregistrement impossible',
       message: `Le guide PDF n’a pas pu être enregistré : ${String(error)}`,
       buttons: ['OK'],

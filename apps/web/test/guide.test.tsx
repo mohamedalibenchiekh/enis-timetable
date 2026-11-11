@@ -4,6 +4,7 @@ import path from 'node:path';
 import ts from 'typescript';
 import { afterEach, describe, expect, it } from 'vitest';
 import { renderGuide } from '../../../scripts/guide-build.mjs';
+import { publishScreenshots } from '../../../scripts/guide-screenshot-assets.mjs';
 import Guide from '../app/aide/guide';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 
@@ -61,6 +62,27 @@ describe('guide build', () => {
   it('rejects anything other than one H1', () => {
     expect(() => renderGuide('## Sans H1')).toThrow('exactement un titre H1');
     expect(() => renderGuide('# Un\n\n# Deux')).toThrow('exactement un titre H1');
+  });
+});
+
+describe('guide screenshot publishing', () => {
+  it('removes obsolete PNGs only after publishing the complete staged set', () => {
+    const directory = fixtureRoot();
+    const staged = path.join(directory, 'staged');
+    const published = path.join(directory, 'apps/web/public/guide');
+    fs.mkdirSync(staged, { recursive: true });
+    fs.writeFileSync(path.join(staged, 'current.png'), 'new capture');
+    fs.writeFileSync(path.join(staged, 'added.png'), 'new image');
+    fs.writeFileSync(path.join(published, 'current.png'), 'old capture');
+    fs.writeFileSync(path.join(published, 'removed.png'), 'obsolete capture');
+    fs.writeFileSync(path.join(published, 'keep.txt'), 'unrelated file');
+
+    publishScreenshots(staged, published);
+
+    expect(fs.readFileSync(path.join(published, 'current.png'), 'utf8')).toBe('new capture');
+    expect(fs.readFileSync(path.join(published, 'added.png'), 'utf8')).toBe('new image');
+    expect(fs.existsSync(path.join(published, 'removed.png'))).toBe(false);
+    expect(fs.existsSync(path.join(published, 'keep.txt'))).toBe(true);
   });
 });
 

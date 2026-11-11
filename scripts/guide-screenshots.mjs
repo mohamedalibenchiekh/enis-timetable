@@ -7,6 +7,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
 import { chromium } from '@playwright/test';
 import sharp from 'sharp';
+import { publishScreenshots } from './guide-screenshot-assets.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const fixtureDir = path.join(root, 'apps/api/test/fixtures');
@@ -103,16 +104,6 @@ async function createBeforeAfter(fixtureFile, docxFile) {
       { input: right, left: 648, top: 58 },
     ]).png({ palette: true, quality: 86, effort: 10 }).toBuffer();
   await sharp(composed).toFile(path.join(stagedOutputDir, 'apercu-html-vers-word.png'));
-}
-
-function publishScreenshots() {
-  fs.mkdirSync(outputDir, { recursive: true });
-  for (const file of fs.readdirSync(stagedOutputDir).filter((entry) => entry.endsWith('.png'))) {
-    const destination = path.join(outputDir, file);
-    const temporaryFile = `${destination}.tmp-${process.pid}`;
-    fs.copyFileSync(path.join(stagedOutputDir, file), temporaryFile);
-    fs.renameSync(temporaryFile, destination);
-  }
 }
 
 async function main() {
@@ -244,7 +235,7 @@ async function main() {
   if (sizes.some(([, size]) => size > 200 * 1024) || total > 3 * 1024 * 1024) {
     throw new Error(`Captures trop volumineuses : ${JSON.stringify(sizes)} (total ${total} octets)`);
   }
-  publishScreenshots();
+  publishScreenshots(stagedOutputDir, outputDir);
   console.log(`Captures générées (${total} octets) : ${sizes.map(([name]) => name).join(', ')}`);
   console.log(`Aperçus du guide : ${previewDir}`);
 }
