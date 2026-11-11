@@ -104,7 +104,7 @@ jobs:
           }
           NODE
       - name: Attest installer provenance
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2.4.0
         with:
           subject-path: apps/desktop/release/${{ matrix.installer-pattern }}
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -154,17 +154,26 @@ jobs:
           cp .github/release-template.fr.md release-body.md
           sed '/<!-- SHA256SUMS -->/r release-artifacts/SHA256SUMS.txt' release-body.md > release-body-with-checksums.md
           sed -i '/<!-- SHA256SUMS -->/d' release-body-with-checksums.md
-      - name: Create draft release with generated notes
+      - name: Create or reuse draft release with generated notes
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh api --method POST "repos/${GITHUB_REPOSITORY}/releases" \
-            -f tag_name="$GITHUB_REF_NAME" \
-            -f name="ENISo $GITHUB_REF_NAME" \
-            -f body="$(<release-body-with-checksums.md)" \
-            -F draft=true \
-            -F prerelease=false \
-            -F generate_release_notes=true
+          set -euo pipefail
+          if gh release view "$GITHUB_REF_NAME" --json isDraft --jq '.isDraft' > release-is-draft.txt; then
+            if [ "$(<release-is-draft.txt)" != 'true' ]; then
+              echo "::error::A release for $GITHUB_REF_NAME is already published and cannot be republished"
+              exit 1
+            fi
+            echo "Reusing existing draft release for $GITHUB_REF_NAME."
+          else
+            gh api --method POST "repos/${GITHUB_REPOSITORY}/releases" \
+              -f tag_name="$GITHUB_REF_NAME" \
+              -f name="ENISo $GITHUB_REF_NAME" \
+              -f body="$(<release-body-with-checksums.md)" \
+              -F draft=true \
+              -F prerelease=false \
+              -F generate_release_notes=true
+          fi
       - name: Upload release assets to draft
         env:
           GH_TOKEN: ${{ github.token }}
