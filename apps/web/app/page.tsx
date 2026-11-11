@@ -64,6 +64,11 @@ export default function Home() {
   const sel = items?.find((t) => t.id === selId) ?? null;
   useEffect(() => { if (sel && day >= sel.days.length) setDay(0); }, [sel, day]);
   useEffect(() => { setHighlightCells(null); setHighlightSource(null); setShowHighlight(false); }, [selId]);
+  // Stable identity: ComparePanel's highlight effect depends on this callback.
+  const onHighlight = useCallback((cells: Set<string> | null, source?: SourceKind) => {
+    setHighlightCells(cells);
+    setHighlightSource(source ?? null);
+  }, []);
 
   const exportToFolder = async () => {
     if (!sel || !window.enis) return;
@@ -160,7 +165,7 @@ export default function Home() {
             </div>
             {/* ComparePanel stays mounted (hidden) so its highlight set survives tab switches. */}
             <div hidden={activeTab !== 'changes'}>
-              <ComparePanel timetable={sel} versions={items ?? []} onHighlight={(cells, source) => { setHighlightCells(cells); setHighlightSource(source ?? null); }} />
+              <ComparePanel timetable={sel} versions={items ?? []} onHighlight={onHighlight} />
             </div>
             {activeTab === 'schedule' ? (
               <>
