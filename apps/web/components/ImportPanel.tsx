@@ -119,7 +119,7 @@ export function ImportPanel({ timetable, onDone }: { timetable?: Timetable; onDo
         </>
       )}
       {error && <p className="error">{error}</p>}
-      <button className="primary" disabled={!files.length || busy || versions === null} onClick={submit}>
+      <button className="primary" disabled={!files.length || busy || (!timetable && versions === null)} onClick={submit}>
         {busy ? 'Import en cours…' : 'Importer'}
       </button>
     </div>

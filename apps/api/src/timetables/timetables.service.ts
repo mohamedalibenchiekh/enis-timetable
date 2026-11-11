@@ -110,8 +110,15 @@ export class TimetablesService {
       return saved;
     }).then(async (saved) => {
       if (!opts.previousTimetableId) return saved;
-      const comparison = await this.compare.compareSummary(opts.previousTimetableId!, saved.id);
-      return { ...saved, comparison } as Timetable & { comparison: CompareSummary };
+      // Best-effort: the version is already committed, so a comparison failure
+      // must not surface as an import error (a retry would create a duplicate).
+      // The Changements tab can always recompute the comparison on demand.
+      try {
+        const comparison = await this.compare.compareSummary(opts.previousTimetableId!, saved.id);
+        return { ...saved, comparison } as Timetable & { comparison: CompareSummary };
+      } catch {
+        return saved;
+      }
     });
   }
 
@@ -122,11 +129,12 @@ export class TimetablesService {
     return kind;
   }
 
-  async dayGrid(id: string, day: number, nameResolver?: NameResolver): Promise<DayGrid> {
+  async dayGrid(id: string, day: number, nameResolver?: NameResolver, source?: SourceKind): Promise<DayGrid> {
     const t = await this.get(id);
     if (!Number.isInteger(day) || day < 0 || day >= t.days.length) throw new BadRequestException('Jour invalide');
-    const source = this.pickSource(t);
-    const rows = await this.sessions.find({ where: { timetableId: id, source, day } });
+    const requested = source && PRIORITY.includes(source) && t.files.some((f) => f.kind === source) ? source : undefined;
+    const kind = requested ?? this.pickSource(t);
+    const rows = await this.sessions.find({ where: { timetableId: id, source: kind, day } });
     const options = await this.settings.getExportOptions();
     const resolver = nameResolver ?? await this.names.getResolver();
     return buildDayGrid(rows, { days: t.days, slots: t.slots, rooms: t.rooms }, day, options, resolver);

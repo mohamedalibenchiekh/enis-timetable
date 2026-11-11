@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
-import { api, ChangeType, CompareResult, Timetable } from '@/lib/api';
+import { api, ChangeType, CompareResult, SourceKind, Timetable } from '@/lib/api';
 
 const TYPE_LABEL: Record<ChangeType, string> = {
   added: 'Ajoutée',
@@ -27,7 +27,7 @@ function activityLabel(c: CompareResult['changes'][number]): string {
 export function ComparePanel({ timetable, versions, onHighlight }: {
   timetable: Timetable;
   versions: Timetable[];
-  onHighlight?: (cells: Set<string> | null) => void;
+  onHighlight?: (cells: Set<string> | null, source?: SourceKind) => void;
 }) {
   const others = useMemo(() => versions.filter((v) => v.id !== timetable.id), [versions, timetable.id]);
   const suggested = timetable.previousTimetableId && others.some((v) => v.id === timetable.previousTimetableId)
@@ -103,7 +103,9 @@ export function ComparePanel({ timetable, versions, onHighlight }: {
     for (const d of result.days) {
       for (const c of d.cells) cells.add(`${d.day}|${c.roomKey}|${c.slotHeader}`);
     }
-    onHighlight(cells);
+    // The preview must render the same source view the comparison used,
+    // otherwise room keys and slot headers may not line up.
+    onHighlight(cells, result.source);
     return () => onHighlight(null);
   }, [result, onHighlight]);
 

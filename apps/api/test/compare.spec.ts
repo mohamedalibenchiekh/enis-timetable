@@ -276,6 +276,40 @@ describe('compare invariants', () => {
   });
 });
 
+describe('day impact highlight coordinates', () => {
+  it('uses the target slot header for removed cells', () => {
+    const baseMeta = {
+      ...META,
+      slots: [
+        { raw: '8:00-9:30', base: '8:00-9:30', overrides: {}, note: '' },
+        { raw: '9:45-11:15', base: '9:45-11:15', overrides: {}, note: '' },
+      ],
+    };
+    const targetMeta = {
+      ...META,
+      slots: [
+        { raw: '8:00-10:00', base: '8:00-10:00', overrides: {}, note: '' },
+        { raw: '10:15-11:45', base: '10:15-11:45', overrides: {}, note: '' },
+      ],
+    };
+    const baseInput: CompareInput = {
+      summary: { ...SUMMARY, id: 'a' },
+      meta: baseMeta,
+      sessions: [sess({ day: 0, slot: 0, room: 'A01' })],
+    };
+    const targetInput: CompareInput = {
+      summary: { ...SUMMARY, id: 'b' },
+      meta: targetMeta,
+      sessions: [sess({ day: 0, slot: 1, room: 'B01', subjectCode: 'T9' })],
+    };
+    const result = compareSessions(baseInput, targetInput, 'teachers', DEFAULT_OPTIONS, resolver);
+    const removed = result.days[0].cells.find((c) => c.roomKey && c.after === '');
+    expect(removed).toBeDefined();
+    // The preview renders the target timetable: the highlight key must use its header.
+    expect(removed!.slotHeader).toBe('8:00-10:00');
+  });
+});
+
 describe('golden fixtures v1 → v2', () => {
   const fixtures = path.join(__dirname, 'fixtures');
   const load = (dir: string, kind: 'teachers' | 'rooms' | 'groups') => {

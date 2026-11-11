@@ -36,6 +36,16 @@ describe('ImportPanel', () => {
     await waitFor(() => expect(screen.getByText('Import impossible')).not.toBeNull());
     expect(onDone).not.toHaveBeenCalled();
   });
+
+  it('enables the import button in add/replace mode without loading versions', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response({ message: 'Import impossible' }, false)));
+    render(<ImportPanel timetable={timetable} onDone={vi.fn()} />);
+    const input = document.querySelector('input[type="file"]')!;
+    fireEvent.change(input, { target: { files: [new File(['<html/>'], 'test_rooms.html', { type: 'text/html' })] } });
+    const button = screen.getByRole('button', { name: 'Importer' }) as HTMLButtonElement;
+    // versions stays null in this mode; the button must not wait for it.
+    await waitFor(() => expect(button.disabled).toBe(false));
+  });
 });
 
 describe('DayPreview', () => {

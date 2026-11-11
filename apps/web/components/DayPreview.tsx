@@ -1,11 +1,12 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { api, DayGrid, normalizeName } from '@/lib/api';
+import { api, DayGrid, normalizeName, SourceKind } from '@/lib/api';
 
-export function DayPreview({ id, day, refreshKey, highlightCells, showHighlight }: {
+export function DayPreview({ id, day, refreshKey, highlightCells, showHighlight, source }: {
   id: string; day: number; refreshKey: number;
   highlightCells?: Set<string> | null;
   showHighlight?: boolean;
+  source?: SourceKind | null;
 }) {
   const [grid, setGrid] = useState<DayGrid | null>(null);
   const [error, setError] = useState('');
@@ -14,9 +15,9 @@ export function DayPreview({ id, day, refreshKey, highlightCells, showHighlight 
     let alive = true;
     setGrid(null);
     setError('');
-    api.preview(id, day).then((g) => alive && setGrid(g)).catch((e) => alive && setError((e as Error).message));
+    api.preview(id, day, source ?? undefined).then((g) => alive && setGrid(g)).catch((e) => alive && setError((e as Error).message));
     return () => { alive = false; };
-  }, [id, day, refreshKey]);
+  }, [id, day, refreshKey, source]);
 
   if (error) return <p className="error">{error}</p>;
   if (!grid) return <p className="muted">Chargement…</p>;

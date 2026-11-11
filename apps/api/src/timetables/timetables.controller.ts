@@ -1,5 +1,5 @@
 import {
-  Body, Controller, Delete, Get, Param, ParseIntPipe, ParseUUIDPipe, Post, Res, StreamableFile, UploadedFiles, UseInterceptors,
+  Body, Controller, Delete, Get, Param, ParseIntPipe, ParseUUIDPipe, Post, Query, Res, StreamableFile, UploadedFiles, UseInterceptors,
 } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { Response } from 'express';
@@ -39,8 +39,8 @@ export class TimetablesController {
   }
 
   @Get(':id/days/:day/preview')
-  preview(@Param('id', ParseUUIDPipe) id: string, @Param('day', ParseIntPipe) day: number) {
-    return this.svc.dayGrid(id, day);
+  preview(@Param('id', ParseUUIDPipe) id: string, @Param('day', ParseIntPipe) day: number, @Query('source') source?: string) {
+    return this.svc.dayGrid(id, day, undefined, source as 'rooms' | 'teachers' | 'groups' | undefined);
   }
 
   @Get(':id/days/:day/docx')

@@ -107,7 +107,8 @@ export const api = {
     `/api/timetables/${id}/compare/${otherId}/export.docx${source && source !== 'auto' ? `?source=${source}` : ''}`,
   compareCsvUrl: (id: string, otherId: string, source?: string) =>
     `/api/timetables/${id}/compare/${otherId}/export.csv${source && source !== 'auto' ? `?source=${source}` : ''}`,
-  preview: (id: string, day: number) => req<DayGrid>(`/api/timetables/${id}/days/${day}/preview`),
+  preview: (id: string, day: number, source?: SourceKind) =>
+    req<DayGrid>(`/api/timetables/${id}/days/${day}/preview${source ? `?source=${source}` : ''}`),
   docxUrl: (id: string, day: number) => `/api/timetables/${id}/days/${day}/docx`,
   zipUrl: (id: string) => `/api/timetables/${id}/export.zip`,
   exportToFolder: (id: string, dir: string) =>

@@ -116,6 +116,7 @@ function toChange(match: BlockMatch, baseMeta: TimetableMeta, targetMeta: Timeta
 interface CellEntry {
   room: string;
   roomKey: string;
+  slot: number;
   slotHeader: string;
   text: string;
 }
@@ -129,7 +130,7 @@ function gridCells(grid: ReturnType<typeof buildDayGrid>): Map<string, CellEntry
       const roomKey = normalizeName(row.room);
       row.cells.forEach((text, slot) => {
         const header = grid.headers[slot]?.join(' ') ?? `Créneau ${slot + 1}`;
-        map.set(`${roomKey}|${slot}`, { room: row.label, roomKey, slotHeader: header, text });
+        map.set(`${roomKey}|${slot}`, { room: row.label, roomKey, slot, slotHeader: header, text });
       });
     }
   }
@@ -182,10 +183,13 @@ function dayImpact(base: CompareInput, target: CompareInput, options: ExportOpti
       const before = b?.text ?? '';
       const after = t?.text ?? '';
       if (before === after) continue;
+      // Removed cells have no target entry: the preview renders the target
+      // timetable, so the highlight key must use the target slot header.
+      const slotHeader = t?.slotHeader ?? targetGrid.headers[b!.slot]?.join(' ') ?? b!.slotHeader;
       cells.push({
         room: t?.room ?? b!.room,
         roomKey: t?.roomKey ?? b!.roomKey,
-        slotHeader: t?.slotHeader ?? b!.slotHeader,
+        slotHeader,
         before,
         after,
       });
