@@ -276,7 +276,8 @@ Avant chaque mise à jour, l’application tente de copier la base de données d
 - « Dossier inattendu dans l’archive » ou « L’archive contient un fichier inattendu ou non reconnu » : l’archive contient des fichiers non prévus.
 - « L’archive ne contient pas de fichier manifest.json », « Le fichier manifest.json est corrompu ou n’est pas un JSON valide », « Le fichier manifest.json est incomplet ou malformé » ou « Le fichier manifest.json dépasse la taille maximale autorisée » : le manifeste obligatoire est absent ou incorrect.
 - « Format d’archive non pris en charge (format v » : l’archive utilise une version de format inconnue.
-- « Version de schéma de sauvegarde non valide » ou « Cette sauvegarde a été créée avec une version plus récente de l’application (schéma v … ). Mettez à jour l’application pour pouvoir la restaurer » : installez la version la plus récente de l’application.
+- « Version de schéma de sauvegarde non valide » : la valeur du schéma dans le manifeste est incorrecte. Utilisez une archive valide non corrompue ou recréez la sauvegarde.
+- « Cette sauvegarde a été créée avec une version plus récente de l’application (schéma v … ). Mettez à jour l’application pour pouvoir la restaurer » : installez la version la plus récente de l’application.
 - « Compte invalide dans le manifeste pour la table » : le nombre de lignes déclaré est erroné.
 - « Fichier de données manquant dans l’archive » ou « Fichier de données obligatoire manquant dans l’archive » : une table attendue est absente.
 - « Le volume décompressé de l’archive dépasse la limite autorisée », « Ratio de compression anormal détecté (protection anti zip-bomb) » ou « Erreur lors de la lecture de l’archive » : l’archive dépasse les seuils de sécurité de décompression ou est illisible.

@@ -116,12 +116,16 @@ describe('Backup and Restore Integration (PostgreSQL Round-Trip & Safety)', () =
     }
     if (app) await app.close();
     if (rawDbUrl && testSchema) {
+      const admin = new DataSource({ type: 'postgres', url: rawDbUrl });
       try {
-        const admin = new DataSource({ type: 'postgres', url: rawDbUrl });
         await admin.initialize();
         await admin.query(`DROP SCHEMA IF EXISTS ${testSchema} CASCADE`);
-        await admin.destroy();
       } catch { /* ignore */ }
+      finally {
+        if (admin.isInitialized) {
+          await admin.destroy().catch(() => {});
+        }
+      }
     }
     if (embeddedDb) await embeddedDb.stop().catch(() => {});
     fs.rmSync(tmpBaseDir, { recursive: true, force: true });

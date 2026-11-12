@@ -89,6 +89,8 @@ export class MaintenanceGuard implements CanActivate {
     const res = context.switchToHttp().getResponse<Response>();
     const mutatingMethods = ['POST', 'PUT', 'DELETE', 'PATCH'];
     const isMutating = mutatingMethods.includes(req.method.toUpperCase());
+    const path = req.baseUrl ? `${req.baseUrl}${req.path}` : (req.originalUrl || req.url || '');
+    const isRestoreRequest = /\/backups\/restore(?:\/|$|\?)/.test(path);
 
     if (this.maintenanceService.isMaintenance()) {
       if (isMutating) {
@@ -99,7 +101,7 @@ export class MaintenanceGuard implements CanActivate {
       return true;
     }
 
-    if (isMutating) {
+    if (isMutating && !isRestoreRequest) {
       this.maintenanceService.enterMutation();
       let exited = false;
       const onDone = () => {
