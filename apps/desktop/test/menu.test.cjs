@@ -4,10 +4,15 @@ const { buildApplicationMenu } = require('../dist/menu.js');
 
 test('Aide menu exposes the guide on F1, PDF export, and À propos actions', () => {
   const calls = [];
-  const actions = Object.fromEntries(['openGuide', 'saveGuidePdf', 'showAbout', 'checkForUpdates', 'openConfig', 'openBackups']
+  const actions = Object.fromEntries(['openGuide', 'saveGuidePdf', 'showAbout', 'checkForUpdates', 'openConfig', 'openBackups', 'openBackupsScreen']
     .map((name) => [name, () => calls.push(name)]));
   const menu = buildApplicationMenu(actions);
   const help = menu.find((item) => item.label === 'Aide');
+  const file = menu.find((item) => item.label === 'Fichier');
+  assert.ok(file && Array.isArray(file.submenu));
+  const backupsScreen = file.submenu.find((item) => item.label === 'Sauvegardes…');
+  assert.ok(backupsScreen);
+  backupsScreen.click();
   assert.ok(help && Array.isArray(help.submenu));
   const guide = help.submenu.find((item) => item.label === 'Guide d’utilisation');
   const pdf = help.submenu.find((item) => item.label === 'Enregistrer le guide en PDF…');
@@ -16,5 +21,5 @@ test('Aide menu exposes the guide on F1, PDF export, and À propos actions', () 
   guide.click();
   pdf.click();
   about.click();
-  assert.deepEqual(calls, ['openGuide', 'saveGuidePdf', 'showAbout']);
+  assert.deepEqual(calls, ['openBackupsScreen', 'openGuide', 'saveGuidePdf', 'showAbout']);
 });

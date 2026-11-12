@@ -7,11 +7,13 @@ export interface ApplicationMenuActions {
   checkForUpdates: () => void;
   openConfig: () => void;
   openBackups: () => void;
+  openBackupsScreen: () => void;
 }
 
 export function buildApplicationMenu(actions: ApplicationMenuActions): MenuItemConstructorOptions[] {
   return [
     { label: 'Fichier', submenu: [
+      { label: 'Sauvegardes…', click: actions.openBackupsScreen },
       { label: 'Fichier de configuration (base de données)…', click: actions.openConfig },
       { label: 'Rechercher des mises à jour…', click: actions.checkForUpdates },
       { label: 'Ouvrir le dossier des sauvegardes', click: actions.openBackups },
