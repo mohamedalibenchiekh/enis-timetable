@@ -251,10 +251,10 @@ Avant chaque mise à jour, l’application tente de copier la base de données d
 - « Version de schéma de sauvegarde non valide » ou « Cette sauvegarde a été créée avec une version plus récente de l’application (schéma v … ). Mettez à jour l’application pour pouvoir la restaurer » : installez la version la plus récente de l’application.
 - « Compte invalide dans le manifeste pour la table » : le nombre de lignes déclaré est erroné.
 - « Fichier de données manquant dans l’archive » ou « Fichier de données obligatoire manquant dans l’archive » : une table attendue est absente.
-- « Le volume décompressé de l’archive dépasse la limite autorisée » ou « Ratio de compression anormal détecté (protection anti zip-bomb) » : l’archive dépasse les seuils de sécurité de décompression.
+- « Le volume décompressé de l’archive dépasse la limite autorisée », « Ratio de compression anormal détecté (protection anti zip-bomb) » ou « Erreur lors de la lecture de l’archive » : l’archive dépasse les seuils de sécurité de décompression ou est illisible.
 - « Somme de contrôle manquante dans le manifeste pour » ou « Somme de contrôle (SHA-256) invalide pour le fichier … . L’archive est corrompue ou a été modifiée » : l’intégrité des fichiers n’a pas pu être vérifiée.
 - « Nombre de lignes incohérent pour la table », « Ligne … invalide dans … : JSON malformé », « date de création invalide », « date de modification invalide », « format du créneau » ou « Clé de paramètre en doublon détectée dans l’archive » : les données de l’archive ne respectent pas le schéma attendu.
-- « L’archive contient une séance orpheline » ou « Séance orpheline détectée pour l’emploi du temps » : une séance fait référence à un emploi du temps absent.
+- « L’archive contient une séance orpheline (ligne … ) faisant référence à un emploi du temps inexistant » ou « Séance orpheline détectée pour l’emploi du temps « … ». Restauration interrompue » : une séance fait référence à un emploi du temps absent.
 - « Mode de restauration non valide. Les modes autorisés sont « replace » ou « merge » » : choisissez un mode de restauration valide.
 - « Impossible de créer la sauvegarde de sécurité préalable. La restauration a été annulée et aucune donnée n’a été modifiée » : la création de la sauvegarde de sécurité a échoué.
 - « Incohérence détectée après restauration (emplois du temps: … , séances: … ). Annulation » : les données insérées ne correspondent pas au manifeste, la transaction a été annulée.
