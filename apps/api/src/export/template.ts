@@ -12,11 +12,13 @@ export interface CellFields {
   frequency: string;
 }
 
-// Separator characters that may dangle around an empty token.
-const SEP = '\\s\\-–—·•/,;:|';
-const SEP_RUN = new RegExp(`([${SEP}])(\\s*[${SEP}])+`, 'g');
-const LEADING_SEP = new RegExp(`^[${SEP}]+`);
-const TRAILING_SEP = new RegExp(`[${SEP}]+$`);
+// Punctuation separators that may dangle around an empty token. Whitespace is
+// handled separately so a single meaningful separator (e.g. "—") survives.
+const SEP_PUNCT = '\\-–—·•/,;:|';
+// Two or more punctuation separators (with optional spaces between) collapse to one.
+const SEP_RUN = new RegExp(`([${SEP_PUNCT}])(\\s*[${SEP_PUNCT}])+`, 'g');
+const LEADING_SEP = new RegExp(`^[${SEP_PUNCT}]+\\s*`);
+const TRAILING_SEP = new RegExp(`\\s*[${SEP_PUNCT}]+$`);
 
 const SENTINEL_OPEN = '\u0001';
 const SENTINEL_CLOSE = '\u0002';
@@ -60,7 +62,7 @@ function renderLine(line: string, fields: CellFields): string {
     }
   }
   // Collapse whitespace, merge runs of separators, strip dangling separators.
-  out = out.replace(/\s+/g, ' ');
+  out = out.replace(/\s+/g, ' ').trim();
   out = out.replace(SEP_RUN, '$1');
   out = out.replace(LEADING_SEP, '').replace(TRAILING_SEP, '');
   out = out.trim();

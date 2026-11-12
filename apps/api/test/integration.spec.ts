@@ -168,6 +168,74 @@ describe('API integration (PostgreSQL)', () => {
     expect(JSON.stringify(preview.body)).not.toContain('1/15');
   });
 
+  databaseTest('manages export profiles and applies them to preview and DOCX', async () => {
+    const timetable = await createTimetable();
+
+    // Default state exposes a single "Standard" profile.
+    const initial = await request(app!.getHttpServer()).get('/api/settings/export-profiles').expect(200);
+    expect(initial.body.defaultId).toBeTruthy();
+    expect(initial.body.profiles).toHaveLength(1);
+    const defaultId = initial.body.defaultId as string;
+
+    // Create a second profile with a custom cell template.
+    const created = await request(app!.getHttpServer())
+      .post('/api/settings/export-profiles')
+      .send({ name: 'Compact', options: { cellTemplate: '{teacher}\n{group} — {subject}' } })
+      .expect(201);
+    expect(created.body.profiles).toHaveLength(2);
+    const compact = created.body.profiles.find((p: { name: string }) => p.name === 'Compact');
+    expect(compact.options.cellTemplate).toBe('{teacher}\n{group} — {subject}');
+
+    // Duplicate names are rejected.
+    await request(app!.getHttpServer())
+      .post('/api/settings/export-profiles').send({ name: 'compact' }).expect(400);
+
+    // Profile options endpoint returns the profile and default flag.
+    const opts = await request(app!.getHttpServer())
+      .get(`/api/settings/export-profiles/${compact.id}/options`).expect(200);
+    expect(opts.body.profile.name).toBe('Compact');
+    expect(opts.body.isDefault).toBe(false);
+    await request(app!.getHttpServer())
+      .get(`/api/settings/export-profiles/${randomUUID()}/options`).expect(404);
+
+    // Rename + set as default.
+    await request(app!.getHttpServer())
+      .put(`/api/settings/export-profiles/${compact.id}`).send({ name: 'Compact2', isDefault: true }).expect(200);
+    const afterRename = await request(app!.getHttpServer()).get('/api/settings/export-profiles').expect(200);
+    expect(afterRename.body.defaultId).toBe(compact.id);
+    expect(afterRename.body.profiles.find((p: { id: string }) => p.id === compact.id).name).toBe('Compact2');
+
+    // Profile-aware preview uses the custom template (rich details present).
+    const preview = await request(app!.getHttpServer())
+      .get(`/api/timetables/${timetable.id}/days/0/preview?profile=${compact.id}`).expect(200);
+    const hasDetails = JSON.stringify(preview.body).includes('"details"');
+    expect(hasDetails).toBe(true);
+
+    // Unknown profile falls back gracefully is NOT expected — it should 404.
+    await request(app!.getHttpServer())
+      .get(`/api/timetables/${timetable.id}/days/0/preview?profile=${randomUUID()}`).expect(404);
+
+    // DOCX with a profile produces a valid document.
+    const docx = await request(app!.getHttpServer())
+      .get(`/api/timetables/${timetable.id}/days/0/docx?profile=${compact.id}`)
+      .buffer(true)
+      .parse((response, callback) => {
+        const chunks: Buffer[] = [];
+        response.on('data', (chunk: Buffer) => chunks.push(chunk));
+        response.on('end', () => callback(null, Buffer.concat(chunks)));
+      })
+      .expect(200);
+    const zip = await JSZip.loadAsync(docx.body);
+    expect(await zip.file('word/document.xml')?.async('string')).toBeTruthy();
+
+    // Cannot delete the last remaining profile; can delete the non-default one.
+    await request(app!.getHttpServer()).delete(`/api/settings/export-profiles/${defaultId}`).expect(200);
+    const remaining = await request(app!.getHttpServer()).get('/api/settings/export-profiles').expect(200);
+    expect(remaining.body.profiles).toHaveLength(1);
+    await request(app!.getHttpServer())
+      .delete(`/api/settings/export-profiles/${remaining.body.profiles[0].id}`).expect(400);
+  });
+
   databaseTest('lists teacher and room names with counts, blocs, and unused overrides', async () => {
     const timetable = await createTimetable();
     await request(app!.getHttpServer()).put('/api/names/teachers').send({
