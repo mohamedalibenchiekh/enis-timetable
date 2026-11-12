@@ -5,7 +5,7 @@ import { createRequire } from 'node:module';
 import * as net from 'node:net';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { DataSource } from 'typeorm';
 import { Test } from '@nestjs/testing';
 import { ExpressAdapter, NestExpressApplication } from '@nestjs/platform-express';
@@ -23,6 +23,7 @@ const { TimetablesService: TimetablesServiceClass } = apiRequire('../dist/timeta
 const { SettingsService: SettingsServiceClass } = apiRequire('../dist/settings/settings.service.js');
 const { NamesService: NamesServiceClass } = apiRequire('../dist/names/names.service.js');
 const { MaintenanceService: MaintenanceServiceClass } = apiRequire('../dist/backups/maintenance.guard.js');
+const { BackupRestorer: BackupRestorerClass } = apiRequire('../dist/backups/backup-restorer.js');
 
 function freePort(): Promise<number> {
   return new Promise((resolve, reject) => {
@@ -255,33 +256,36 @@ describe('Backup and Restore Integration (PostgreSQL Round-Trip & Safety)', () =
     expect(mergedSessions.length).toBeGreaterThan(0);
   });
 
-  it('triggers atomic rollback when an error occurs during restore: database remains unchanged', async () => {
+  it('triggers atomic rollback when an error occurs during restore: database remains unchanged and safety backup present', async () => {
     const timetablesBefore = await dataSource.query('SELECT * FROM timetables ORDER BY id');
     const sessionsBefore = await dataSource.query('SELECT * FROM sessions ORDER BY id');
 
-    // Create an archive with corrupted row counts in manifest
+    // Create a valid backup
     const { buffer: goodBackup } = await backupsService.createBackup(true);
-    const JSZip = (await import('jszip')).default;
-    const zip = await JSZip.loadAsync(goodBackup);
-    const manifest = JSON.parse(await zip.file('manifest.json')!.async('text'));
-    // Make counts inconsistent so restorer throws after delete/insert
-    manifest.counts.timetables = 99999;
-    zip.file('manifest.json', JSON.stringify(manifest));
-    const corruptBuffer = await zip.generateAsync({ type: 'nodebuffer' });
+    const inspectResult = await backupsService.inspectBackup({ fileBuffer: goodBackup });
+
+    // Inject failure into restorer in the middle of restore (in resetSequences after deletes and inserts)
+    const spy = vi.spyOn(BackupRestorerClass.prototype, 'resetSequences').mockRejectedValueOnce(new Error('Simulated failure during restore transaction'));
 
     // Expect restore to fail
     await expect(
       backupsService.restoreBackup({
-        uploadToken: (await backupsService.inspectBackup({ fileBuffer: corruptBuffer }).catch(() => ({}))).uploadToken,
+        uploadToken: inspectResult.uploadToken,
         mode: 'replace',
       }),
-    ).rejects.toThrow();
+    ).rejects.toThrow('Simulated failure during restore transaction');
+
+    spy.mockRestore();
 
     // Verify database is completely unchanged!
     const timetablesAfter = await dataSource.query('SELECT * FROM timetables ORDER BY id');
     const sessionsAfter = await dataSource.query('SELECT * FROM sessions ORDER BY id');
     expect(timetablesAfter.length).toBe(timetablesBefore.length);
     expect(sessionsAfter.length).toBe(sessionsBefore.length);
+
+    // Verify safety backup was created before the failed attempt
+    const summary = await backupsService.listBackups();
+    expect(summary.autoBackups.some((b) => b.fileName.startsWith('pre-restore-'))).toBe(true);
   });
 
   it('enforces maintenance mode 503 on mutating requests during restore', async () => {
