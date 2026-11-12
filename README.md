@@ -3,12 +3,12 @@
 Desktop application that turns the HTML timetables exported by **FET** (`*_rooms_*`, `*_teachers_*`, `*_groups_*`)
 into one **Word (.docx) file per day** — same layout as your `Jeudi.docx`: rooms grouped by bloc (A, B, R + Amphi) × time slots, teacher names in the cells.
 
-| Layer | Tech |
-|---|---|
-| Desktop shell | Electron (TypeScript) — starts the API on a free local port and opens the UI |
-| UI | Next.js 15 + React 19 + TypeScript (static export, served by the API) |
-| API | NestJS 12 (ESM) + TypeORM + TypeScript (parsing, storage, DOCX generation with `docx`) |
-| Database | PostgreSQL 17 — **bundled** in the desktop app (`embedded-postgres`), or any external PostgreSQL |
+| Layer         | Tech                                                                                             |
+| ------------- | ------------------------------------------------------------------------------------------------ |
+| Desktop shell | Electron (TypeScript) — starts the API on a free local port and opens the UI                     |
+| UI            | Next.js 15 + React 19 + TypeScript (static export, served by the API)                            |
+| API           | NestJS 12 (ESM) + TypeORM + TypeScript (parsing, storage, DOCX generation with `docx`)           |
+| Database      | PostgreSQL 17 — **bundled** in the desktop app (`embedded-postgres`), or any external PostgreSQL |
 
 ```
 apps/
@@ -18,30 +18,35 @@ apps/
 ```
 
 ## 1. Prerequisites (developers only)
-* Node.js 22 LTS (20.12+ works)
-* Nothing else: the desktop app starts its own PostgreSQL (data in the app's user-data folder, never exposed to the network).
+
+- Node.js 22 LTS (20.12+ works)
+- Nothing else: the desktop app starts its own PostgreSQL (data in the app's user-data folder, never exposed to the network).
   For browser development (`npm run dev:api`) you need a PostgreSQL: `docker compose up -d`, or create user/db `enis` / `enis_timetable`.
 
 ## 2. Install & run (developers)
+
 ```bash
 npm install
 npm run desktop        # builds API + web + Electron shell and opens the app
 ```
+
 To use an existing PostgreSQL server instead of the bundled one, create `config.json` in the app's user-data folder
-(menu *Fichier → Fichier de configuration*) containing `{ "databaseUrl": "postgres://user:password@host:5432/dbname" }`.
+(menu _Fichier → Fichier de configuration_) containing `{ "databaseUrl": "postgres://user:password@host:5432/dbname" }`.
 In development (`dev:api`) the URL comes from `apps/api/.env` (see `.env.example`). Tables are created automatically.
 
 ### Development (browser, hot reload)
+
 ```bash
 npm run dev:api    # http://127.0.0.1:4000  (NestJS, watch mode)
 npm run dev:web    # http://localhost:3000   (Next.js, proxies /api to :4000)
 ```
 
 ## 3. Using it
-1. **Importer** → drop the 3 HTML files (the *rooms* file alone is enough to produce the Word files).
+
+1. **Importer** → drop the 3 HTML files (the _rooms_ file alone is enough to produce the Word files).
 2. Pick a day tab to preview it.
 3. **Télécharger Lundi.docx** (one day), **Tous les jours (.zip)**, or **Enregistrer dans un dossier…** (desktop only: writes the 6 files straight into a folder you choose).
-4. *Options du document Word*: abbreviate `BEN` → `B`, show `1/15` for bi-weekly sessions, list free rooms, and define the blocs (regex per bloc).
+4. _Options du document Word_: abbreviate `BEN` → `B`, show `1/15` for bi-weekly sessions, list free rooms, and define the blocs (regex per bloc).
 
 ## Noms et libellés
 
@@ -50,6 +55,14 @@ Open the **Noms** tab of an imported timetable to correct teacher names and room
 Enter the wording you want to see in Word and save the changes. A saved teacher or room override takes precedence over automatic formatting and is used exactly as entered (after trimming outer whitespace). Without an override, the existing formatting still applies, including `BEN` → `B`, title casing, and labels such as `A02` → `A 0-2`. Frequency suffixes such as `1/15` continue to be added after a teacher's displayed name. Room bloc membership always uses the source room name, not its corrected label.
 
 Use **Exporter les noms (.json)** to keep a copy of the overrides or **Importer des noms…** to merge a previously exported file. Importing does not execute file contents; invalid files are rejected.
+
+## Comparer deux versions
+
+When a timetable is re-issued (new period, moved sessions, changed rooms), import the new HTML files and pick the previous version in the **Nouvelle version de…** field of the import screen. The new timetable stores a `previousTimetableId` link, and the **Changements** tab compares the two versions.
+
+The comparison is a pure, deterministic matching pass (`apps/api/src/compare`) that classifies each session block as _added_, _removed_, _moved_, _room_changed_, _group_changed_ or _teachers_changed_. It also computes which days' Word documents change (**Jours à rééditer**) by diffing the room × slot cells of the two versions' day grids. The tab offers filters (type, teacher, room, day, free text), a highlight mode in the schedule preview, and two exports: a Word **fiche des changements** and a CSV.
+
+REST endpoints: `GET /api/timetables/:id/compare/:otherId?source=auto|teachers|rooms|groups`, `GET …/export.docx`, `GET …/export.csv`. The import response includes a short `comparison` summary when `previousTimetableId` was provided.
 
 ## Sauvegardes et restauration
 
@@ -87,33 +100,38 @@ La restauration valide d'abord le fichier de manière stricte (protection contre
 - Pour restaurer manuellement une copie de mise à jour physique : fermer complètement l'application, supprimer ou renommer `<userData>/database`, et copier le contenu du dossier `database-<version>-<timestamp>` à la place de `database`.
 - À l'inverse, l'archive `.enisbackup` est une sauvegarde logique applicative, indépendante de la version du moteur PostgreSQL et compatible avec les bases locales ou distantes.
 
-
 ## 4. How the HTML is read
-* Every FET table holds one room / teacher / group; cells may be `rowspan` (a 3-hour session covering two slots) or a *detailed* split cell (parallel TP groups).
+
+- Every FET table holds one room / teacher / group; cells may be `rowspan` (a 3-hour session covering two slots) or a _detailed_ split cell (parallel TP groups).
   The parser resolves the real column of each cell, then keeps only the activities that belong to the table's owner.
-* Run the fixture parity check: `npm run test:verify -w apps/api -- <folder with the html files>` compares the **rooms** view with the **teachers** view and writes six `.docx` files to `apps/api/test-output`.
-* Time headers follow the file: Wednesday/Saturday show `12:00-13:30`, Friday `14:00-15:30` / `15:45-17:15`, and `Pause` is shown when nothing is scheduled in the lunch slot.
-* Rooms such as `A02` / `B12 (Labo Anglais)` are labelled `A 0-2` / `B 1-2` as in the reference file.
+- Run the fixture parity check: `npm run test:verify -w apps/api -- <folder with the html files>` compares the **rooms** view with the **teachers** view and writes six `.docx` files to `apps/api/test-output`.
+- Time headers follow the file: Wednesday/Saturday show `12:00-13:30`, Friday `14:00-15:30` / `15:45-17:15`, and `Pause` is shown when nothing is scheduled in the lunch slot.
+- Rooms such as `A02` / `B12 (Labo Anglais)` are labelled `A 0-2` / `B 1-2` as in the reference file.
 
 ## 5. Build the installer for end users (no code, no command line)
+
 On the OS you target (Windows for a `.exe`):
+
 ```bash
 npm install
 npm run icons         # regenerates the committed app, installer, and web icons
 npm run dist
 ```
+
 Result in `apps/desktop/release/`: **`ENISo-Setup-<version>.exe`** (Windows, NSIS), `ENISo-<version>-<arch>.dmg` (macOS) or `ENISo-<version>-<arch>.AppImage` (Linux).
-Give that single file to the users: they double-click it, install, and open *Emplois du temps ENISo* from the desktop shortcut.
+Give that single file to the users: they double-click it, install, and open _Emplois du temps ENISo_ from the desktop shortcut.
 The installer contains everything (app, API, PostgreSQL); no Node.js or database installation is needed.
 
 Notes
-* The installer is not code-signed, so Windows SmartScreen shows "Windows protected your PC" → *More info → Run anyway*. A code-signing certificate removes this.
-* If Windows packaging fails while creating symbolic links or editing the executable icon/version resources, enable *Developer Mode* in **Settings → System → For developers**, or run the terminal as Administrator and retry `npm run dist`.
-* `npm run pack` builds an unpacked app folder (faster, for testing).
-* Users' data lives in `%APPDATA%\Emplois du temps ENISo\database`; uninstalling the app keeps it.
-* If PostgreSQL cannot start on a PC, install the Microsoft *Visual C++ Redistributable (x64)* and retry.
+
+- The installer is not code-signed, so Windows SmartScreen shows "Windows protected your PC" → _More info → Run anyway_. A code-signing certificate removes this.
+- If Windows packaging fails while creating symbolic links or editing the executable icon/version resources, enable _Developer Mode_ in **Settings → System → For developers**, or run the terminal as Administrator and retry `npm run dist`.
+- `npm run pack` builds an unpacked app folder (faster, for testing).
+- Users' data lives in `%APPDATA%\Emplois du temps ENISo\database`; uninstalling the app keeps it.
+- If PostgreSQL cannot start on a PC, install the Microsoft _Visual C++ Redistributable (x64)_ and retry.
 
 ## REST API (used by the UI)
+
 `POST /api/timetables` (multipart `files`) · `GET /api/timetables` · `GET /api/timetables/:id/days/:day/preview` · `GET …/days/:day/docx` ·
 `GET …/export.zip` · `POST …/export-to-folder {dir}` · `GET|PUT /api/settings/export` ·
 `GET /api/names/teachers|rooms?timetableId=…` · `PUT /api/names/teachers|rooms` ·
@@ -172,12 +190,12 @@ The Monday `DayGrid` golden snapshot is in `apps/api/test/__snapshots__/docx.spe
 
 ### Workflows
 
-| Workflow | Trigger | What it does |
-|----------|---------|-------------|
-| **CI** (`.github/workflows/ci.yml`) | PR to `main`, push to `main` | Typechecks and builds the workspaces, runs API and web suites against PostgreSQL, uploads API coverage, exercises the Chromium UI flow, and builds an unpacked Electron app on Windows. |
-| **Update visual DOCX baselines** (`.github/workflows/update-visual-baselines.yml`) | Manual (`workflow_dispatch`) | Regenerates synthetic DOCX reference images on `ubuntu-24.04` with pinned renderer packages and opens a pull request with changed baselines. |
-| **Release** (`.github/workflows/release.yml`) | Push of a tag `v*.*.*` | Verifies the tag matches `apps/desktop/package.json` version, builds unsigned Windows NSIS, macOS DMG/ZIP, and Linux AppImage assets with update metadata, creates a draft release, uploads and re-verifies each installer SHA-256, then publishes the verified release. |
-| **Dependabot** (`.github/dependabot.yml`) | Weekly (Monday) | Opens PRs for npm dependency updates (grouped by dependency type, minor+patch together) and GitHub Actions version bumps. |
+| Workflow                                                                           | Trigger                      | What it does                                                                                                                                                                                                                                                             |
+| ---------------------------------------------------------------------------------- | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **CI** (`.github/workflows/ci.yml`)                                                | PR to `main`, push to `main` | Typechecks and builds the workspaces, runs API and web suites against PostgreSQL, uploads API coverage, exercises the Chromium UI flow, and builds an unpacked Electron app on Windows.                                                                                  |
+| **Update visual DOCX baselines** (`.github/workflows/update-visual-baselines.yml`) | Manual (`workflow_dispatch`) | Regenerates synthetic DOCX reference images on `ubuntu-24.04` with pinned renderer packages and opens a pull request with changed baselines.                                                                                                                             |
+| **Release** (`.github/workflows/release.yml`)                                      | Push of a tag `v*.*.*`       | Verifies the tag matches `apps/desktop/package.json` version, builds unsigned Windows NSIS, macOS DMG/ZIP, and Linux AppImage assets with update metadata, creates a draft release, uploads and re-verifies each installer SHA-256, then publishes the verified release. |
+| **Dependabot** (`.github/dependabot.yml`)                                          | Weekly (Monday)              | Opens PRs for npm dependency updates (grouped by dependency type, minor+patch together) and GitHub Actions version bumps.                                                                                                                                                |
 
 ## Releases and auto-update
 
@@ -202,6 +220,7 @@ Pour les responsables de publication : soumettez l’installateur Windows de cha
 ### Cutting a release
 
 1. Create a version branch from the latest `main` and update the desktop package version. Replace `1.0.3` with the next unused version:
+
    ```bash
    git switch main && git pull
    git switch -c chore/release-1-0-3

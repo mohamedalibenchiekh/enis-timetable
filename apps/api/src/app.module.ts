@@ -11,6 +11,8 @@ import { NamesController } from './names/names.controller.js';
 import { NamesService } from './names/names.service.js';
 import { BackupsModule } from './backups/backups.module.js';
 import { MaintenanceGuard } from './backups/maintenance.guard.js';
+import { CompareController } from './compare/compare.controller.js';
+import { CompareService } from './compare/compare.service.js';
 
 @Module({
   imports: [
@@ -25,11 +27,12 @@ import { MaintenanceGuard } from './backups/maintenance.guard.js';
     TypeOrmModule.forFeature([Timetable, SessionEntity, Setting, TeacherName, RoomLabel]),
     BackupsModule,
   ],
-  controllers: [TimetablesController, SettingsController, HealthController, NamesController],
+  controllers: [TimetablesController, SettingsController, HealthController, NamesController, CompareController],
   providers: [
     TimetablesService,
     SettingsService,
     NamesService,
+    CompareService,
     {
       provide: APP_GUARD,
       useClass: MaintenanceGuard,
