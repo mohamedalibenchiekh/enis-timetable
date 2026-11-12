@@ -51,6 +51,43 @@ Enter the wording you want to see in Word and save the changes. A saved teacher 
 
 Use **Exporter les noms (.json)** to keep a copy of the overrides or **Importer des noms…** to merge a previously exported file. Importing does not execute file contents; invalid files are rejected.
 
+## Sauvegardes et restauration
+
+L'application intègre un écran dédié **Sauvegardes** (accessible depuis la barre latérale ou via le menu *Fichier → Sauvegardes…*) permettant de créer des sauvegardes logiques, de programmer des sauvegardes automatiques et de restaurer les données en toute sécurité.
+
+### Format de l'archive (`.enisbackup`)
+Une sauvegarde `.enisbackup` est une archive ZIP standard contenant :
+- `manifest.json` : métadonnées (`formatVersion`, `appVersion`, `schemaVersion`, horodatage UTC ISO, nombre de lignes par table, empreinte SHA-256 de chaque fichier).
+- `data/<table>.ndjson` : données au format NDJSON pour chaque entité (`timetables`, `sessions`, `teacher_names`, `room_labels`, `settings`).
+
+**Ce qui est exclu :** les fichiers de configuration système (`config.json`), les identifiants, mots de passe et URL de connexion à la base de données ne sont **jamais** inclus dans l'archive. Les sauvegardes ne sont pas chiffrées ; conservez-les dans un emplacement sécurisé.
+
+### Emplacements et dossiers
+Sous le dossier de données utilisateur (`<userData>/backups/`) :
+- `auto/` : sauvegardes automatiques planifiées (nommées `auto-YYYYMMDD-HHmmss.enisbackup`).
+- `manual/` : copies manuelles éventuelles.
+- `database-<version>-<timestamp>` : instantanés physiques créés automatiquement avant chaque mise à jour de l'application.
+
+### Sauvegardes automatiques et rétention
+- **Planification** : sauvegarde automatique au démarrage si la plus récente date de plus de 24 h, et 30 secondes (temporisation anti-rebond) après toute modification de données (importation, suppression, modification de noms/paramètres, restauration).
+- **Rétention** : conserve par défaut les 10 sauvegardes les plus récentes (paramétrable entre 3 et 50), suppression automatique des plus anciennes.
+
+### Modes de restauration
+La restauration valide d'abord le fichier de manière stricte (protection contre les archives hostiles, validation de schéma et des types) :
+1. **Remplacer toutes les données** : vide les tables existantes et restaure l'état exact de la sauvegarde. Une sauvegarde de sécurité (`auto/pre-restore-<timestamp>.enisbackup`) est créée automatiquement avant toute suppression ; en cas d'erreur, une annulation atomique (ROLLBACK) garantit que la base reste intacte.
+2. **Ajouter les emplois du temps de la sauvegarde (fusion)** : importe les emplois du temps et séances avec de nouveaux identifiants (UUID) sans écraser les données existantes. Les corrections de noms/salles sont appliquées uniquement si absentes.
+
+### Changer d'ordinateur
+1. Sur l'ancien poste, rendez-vous dans **Sauvegardes** et cliquez sur **Créer une sauvegarde maintenant**.
+2. Copiez le fichier `.enisbackup` téléchargé sur une clé USB ou un dossier partagé.
+3. Sur le nouveau poste, installez l'application, ouvrez **Sauvegardes**, déposez le fichier dans la zone de restauration, inspectez-le, puis confirmez la restauration.
+
+### Différence avec les sauvegardes de mise à jour physiques
+- Les dossiers `database-<version>-<timestamp>` sont des copies brutes du dossier de données PostgreSQL (`pgdata`) réalisées hors ligne avant une mise à jour applicative.
+- Pour restaurer manuellement une copie de mise à jour physique : fermer complètement l'application, supprimer ou renommer `<userData>/database`, et copier le contenu du dossier `database-<version>-<timestamp>` à la place de `database`.
+- À l'inverse, l'archive `.enisbackup` est une sauvegarde logique applicative, indépendante de la version du moteur PostgreSQL et compatible avec les bases locales ou distantes.
+
+
 ## 4. How the HTML is read
 * Every FET table holds one room / teacher / group; cells may be `rowspan` (a 3-hour session covering two slots) or a *detailed* split cell (parallel TP groups).
   The parser resolves the real column of each cell, then keeps only the activities that belong to the table's owner.
