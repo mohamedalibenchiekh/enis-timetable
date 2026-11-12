@@ -114,7 +114,7 @@ Le contenu de chaque case peut être composé de plusieurs lignes : enseignant, 
 1. Dans **[Contenu des cellules]**, choisissez un préréglage ou personnalisez le **[Modèle de cellule]**.
 2. Les préréglages proposés sont : enseignant seul, enseignant + groupe, enseignant + groupe + matière, et groupe + matière.
 3. Le modèle accepte les jetons `{teacher}`, `{group}`, `{subjectCode}`, `{subject}` et `{frequency}`. Un saut de ligne dans le modèle crée une ligne dans la cellule.
-4. Réglez **[Affichage de la matière]** (nom complet, code ou code + nom), **[Longueur max du nom]**, **[Séparateur de groupes]**, **[Taille de police des cellules]**, et les options **[Italique]** / **[Taille réduite]** pour les lignes secondaires.
+4. Réglez **[Affichage de la matière]** (nom complet, code ou code + nom), **[Longueur max du nom (0 = illimité)]**, **[Séparateur de groupes]**, **[Taille de police des cellules (pt)]**, **[Italique pour les lignes secondaires (groupe + matière)]** et **[Taille réduite pour les lignes secondaires]**.
 
 **Résultat attendu :** les cases de l’aperçu et du document Word affichent les lignes configurées.
 
@@ -124,7 +124,7 @@ Vous pouvez répartir les blocs sur plusieurs pages et changer l’orientation d
 
 1. Dans **[Mise en page]**, choisissez **[Portrait]** ou **[Paysage]**.
 2. Activez **[Répéter l’en-tête du jour sur chaque page]** pour réafficher le nom du jour et les horaires en haut de chaque page.
-3. Activez **[Afficher un titre de page]** pour afficher les noms des blocs au-dessus de chaque tableau.
+3. Activez **[Afficher un titre de page (noms des blocs)]** pour afficher les noms des blocs au-dessus de chaque tableau.
 4. Dans le tableau **[Blocs et pages]**, assignez chaque bloc à une page avec la liste **[Page]**. Les blocs d’une même page sont imprimés ensemble ; chaque page devient une section du document Word.
 
 **Résultat attendu :** le document Word est découpé en sections selon les pages configurées, avec l’orientation et les en-têtes choisis.
@@ -323,6 +323,14 @@ Avant chaque mise à jour, l’application tente de copier la base de données d
 - « Aucun fichier ou identifiant fourni pour l’inspection », « Fichier de restauration temporaire expiré ou introuvable. Veuillez réessayer » ou « Identifiant ou jeton de restauration manquant » : relancez l’analyse ou choisissez une sauvegarde.
 - « Restauration en cours. L’application est temporairement en maintenance. Veuillez patienter » : une restauration est en train de modifier la base.
 - « Une opération de sauvegarde ou de restauration est déjà en cours » : attendez la fin de l’opération en cours.
+
+### Erreurs des options du document Word et des profils
+
+Les messages suivants peuvent apparaître quand une option ou un profil est invalide :
+
+- « Le modèle de cellule doit être un texte », « Le modèle de cellule dépasse 500 caractères », « Le modèle de cellule contient un caractère de contrôle » ou « Jeton inconnu … dans le modèle de cellule … jetons disponibles » : corrigez le modèle de cellule et n’utilisez que les jetons `{teacher}`, `{group}`, `{subjectCode}`, `{subject}` et `{frequency}`.
+- « blocs » doit être une liste, « Au moins un bloc est requis », « le titre est obligatoire », « chaque motif doit être un texte », « expression régulière invalide » ou « au moins un motif valide est requis » : corrigez la liste des blocs dans les options.
+- « Le nom du profil est obligatoire », « Au moins un profil est requis », « Profil introuvable », « Un profil avec ce nom existe déjà » ou « Impossible de supprimer le dernier profil » : corrigez le nom ou la sélection du profil d’export.
 
 ### Une salle est vide ou une case manque
 

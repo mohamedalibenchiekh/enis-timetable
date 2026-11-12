@@ -82,7 +82,7 @@ export function OptionsPanel({ profiles, activeProfileId, onProfilesChange, onAc
       <p><a href="/aide/#options-du-document-word" aria-label="Aide sur les options">? Aide sur les options</a></p>
 
       {/* ----- Profiles ----- */}
-      <h3>Profils d'export</h3>
+      <h3>Profils d’export</h3>
       <div className="profilebar">
         <select value={profile.id} onChange={(e) => onActiveProfileChange(e.target.value)} aria-label="Profil actif">
           {profiles.profiles.map((p) => <option key={p.id} value={p.id}>{p.name}{p.id === profiles.defaultId ? ' (défaut)' : ''}</option>)}
@@ -139,7 +139,7 @@ export function OptionsPanel({ profiles, activeProfileId, onProfilesChange, onAc
           </select>
         </label>
       </div>
-      <label><input type="checkbox" checked={o.repeatDayHeader} onChange={(e) => set('repeatDayHeader', e.target.checked)} /> Répéter l'en-tête du jour sur chaque page</label>
+      <label><input type="checkbox" checked={o.repeatDayHeader} onChange={(e) => set('repeatDayHeader', e.target.checked)} /> Répéter l’en-tête du jour sur chaque page</label>
       <label><input type="checkbox" checked={o.showPageTitle} onChange={(e) => set('showPageTitle', e.target.checked)} /> Afficher un titre de page (noms des blocs)</label>
 
       <h4>Blocs et pages</h4>
