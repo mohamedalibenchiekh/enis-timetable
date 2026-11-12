@@ -93,8 +93,10 @@ export function validateRow(table: BackupTableName, row: unknown, index: number)
       if (r.createdAt && (typeof r.createdAt !== 'string' || isNaN(Date.parse(r.createdAt)))) {
         throw new ValidationError(`Ligne ${index + 1} de « timetables » : date de création invalide.`);
       }
-      if (r.previousTimetableId && (typeof r.previousTimetableId !== 'string' || !UUID_REGEX.test(r.previousTimetableId))) {
-        throw new ValidationError(`Ligne ${index + 1} de « timetables » : previousTimetableId UUID invalide.`);
+      if (r.previousTimetableId !== undefined && r.previousTimetableId !== null) {
+        if (typeof r.previousTimetableId !== 'string' || !UUID_REGEX.test(r.previousTimetableId)) {
+          throw new ValidationError(`Ligne ${index + 1} de « timetables » : previousTimetableId UUID invalide.`);
+        }
       }
       return {
         id: r.id,
@@ -106,7 +108,7 @@ export function validateRow(table: BackupTableName, row: unknown, index: number)
         slots: r.slots,
         rooms: r.rooms,
         files: r.files,
-        previousTimetableId: r.previousTimetableId ?? null,
+        previousTimetableId: (r.previousTimetableId !== undefined && r.previousTimetableId !== null) ? r.previousTimetableId : null,
         createdAt: r.createdAt ? new Date(r.createdAt) : new Date(),
       };
     }

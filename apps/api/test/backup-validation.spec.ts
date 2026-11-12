@@ -153,6 +153,38 @@ describe('Hostile archive hardening & validation suite', () => {
       'Ligne 1 de « timetables » : identifiant UUID invalide.',
     );
 
+    // 1b. Non-null invalid previousTimetableId (empty string, false, 0)
+    for (const badPrevId of ['', false, 0, 'invalid-uuid']) {
+      const badPrevIdRow = JSON.stringify({
+        id: randomUUID(),
+        name: 'Test',
+        days: [],
+        slots: [],
+        previousTimetableId: badPrevId,
+      }) + '\n';
+      const hashPrev = createHash('sha256').update(badPrevIdRow).digest('hex');
+      const zipPrev = await makeArchive({
+        'manifest.json': JSON.stringify(validManifest({
+          counts: { timetables: 1, sessions: 0, settings: 0, teacher_names: 0, room_labels: 0 },
+          sha256: {
+            'data/timetables.ndjson': hashPrev,
+            'data/sessions.ndjson': emptyHash,
+            'data/settings.ndjson': emptyHash,
+            'data/teacher_names.ndjson': emptyHash,
+            'data/room_labels.ndjson': emptyHash,
+          },
+        })),
+        'data/timetables.ndjson': badPrevIdRow,
+        'data/sessions.ndjson': '',
+        'data/settings.ndjson': '',
+        'data/teacher_names.ndjson': '',
+        'data/room_labels.ndjson': '',
+      });
+      await expect(BackupInspector.inspectArchive(zipPrev)).rejects.toThrow(
+        'Ligne 1 de « timetables » : previousTimetableId UUID invalide.',
+      );
+    }
+
     // 2. Sensitive key in settings
     const evilSetting = JSON.stringify({
       key: 'databaseUrl',

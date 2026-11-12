@@ -253,6 +253,16 @@ describe('Backup and Restore Integration (PostgreSQL Round-Trip & Safety)', () =
     expect(timetablesBefore.length).toBeGreaterThan(0);
     const originalTimetable = timetablesBefore[0];
 
+    // Create a linked second timetable to verify previousTimetableId lineage remapping
+    const linkedTimetable = await dataSource.getRepository(Timetable).save({
+      name: 'Semestre 2 Test (Version 2)',
+      previousTimetableId: originalTimetable.id,
+      days: [],
+      slots: [],
+      rooms: [],
+      files: [],
+    });
+
     // Create a backup archive
     const { buffer: backupBuffer } = await backupsService.createBackup(true);
 
@@ -265,22 +275,27 @@ describe('Backup and Restore Integration (PostgreSQL Round-Trip & Safety)', () =
 
     expect(restoreResult.ok).toBe(true);
 
-    // After merge, there should be 2 timetables
+    // After merge, 2 new timetables should be added
     const timetablesAfter = await dataSource.getRepository(Timetable).find();
-    expect(timetablesAfter.length).toBe(timetablesBefore.length + 1);
+    expect(timetablesAfter.length).toBe(timetablesBefore.length + 3); // original + linked + merged original + merged linked
 
     // Original timetable still exists with original id
     const foundOriginal = timetablesAfter.find((t) => t.id === originalTimetable.id);
     expect(foundOriginal).toBeDefined();
 
-    // The merged timetable has a different UUID
-    const mergedTimetable = timetablesAfter.find((t) => t.id !== originalTimetable.id);
-    expect(mergedTimetable).toBeDefined();
-    expect(mergedTimetable!.id).not.toBe(originalTimetable.id);
-    expect(mergedTimetable!.name).toBe(originalTimetable.name);
+    // The merged timetables have different UUIDs
+    const mergedOriginal = timetablesAfter.find((t) => t.id !== originalTimetable.id && t.name === originalTimetable.name);
+    const mergedLinked = timetablesAfter.find((t) => t.id !== linkedTimetable.id && t.name === linkedTimetable.name);
+    expect(mergedOriginal).toBeDefined();
+    expect(mergedLinked).toBeDefined();
+    expect(mergedOriginal!.id).not.toBe(originalTimetable.id);
+    expect(mergedLinked!.id).not.toBe(linkedTimetable.id);
+
+    // Crucial check: previousTimetableId was remapped to the merged predecessor's new UUID!
+    expect(mergedLinked!.previousTimetableId).toBe(mergedOriginal!.id);
 
     // Sessions for merged timetable point to the new timetable id
-    const mergedSessions = await dataSource.getRepository(SessionEntity).findBy({ timetableId: mergedTimetable!.id });
+    const mergedSessions = await dataSource.getRepository(SessionEntity).findBy({ timetableId: mergedOriginal!.id });
     expect(mergedSessions.length).toBeGreaterThan(0);
   });
 
