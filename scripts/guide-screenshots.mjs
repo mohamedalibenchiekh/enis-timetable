@@ -161,8 +161,9 @@ async function main() {
   await page.getByLabel('Afficher « 1/15 » pour les séances une semaine sur deux').check();
   await page.getByLabel('Lister aussi les salles libres').check();
   await page.getByLabel('Libellé de la pause').fill('Pause déjeuner');
-  await page.locator('.blocrow input').first().fill('BLOC « A »');
-  await page.locator('.blocrow input').nth(1).fill('^A\\d\\d, ^A\\d\\d');
+  const firstBlocRow = page.locator('.bloctable tbody tr').first();
+  await firstBlocRow.locator('input').nth(0).fill('BLOC « A »');
+  await firstBlocRow.locator('input').nth(1).fill('^A\\d\\d, ^A\\d\\d');
   await page.getByRole('button', { name: '+ ajouter un bloc' }).click();
   await page.getByRole('button', { name: 'supprimer' }).last().click();
   await page.getByRole('button', { name: 'Enregistrer', exact: true }).click();
