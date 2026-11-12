@@ -330,7 +330,8 @@ Les messages suivants peuvent apparaître quand une option ou un profil est inva
 
 - « Le modèle de cellule doit être un texte », « Le modèle de cellule dépasse 500 caractères », « Le modèle de cellule contient un caractère de contrôle » ou « Jeton inconnu … dans le modèle de cellule … jetons disponibles » : corrigez le modèle de cellule et n’utilisez que les jetons `{teacher}`, `{group}`, `{subjectCode}`, `{subject}` et `{frequency}`.
 - « blocs » doit être une liste, « Au moins un bloc est requis », « le titre est obligatoire », « chaque motif doit être un texte », « expression régulière invalide » ou « au moins un motif valide est requis » : corrigez la liste des blocs dans les options.
-- « Le nom du profil est obligatoire », « Au moins un profil est requis », « Profil introuvable », « Un profil avec ce nom existe déjà » ou « Impossible de supprimer le dernier profil » : corrigez le nom ou la sélection du profil d’export.
+- « Le nom du profil est obligatoire », « Au moins un profil est requis », « Profil introuvable », « Un profil avec ce nom existe déjà », « Impossible de supprimer le dernier profil » ou « isDefault » doit être un booléen : corrigez le nom ou la sélection du profil d’export.
+- « … » doit être un booléen, « … » doit être l'une des valeurs : …, « … » doit être un entier entre … et … ou « … » doit être un texte : une option du document Word (par exemple `subjectMode`, `orientation`, `cellFontSize`, `subjectMaxLength`, `detailItalic`, `detailSmaller`, `repeatDayHeader`, `showPageTitle`, `abbreviateBen`, `showFrequency`, `includeEmptyRooms`, `pauseLabel` ou `groupSeparator`) a reçu une valeur du mauvais type ou hors de la plage autorisée. Corrigez l’option signalée et enregistrez-la de nouveau.
 
 ### Une salle est vide ou une case manque
 

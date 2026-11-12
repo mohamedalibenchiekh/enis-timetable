@@ -9,6 +9,7 @@ import { detectKind, parseHtml } from '../parser/html-parser.js';
 import { ParsedFile, SourceKind } from '../parser/types.js';
 import { buildDayGrid, DayGrid } from '../export/grid-builder.js';
 import { buildDayDocx } from '../export/docx-builder.js';
+import { dayFileName, ExportOptions } from '../export/options.js';
 import { SettingsService } from '../settings/settings.service.js';
 import { NamesService } from '../names/names.service.js';
 import { NameResolver } from '../export/name-resolver.js';
@@ -134,37 +135,43 @@ export class TimetablesService {
     return kind;
   }
 
-  /** Resolve export options for a profile id (falls back to the default profile). */
-  private async resolveOptions(profileId?: string) {
-    if (profileId) {
-      const { profile } = await this.settings.getProfileOptions(profileId);
-      return profile.options;
-    }
-    return this.settings.getExportOptions();
+  /** Resolve the export profile once (options + identity for file naming). */
+  private async resolveProfile(profileId?: string) {
+    const { profile, isDefault } = await this.settings.resolveProfile(profileId);
+    return { options: profile.options as ExportOptions, profile, isDefault };
   }
 
-  async dayGrid(id: string, day: number, nameResolver?: NameResolver, source?: SourceKind, profileId?: string): Promise<DayGrid> {
-    const t = await this.get(id);
+  private async gridFor(t: Timetable, day: number, options: ExportOptions, nameResolver?: NameResolver, source?: SourceKind): Promise<DayGrid> {
     if (!Number.isInteger(day) || day < 0 || day >= t.days.length) throw new BadRequestException('Jour invalide');
     const requested = source && PRIORITY.includes(source) && t.files.some((f) => f.kind === source) ? source : undefined;
     const kind = requested ?? this.pickSource(t);
-    const rows = await this.sessions.find({ where: { timetableId: id, source: kind, day } });
-    const options = await this.resolveOptions(profileId);
+    const rows = await this.sessions.find({ where: { timetableId: t.id, source: kind, day } });
     const resolver = nameResolver ?? await this.names.getResolver();
     return buildDayGrid(rows, { days: t.days, slots: t.slots, rooms: t.rooms }, day, options, resolver);
   }
 
+  async dayGrid(id: string, day: number, nameResolver?: NameResolver, source?: SourceKind, profileId?: string): Promise<DayGrid> {
+    const t = await this.get(id);
+    const { options } = await this.resolveProfile(profileId);
+    return this.gridFor(t, day, options, nameResolver, source);
+  }
+
   async dayDocx(id: string, day: number, nameResolver?: NameResolver, profileId?: string) {
-    const grid = await this.dayGrid(id, day, nameResolver, undefined, profileId);
-    const options = await this.resolveOptions(profileId);
-    return { fileName: `${grid.dayName}.docx`, buffer: await buildDayDocx(grid, options) };
+    const t = await this.get(id);
+    const { options, profile, isDefault } = await this.resolveProfile(profileId);
+    const grid = await this.gridFor(t, day, options, nameResolver);
+    return { fileName: dayFileName(grid.dayName, profile, isDefault), buffer: await buildDayDocx(grid, options) };
   }
 
   async allDocx(id: string, profileId?: string) {
     const t = await this.get(id);
+    const { options, profile, isDefault } = await this.resolveProfile(profileId);
     const nameResolver = await this.names.getResolver();
     const out: { fileName: string; buffer: Buffer }[] = [];
-    for (let d = 0; d < t.days.length; d++) out.push(await this.dayDocx(id, d, nameResolver, profileId));
+    for (let d = 0; d < t.days.length; d++) {
+      const grid = await this.gridFor(t, d, options, nameResolver);
+      out.push({ fileName: dayFileName(grid.dayName, profile, isDefault), buffer: await buildDayDocx(grid, options) });
+    }
     return out;
   }
 

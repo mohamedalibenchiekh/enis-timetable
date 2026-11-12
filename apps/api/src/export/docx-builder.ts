@@ -96,15 +96,17 @@ function richCell(entries: CellSession[], width: number, options: ExportOptions)
 function sessionCell(row: RoomRow, slot: number, width: number, options: ExportOptions): TableCell {
   if (row.details) return richCell(row.details[slot] ?? [], width, options);
   const text = row.cells[slot] ?? '';
-  return cell(text ? [text] : [], width);
+  return cell(text ? [text] : [], width, { size: options.cellFontSize * 2 });
 }
 
 function tableRows(grid: DayGrid, blocIndices: number[], showHeader: boolean, options: ExportOptions): TableRow[] {
   const nSlots = grid.headers.length;
   const w = colWidths(nSlots, options);
   const total = w.reduce((a, b) => a + b, 0);
+  // tableHeader must be omitted (not false) when disabled: the docx library emits
+  // a w:tblHeader element whenever the property is defined.
   const row = (cells: TableCell[], height = 288, header = false) =>
-    new TableRow({ children: cells, tableHeader: header, cantSplit: true, height: { value: height, rule: HeightRule.ATLEAST } });
+    new TableRow({ children: cells, tableHeader: header || undefined, cantSplit: true, height: { value: height, rule: HeightRule.ATLEAST } });
 
   const rows: TableRow[] = [];
   if (showHeader) {
@@ -115,7 +117,7 @@ function tableRows(grid: DayGrid, blocIndices: number[], showHeader: boolean, op
           ...grid.headers.map((h, i) => cell(h, w[i + 1], { bold: true, size: 22, fill: COLORS.slotHeader })),
         ],
         400,
-        true,
+        options.repeatDayHeader,
       ),
     );
   }
@@ -153,11 +155,11 @@ function hasRichCells(grid: DayGrid): boolean {
 
 /** True when the historical single-section layout applies (byte-identical output). */
 function isLegacyLayout(grid: DayGrid, options: ExportOptions): boolean {
-  return !grid.pages && options.orientation === 'portrait' && !options.showPageTitle && !hasRichCells(grid);
+  return !grid.pages && options.orientation === 'portrait' && options.repeatDayHeader && !options.showPageTitle && !hasRichCells(grid);
 }
 
 /** Historical layout: one portrait section, plain-text cells. Kept verbatim for backward compatibility. */
-function legacyDocument(grid: DayGrid): Document {
+function legacyDocument(grid: DayGrid, options: ExportOptions): Document {
   const nSlots = grid.headers.length;
   const w = widths(nSlots);
   const total = w.reduce((a, b) => a + b, 0);
@@ -181,7 +183,7 @@ function legacyDocument(grid: DayGrid): Document {
         row(
           [
             cell([r.label], w[0], { bold: true, size: 22, fill: COLORS.room }),
-            ...r.cells.map((c, i) => cell(c ? [c] : [], w[i + 1])),
+            ...r.cells.map((c, i) => cell(c ? [c] : [], w[i + 1], { size: options.cellFontSize * 2 })),
           ],
           357,
         ),
@@ -192,7 +194,7 @@ function legacyDocument(grid: DayGrid): Document {
   return new Document({
     creator: 'ENISo Timetable',
     title: `Emploi du temps – ${grid.dayName}`,
-    styles: { default: { document: { run: { font: FONT, size: 20 } } } },
+    styles: { default: { document: { run: { font: FONT, size: options.cellFontSize * 2 } } } },
     sections: [
       {
         properties: { page: { size: { width: PAGE.width, height: PAGE.height }, margin: MARGIN } },
@@ -236,6 +238,8 @@ function richDocument(grid: DayGrid, options: ExportOptions): Document {
         page: {
           size: { width: PAGE.width, height: PAGE.height, orientation },
           margin: MARGIN,
+          // Keep the configured page numbers (they may be non-contiguous).
+          pageNumbers: pg.page > 1 ? { start: pg.page } : undefined,
         },
       },
       children,
@@ -251,7 +255,7 @@ function richDocument(grid: DayGrid, options: ExportOptions): Document {
 }
 
 export function buildDayDocument(grid: DayGrid, options: ExportOptions = DEFAULT_OPTIONS): Document {
-  return isLegacyLayout(grid, options) ? legacyDocument(grid) : richDocument(grid, options);
+  return isLegacyLayout(grid, options) ? legacyDocument(grid, options) : richDocument(grid, options);
 }
 
 export async function buildDayDocx(grid: DayGrid, options: ExportOptions = DEFAULT_OPTIONS): Promise<Buffer> {

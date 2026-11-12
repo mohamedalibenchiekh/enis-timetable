@@ -91,11 +91,11 @@ export const DEFAULT_OPTIONS: ExportOptions = {
 // Validation helpers (French error messages)
 // ---------------------------------------------------------------------------
 
-const MAX_PATTERN_LENGTH = 200;
-const MAX_TEMPLATE_LENGTH = 500;
-const MAX_TITLE_LENGTH = 80;
-const MAX_NAME_LENGTH = 60;
-const MAX_PAGES = 50;
+export const MAX_PATTERN_LENGTH = 200;
+export const MAX_TEMPLATE_LENGTH = 500;
+export const MAX_TITLE_LENGTH = 80;
+export const MAX_NAME_LENGTH = 60;
+export const MAX_PAGES = 50;
 
 export const CELL_TOKENS = ['teacher', 'group', 'subjectCode', 'subject', 'frequency'] as const;
 export type CellToken = (typeof CELL_TOKENS)[number];
@@ -145,6 +145,41 @@ function oneOf<T extends string>(value: unknown, allowed: readonly T[], fallback
   return typeof value === 'string' && (allowed as readonly string[]).includes(value) ? (value as T) : fallback;
 }
 
+// ----- strict scalar validation (API writes) -------------------------------------------------
+
+function strictBool(src: Record<string, unknown>, key: string, fallback: boolean): boolean {
+  const v = src[key];
+  if (v === undefined) return fallback;
+  if (typeof v !== 'boolean') throw new Error(`« ${key} » doit être un booléen`);
+  return v;
+}
+
+function strictOneOf<T extends string>(src: Record<string, unknown>, key: string, allowed: readonly T[], fallback: T): T {
+  const v = src[key];
+  if (v === undefined) return fallback;
+  if (typeof v !== 'string' || !(allowed as readonly string[]).includes(v)) {
+    throw new Error(`« ${key} » doit être l'une des valeurs : ${allowed.map((a) => `« ${a} »`).join(', ')}`);
+  }
+  return v as T;
+}
+
+function strictInt(src: Record<string, unknown>, key: string, fallback: number, min: number, max: number): number {
+  const v = src[key];
+  if (v === undefined) return fallback;
+  if (typeof v !== 'number' || !Number.isInteger(v) || v < min || v > max) {
+    throw new Error(`« ${key} » doit être un entier entre ${min} et ${max}`);
+  }
+  return v;
+}
+
+function strictString(src: Record<string, unknown>, key: string, fallback: string, max: number): string {
+  const v = src[key];
+  if (v === undefined) return fallback;
+  if (typeof v !== 'string') throw new Error(`« ${key} » doit être un texte`);
+  const cleaned = v.replace(/[\u0000-\u001f\u007f-\u009f]/gu, '').trim();
+  return cleaned ? cleaned.slice(0, max) : fallback;
+}
+
 // ---------------------------------------------------------------------------
 // Options normalization (migration + sanitization, never throws)
 // ---------------------------------------------------------------------------
@@ -158,27 +193,35 @@ function normalizeBlocs(raw: unknown, strict: boolean): BlocConfig[] {
     if (strict) throw new Error('Au moins un bloc est requis');
     return DEFAULT_OPTIONS.blocs.map((b) => ({ ...b, patterns: [...b.patterns] }));
   }
-  return raw.map((item, index) => {
-    const row = (item && typeof item === 'object' && !Array.isArray(item)) ? item as Record<string, unknown> : {};
-    const title = cleanString(row.title, `BLOC ${index + 1}`, MAX_TITLE_LENGTH);
-    if (strict && (typeof row.title !== 'string' || !row.title.trim())) throw new Error(`Bloc ${index + 1} : le titre est obligatoire`);
-    const rawPatterns = Array.isArray(row.patterns) ? row.patterns : [];
-    const patterns: string[] = [];
-    for (const p of rawPatterns) {
-      if (typeof p !== 'string') {
-        if (strict) throw new Error(`Bloc « ${title} » : chaque motif doit être un texte`);
-        continue;
+  return raw
+    .map((item, index): BlocConfig | null => {
+      const row = (item && typeof item === 'object' && !Array.isArray(item)) ? item as Record<string, unknown> : {};
+      const title = cleanString(row.title, `BLOC ${index + 1}`, MAX_TITLE_LENGTH);
+      if (strict && (typeof row.title !== 'string' || !row.title.trim())) throw new Error(`Bloc ${index + 1} : le titre est obligatoire`);
+      const rawPatterns = Array.isArray(row.patterns) ? row.patterns : [];
+      const patterns: string[] = [];
+      for (const p of rawPatterns) {
+        if (typeof p !== 'string') {
+          if (strict) throw new Error(`Bloc « ${title} » : chaque motif doit être un texte`);
+          continue;
+        }
+        const trimmed = p.trim();
+        if (!trimmed) continue;
+        if (strict && !isValidRegex(trimmed)) throw new Error(`Bloc « ${title} » : expression régulière invalide « ${trimmed.slice(0, 40)} »`);
+        if (isValidRegex(trimmed)) patterns.push(trimmed.slice(0, MAX_PATTERN_LENGTH));
       }
-      const trimmed = p.trim();
-      if (!trimmed) continue;
-      if (strict && !isValidRegex(trimmed)) throw new Error(`Bloc « ${title} » : expression régulière invalide « ${trimmed.slice(0, 40)} »`);
-      if (isValidRegex(trimmed)) patterns.push(trimmed.slice(0, MAX_PATTERN_LENGTH));
-    }
-    if (strict && patterns.length === 0) throw new Error(`Bloc « ${title} » : au moins un motif valide est requis`);
-    const id = typeof row.id === 'string' && row.id.trim() ? row.id.trim().slice(0, 60) : `bloc-${index + 1}`;
-    const page = intInRange(row.page, 1, 1, MAX_PAGES);
-    return { id, page, title, patterns };
-  });
+      if (strict && patterns.length === 0) throw new Error(`Bloc « ${title} » : au moins un motif valide est requis`);
+      const id = typeof row.id === 'string' && row.id.trim() ? row.id.trim().slice(0, 60) : `bloc-${index + 1}`;
+      if (!strict && patterns.length === 0) {
+        // Sanitization emptied the patterns: restore the default bloc's patterns
+        // (matched by id, then by position) so the bloc keeps matching rooms.
+        const fallback = DEFAULT_OPTIONS.blocs.find((d) => d.id === id) ?? DEFAULT_OPTIONS.blocs[index];
+        if (fallback) patterns.push(...fallback.patterns);
+      }
+      const page = intInRange(row.page, 1, 1, MAX_PAGES);
+      return patterns.length ? { id, page, title, patterns } : null;
+    })
+    .filter((b): b is BlocConfig => b !== null);
 }
 
 /**
@@ -200,23 +243,24 @@ export function normalizeOptions(raw: unknown, strict = false): ExportOptions {
     }
   }
 
+  const blocs = normalizeBlocs(src.blocs, strict);
   return {
     optionsVersion: OPTIONS_VERSION,
-    blocs: normalizeBlocs(src.blocs, strict),
-    abbreviateBen: bool(src.abbreviateBen, DEFAULT_OPTIONS.abbreviateBen),
-    showFrequency: bool(src.showFrequency, DEFAULT_OPTIONS.showFrequency),
-    pauseLabel: cleanString(src.pauseLabel, DEFAULT_OPTIONS.pauseLabel, 40),
-    includeEmptyRooms: bool(src.includeEmptyRooms, DEFAULT_OPTIONS.includeEmptyRooms),
+    blocs: blocs.length ? blocs : DEFAULT_OPTIONS.blocs.map((b) => ({ ...b, patterns: [...b.patterns] })),
+    abbreviateBen: strict ? strictBool(src, 'abbreviateBen', DEFAULT_OPTIONS.abbreviateBen) : bool(src.abbreviateBen, DEFAULT_OPTIONS.abbreviateBen),
+    showFrequency: strict ? strictBool(src, 'showFrequency', DEFAULT_OPTIONS.showFrequency) : bool(src.showFrequency, DEFAULT_OPTIONS.showFrequency),
+    pauseLabel: strict ? strictString(src, 'pauseLabel', DEFAULT_OPTIONS.pauseLabel, 40) : cleanString(src.pauseLabel, DEFAULT_OPTIONS.pauseLabel, 40),
+    includeEmptyRooms: strict ? strictBool(src, 'includeEmptyRooms', DEFAULT_OPTIONS.includeEmptyRooms) : bool(src.includeEmptyRooms, DEFAULT_OPTIONS.includeEmptyRooms),
     cellTemplate,
-    subjectMode: oneOf(src.subjectMode, ['full', 'code', 'both'] as const, DEFAULT_OPTIONS.subjectMode),
-    subjectMaxLength: intInRange(src.subjectMaxLength, DEFAULT_OPTIONS.subjectMaxLength, 0, 200),
-    groupSeparator: cleanString(src.groupSeparator, DEFAULT_OPTIONS.groupSeparator, 10) || DEFAULT_OPTIONS.groupSeparator,
-    cellFontSize: intInRange(src.cellFontSize, DEFAULT_OPTIONS.cellFontSize, 7, 12),
-    detailItalic: bool(src.detailItalic, DEFAULT_OPTIONS.detailItalic),
-    detailSmaller: bool(src.detailSmaller, DEFAULT_OPTIONS.detailSmaller),
-    orientation: oneOf(src.orientation, ['portrait', 'landscape'] as const, DEFAULT_OPTIONS.orientation),
-    repeatDayHeader: bool(src.repeatDayHeader, DEFAULT_OPTIONS.repeatDayHeader),
-    showPageTitle: bool(src.showPageTitle, DEFAULT_OPTIONS.showPageTitle),
+    subjectMode: strict ? strictOneOf(src, 'subjectMode', ['full', 'code', 'both'] as const, DEFAULT_OPTIONS.subjectMode) : oneOf(src.subjectMode, ['full', 'code', 'both'] as const, DEFAULT_OPTIONS.subjectMode),
+    subjectMaxLength: strict ? strictInt(src, 'subjectMaxLength', DEFAULT_OPTIONS.subjectMaxLength, 0, 200) : intInRange(src.subjectMaxLength, DEFAULT_OPTIONS.subjectMaxLength, 0, 200),
+    groupSeparator: strict ? strictString(src, 'groupSeparator', DEFAULT_OPTIONS.groupSeparator, 10) || DEFAULT_OPTIONS.groupSeparator : cleanString(src.groupSeparator, DEFAULT_OPTIONS.groupSeparator, 10) || DEFAULT_OPTIONS.groupSeparator,
+    cellFontSize: strict ? strictInt(src, 'cellFontSize', DEFAULT_OPTIONS.cellFontSize, 7, 12) : intInRange(src.cellFontSize, DEFAULT_OPTIONS.cellFontSize, 7, 12),
+    detailItalic: strict ? strictBool(src, 'detailItalic', DEFAULT_OPTIONS.detailItalic) : bool(src.detailItalic, DEFAULT_OPTIONS.detailItalic),
+    detailSmaller: strict ? strictBool(src, 'detailSmaller', DEFAULT_OPTIONS.detailSmaller) : bool(src.detailSmaller, DEFAULT_OPTIONS.detailSmaller),
+    orientation: strict ? strictOneOf(src, 'orientation', ['portrait', 'landscape'] as const, DEFAULT_OPTIONS.orientation) : oneOf(src.orientation, ['portrait', 'landscape'] as const, DEFAULT_OPTIONS.orientation),
+    repeatDayHeader: strict ? strictBool(src, 'repeatDayHeader', DEFAULT_OPTIONS.repeatDayHeader) : bool(src.repeatDayHeader, DEFAULT_OPTIONS.repeatDayHeader),
+    showPageTitle: strict ? strictBool(src, 'showPageTitle', DEFAULT_OPTIONS.showPageTitle) : bool(src.showPageTitle, DEFAULT_OPTIONS.showPageTitle),
   };
 }
 

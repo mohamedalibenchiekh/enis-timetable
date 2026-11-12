@@ -15,14 +15,14 @@ export interface CellFields {
 // Punctuation separators that may dangle around an empty token. Whitespace is
 // handled separately so a single meaningful separator (e.g. "—") survives.
 const SEP_PUNCT = '\\-–—·•/,;:|';
-// Two or more punctuation separators (with optional spaces between) collapse to one.
-const SEP_RUN = new RegExp(`([${SEP_PUNCT}])(\\s*[${SEP_PUNCT}])+`, 'g');
-const LEADING_SEP = new RegExp(`^[${SEP_PUNCT}]+\\s*`);
-const TRAILING_SEP = new RegExp(`\\s*[${SEP_PUNCT}]+$`);
+const SEP_CLASS = `[${SEP_PUNCT}]`;
 
 const SENTINEL_OPEN = '\u0001';
 const SENTINEL_CLOSE = '\u0002';
 const SENTINEL_RE = /\u0001(\d+)\u0002/g;
+
+// Marks the position of an empty token so separator cleanup stays scoped to it.
+const EMPTY_MARK = String.fromCharCode(3);
 
 interface Part {
   text?: string;
@@ -57,15 +57,26 @@ function renderLine(line: string, fields: CellFields): string {
       if (value) {
         values.push(value);
         out += `${SENTINEL_OPEN}${values.length - 1}${SENTINEL_CLOSE}`;
+      } else {
+        out += EMPTY_MARK;
       }
-      // Empty tokens contribute nothing; surrounding separators are cleaned below.
     }
   }
-  // Collapse whitespace, merge runs of separators, strip dangling separators.
-  out = out.replace(/\s+/g, ' ').trim();
-  out = out.replace(SEP_RUN, '$1');
-  out = out.replace(LEADING_SEP, '').replace(TRAILING_SEP, '');
+  // Collapse whitespace, then merge marks of consecutive empty tokens (joined by
+  // spaces and/or separators only) into a single hole.
+  out = out.replace(/\s+/g, ' ');
+  out = out.replace(new RegExp(`${EMPTY_MARK}(?:\\s*${SEP_CLASS}*\\s*${EMPTY_MARK})+`, 'g'), EMPTY_MARK);
   out = out.trim();
+  // Separator cleanup is scoped to empty-token marks: literal punctuation that is
+  // not adjacent to a mark is preserved. A mark between two separators keeps one
+  // of them; at a line edge the dangling separator is removed with the mark.
+  out = out.replace(new RegExp(`(${SEP_CLASS}+)\\s*${EMPTY_MARK}\\s*(${SEP_CLASS}+)`, 'g'), '$1');
+  out = out.replace(new RegExp(`^${EMPTY_MARK}+\\s*${SEP_CLASS}+\\s*`), '');
+  out = out.replace(new RegExp(`${SEP_CLASS}+\\s*${EMPTY_MARK}+$`), '');
+  out = out.replace(new RegExp(`^${EMPTY_MARK}+\\s*`), '');
+  out = out.replace(new RegExp(`\\s*${EMPTY_MARK}+$`), '');
+  out = out.replace(new RegExp(`${EMPTY_MARK}+`, 'g'), '');
+  out = out.replace(/\s+/g, ' ').trim();
   // Restore sentinel-protected values.
   out = out.replace(SENTINEL_RE, (_m, i) => values[Number(i)] ?? '');
   return out.trim();
@@ -82,11 +93,19 @@ export function renderTemplate(template: string, fields: CellFields): string[] {
     .filter((line) => line.length > 0);
 }
 
-/** Truncates a course name to `max` chars with an ellipsis (0 = unlimited). */
+const graphemeSegmenter = typeof Intl.Segmenter === 'function'
+  ? new Intl.Segmenter('fr', { granularity: 'grapheme' })
+  : null;
+
+/** Truncates a course name to `max` graphemes with an ellipsis (0 = unlimited). */
 export function truncateSubject(subject: string, max: number): string {
-  if (!subject || max <= 0 || subject.length <= max) return subject;
+  if (!subject || max <= 0) return subject;
+  const chars = graphemeSegmenter
+    ? Array.from(graphemeSegmenter.segment(subject), (s) => s.segment)
+    : Array.from(subject);
+  if (chars.length <= max) return subject;
   if (max <= 1) return '…';
-  return `${subject.slice(0, max - 1).trimEnd()}…`;
+  return `${chars.slice(0, max - 1).join('').trimEnd()}…`;
 }
 
 /** Builds the {subject} token value according to subjectMode and subjectMaxLength. */

@@ -1,13 +1,14 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { api, CellSession, DayGrid, normalizeName, SourceKind } from '@/lib/api';
+import { api, CellSession, DayGrid, ExportOptions, normalizeName, SourceKind } from '@/lib/api';
 
-export function DayPreview({ id, day, refreshKey, highlightCells, showHighlight, source, profile }: {
+export function DayPreview({ id, day, refreshKey, highlightCells, showHighlight, source, profile, options }: {
   id: string; day: number; refreshKey: number;
   highlightCells?: Set<string> | null;
   showHighlight?: boolean;
   source?: SourceKind | null;
   profile?: string | null;
+  options?: ExportOptions | null;
 }) {
   const [grid, setGrid] = useState<DayGrid | null>(null);
   const [error, setError] = useState('');
@@ -29,24 +30,31 @@ export function DayPreview({ id, day, refreshKey, highlightCells, showHighlight,
   const pageGroups: { page: number; blocs: typeof grid.blocs }[] = grid.pages && grid.pages.length > 1
     ? grid.pages.map((pg) => ({ page: pg.page, blocs: pg.blocs.map((i) => grid.blocs[i]).filter(Boolean) }))
     : [{ page: 1, blocs: grid.blocs }];
+  // Mirror the DOCX layout options: header only on the first page group unless
+  // repeatDayHeader is set, and an optional bold page title per group.
+  const showHeader = (pgIndex: number) => pgIndex === 0 || options?.repeatDayHeader !== false;
+  const showTitle = options?.showPageTitle === true;
 
   return (
     <div className="gridwrap">
       {pageGroups.map((pg, pgIndex) => (
         <div key={pg.page}>
           {pgIndex > 0 && <div className="pagebreak" aria-hidden="true"><span>— saut de page —</span></div>}
+          {showTitle && pg.blocs.length > 0 && <div className="page-title">{pg.blocs.map((b) => b.title).join(' · ')}</div>}
           <table className="grid">
-            <thead>
-              <tr>
-                <th className="dayhead">{grid.dayName}</th>
-                {grid.headers.map((h, i) => (
-                  <th key={i} className="slothead">{h.map((l, j) => <div key={j}>{l}</div>)}</th>
-                ))}
-              </tr>
-            </thead>
+            {showHeader(pgIndex) && (
+              <thead>
+                <tr>
+                  <th className="dayhead">{grid.dayName}</th>
+                  {grid.headers.map((h, i) => (
+                    <th key={i} className="slothead">{h.map((l, j) => <div key={j}>{l}</div>)}</th>
+                  ))}
+                </tr>
+              </thead>
+            )}
             <tbody>
               {pg.blocs.map((b) => (
-                <FragmentRows key={b.title} title={b.title} span={span} rows={b.rows} headers={grid.headers} day={day} highlightCells={hl} />
+                <FragmentRows key={b.title} title={b.title} span={span} rows={b.rows} headers={grid.headers} day={day} highlightCells={hl} options={options} />
               ))}
             </tbody>
           </table>
@@ -57,12 +65,13 @@ export function DayPreview({ id, day, refreshKey, highlightCells, showHighlight,
   );
 }
 
-function FragmentRows({ title, span, rows, headers, day, highlightCells }: {
+function FragmentRows({ title, span, rows, headers, day, highlightCells, options }: {
   title: string; span: number;
   rows: DayGrid['blocs'][number]['rows'];
   headers: string[][];
   day: number;
   highlightCells?: Set<string>;
+  options?: ExportOptions | null;
 }) {
   return (
     <>
@@ -76,7 +85,7 @@ function FragmentRows({ title, span, rows, headers, day, highlightCells }: {
             const details = r.details?.[i];
             return (
               <td key={i} className={isHl ? 'hl' : undefined}>
-                {details ? <RichCell entries={details} /> : c}
+                {details ? <RichCell entries={details} options={options} /> : c}
               </td>
             );
           })}
@@ -86,13 +95,18 @@ function FragmentRows({ title, span, rows, headers, day, highlightCells }: {
   );
 }
 
-function RichCell({ entries }: { entries: CellSession[] }) {
+function RichCell({ entries, options }: { entries: CellSession[]; options?: ExportOptions | null }) {
+  const detailClass = [
+    'cell-detail',
+    options?.detailItalic ? 'di' : '',
+    options?.detailSmaller ? 'ds' : '',
+  ].filter(Boolean).join(' ');
   return (
     <>
       {entries.map((entry, ei) => (
         <div key={ei} className={ei > 0 ? 'cell-session' : undefined}>
           {entry.lines.map((line, li) => (
-            <div key={li} className={li > 0 ? 'cell-detail' : undefined}>{line}</div>
+            <div key={li} className={li > 0 ? detailClass : undefined}>{line}</div>
           ))}
         </div>
       ))}

@@ -923,13 +923,13 @@ table.grid {
   gap: 6px;
   margin: 4px 0 8px;
 }
-.chip {
+.presets .chip {
   cursor: pointer;
   border: 1px solid var(--line);
   background: var(--panel);
   color: var(--ink);
 }
-.chip.on {
+.presets .chip.on {
   background: var(--accent);
   color: var(--accent-ink);
   border-color: var(--accent);
@@ -999,7 +999,14 @@ table.grid {
   margin-top: 3px;
   padding-top: 3px;
 }
-.cell-detail {
+.cell-detail.di {
   font-style: italic;
+}
+.cell-detail.ds {
   font-size: 0.85em;
+}
+.page-title {
+  text-align: center;
+  font-weight: 700;
+  margin: 0 0 8px;
 }

@@ -50,7 +50,12 @@ export function OptionsPanel({ profiles, activeProfileId, onProfilesChange, onAc
 
   const save = async () => {
     const state = await run(() => api.updateProfile(profile.id, { options: o }), 'Options enregistrées');
-    if (state) onSaved();
+    if (state) {
+      // Resync the editor with the normalized options returned by the server.
+      const updated = state.profiles.find((p) => p.id === profile.id);
+      if (updated) setO(structuredClone(updated.options));
+      onSaved();
+    }
   };
   const createProfile = async () => {
     const name = newName.trim();
@@ -76,6 +81,9 @@ export function OptionsPanel({ profiles, activeProfileId, onProfilesChange, onAc
   };
 
   const maxPage = Math.max(1, ...o.blocs.map((b) => b.page ?? 1));
+  // Always offer one page beyond the current maximum (capped at 50) so a bloc
+  // can be moved onto a new page.
+  const pageLimit = Math.min(50, maxPage + 1);
 
   return (
     <div className="options">
@@ -153,7 +161,7 @@ export function OptionsPanel({ profiles, activeProfileId, onProfilesChange, onAc
               <td><input className="text" value={b.patterns.join(', ')} onChange={(e) => setBloc(i, { patterns: e.target.value.split(',').map((s) => s.trim()).filter(Boolean) })} /></td>
               <td>
                 <select value={b.page ?? 1} onChange={(e) => setBloc(i, { page: Number(e.target.value) })}>
-                  {Array.from({ length: maxPage }, (_, n) => n + 1).map((p) => <option key={p} value={p}>{p}</option>)}
+                  {Array.from({ length: pageLimit }, (_, n) => n + 1).map((p) => <option key={p} value={p}>{p}</option>)}
                 </select>
               </td>
               <td><button className="link danger" onClick={() => set('blocs', o.blocs.filter((_, j) => j !== i))}>supprimer</button></td>

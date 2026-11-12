@@ -152,7 +152,7 @@ Notes
 ## REST API (used by the UI)
 
 `POST /api/timetables` (multipart `files`) · `GET /api/timetables` · `GET /api/timetables/:id/days/:day/preview` · `GET …/days/:day/docx` ·
-`GET …/export.zip` · `POST …/export-to-folder {dir}` · `GET|PUT /api/settings/export` ·
+`GET …/export.zip` · `POST …/export-to-folder {dir, profile?}` · `GET|PUT /api/settings/export` ·
 `GET /api/names/teachers|rooms?timetableId=…` · `PUT /api/names/teachers|rooms` ·
 `DELETE /api/names/teachers|rooms/:key` · `GET /api/names/export` · `POST /api/names/import`.
 The server only listens on `127.0.0.1`.

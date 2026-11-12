@@ -35,6 +35,20 @@ describe('template engine', () => {
     expect(renderTemplate('{group} / {subjectCode}', { ...fields, group: '' })).toEqual(['ALG']);
   });
 
+  it('keeps one separator when an empty token sits between two separators', () => {
+    expect(renderTemplate('{teacher} — {group} — {subject}', { ...fields, group: '' })).toEqual(['Prof Dupont — Algorithmique']);
+    expect(renderTemplate('{teacher} - {group} - {subject}', { ...fields, group: '' })).toEqual(['Prof Dupont - Algorithmique']);
+  });
+
+  it('preserves literal punctuation that is not adjacent to an empty token', () => {
+    // No empty token: leading/trailing separators in the template are literal.
+    expect(renderTemplate('- {teacher} -', fields)).toEqual(['- Prof Dupont -']);
+    expect(renderTemplate('{teacher} / {group}', fields)).toEqual(['Prof Dupont / G1']);
+    // Empty token at the edge still strips the dangling separator.
+    expect(renderTemplate('{subject} — {teacher}', { ...fields, subject: '' })).toEqual(['Prof Dupont']);
+    expect(renderTemplate('{teacher} — {subject}', { ...fields, subject: '' })).toEqual(['Prof Dupont']);
+  });
+
   it('protects token values from separator cleanup', () => {
     expect(renderTemplate('{subject} — {teacher}', { ...fields, subject: 'Maths (avancée)' })).toEqual(['Maths (avancée) — Prof Dupont']);
   });
@@ -64,6 +78,14 @@ describe('template engine', () => {
     expect(truncateSubject('abc', 3)).toBe('abc');
     expect(truncateSubject('abc', 2)).toBe('a…');
     expect(truncateSubject('abc', 1)).toBe('…');
+  });
+
+  it('truncateSubject does not split surrogate pairs or grapheme clusters', () => {
+    // "é" as e + combining accent is a single grapheme but two UTF-16 units.
+    expect(truncateSubject('école', 3)).toBe('éc…');
+    // Astral characters (surrogate pairs) count as one grapheme.
+    expect(truncateSubject('𝄞abc', 4)).toBe('𝄞abc');
+    expect(truncateSubject('𝄞abc', 3)).toBe('𝄞a…');
   });
 
   it('joinGroups uses the configured separator', () => {
@@ -110,6 +132,42 @@ describe('options validation and migration', () => {
     expect(() => normalizeOptions({ cellTemplate: '{bogus}' }, true)).toThrow(/Jeton inconnu/);
     expect(() => normalizeOptions({ blocs: [] }, true)).toThrow(/Au moins un bloc/);
     expect(() => normalizeOptions({ blocs: [{ title: 'X', patterns: ['['] }] }, true)).toThrow(/invalide/);
+  });
+
+  it('normalizeOptions validates scalar fields in strict mode', () => {
+    expect(() => normalizeOptions({ subjectMode: 'weird' }, true)).toThrow(/subjectMode/);
+    expect(() => normalizeOptions({ orientation: 'sideways' }, true)).toThrow(/orientation/);
+    expect(() => normalizeOptions({ cellFontSize: 99 }, true)).toThrow(/cellFontSize/);
+    expect(() => normalizeOptions({ cellFontSize: 'big' }, true)).toThrow(/cellFontSize/);
+    expect(() => normalizeOptions({ subjectMaxLength: -1 }, true)).toThrow(/subjectMaxLength/);
+    expect(() => normalizeOptions({ detailItalic: 'yes' }, true)).toThrow(/detailItalic/);
+    expect(() => normalizeOptions({ pauseLabel: 42 }, true)).toThrow(/pauseLabel/);
+    // Valid scalars pass through unchanged.
+    const o = normalizeOptions({ subjectMode: 'code', orientation: 'landscape', cellFontSize: 11, detailItalic: true }, true);
+    expect(o.subjectMode).toBe('code');
+    expect(o.orientation).toBe('landscape');
+    expect(o.cellFontSize).toBe(11);
+    expect(o.detailItalic).toBe(true);
+  });
+
+  it('normalizeOptions restores default bloc patterns when non-strict sanitization empties them', () => {
+    const o = normalizeOptions({
+      blocs: [
+        { id: 'bloc-a', title: 'Amphi', patterns: ['['] },
+        { id: 'custom', title: 'Custom', patterns: [123, ''] },
+      ],
+    });
+    // bloc-a matches the default 'bloc-a' id → Amphi patterns restored.
+    expect(o.blocs[0].patterns).toEqual(['^A\\d\\d']);
+    // custom has no default match at index 1 → falls back to the positional default.
+    expect(o.blocs[1].patterns.length).toBeGreaterThan(0);
+  });
+
+  it('normalizeOptions restores positional default patterns for unmatched blocs', () => {
+    const o = normalizeOptions({ blocs: [{ title: 'X', patterns: ['['] }] });
+    // Single custom bloc at index 0 restores positional default patterns, so it survives.
+    expect(o.blocs.length).toBeGreaterThan(0);
+    expect(o.blocs[0].patterns.length).toBeGreaterThan(0);
   });
 
   it('mergeOptions keeps legacy shallow-merge semantics', () => {
@@ -255,9 +313,73 @@ describe('buildDayDocx layout', () => {
     const options = { ...DEFAULT_OPTIONS, showPageTitle: true };
     const grid = buildDayGrid(parsed.sessions, pmeta, 0, options);
     const xml = await documentXml(grid, options);
-    expect(xml).toContain('BLOC « A »');
-    // Title text is present as a standalone bold paragraph before the table.
-    expect(tagged(xml, 'w:p').length).toBeGreaterThan(0);
+    // The page title joins the bloc titles with ' · ' as a standalone paragraph.
+    const expected = grid.blocs.map((b) => b.title).join(' · ');
+    expect(expected.length).toBeGreaterThan(0);
+    expect(xml).toContain(expected);
+    // It is a bold paragraph placed before the first table.
+    const titleIdx = xml.indexOf(expected);
+    const tableIdx = xml.indexOf('<w:tbl>');
+    expect(titleIdx).toBeGreaterThanOrEqual(0);
+    expect(tableIdx).toBeGreaterThan(titleIdx);
+    expect(xml.slice(Math.max(0, titleIdx - 400), titleIdx)).toContain('<w:b/>');
+  });
+
+  it('does not repeat the day header on later page groups when repeatDayHeader is false', async () => {
+    const options = {
+      ...DEFAULT_OPTIONS,
+      repeatDayHeader: false,
+      blocs: [
+        { id: 'a', page: 1, title: 'BLOC « A »', patterns: ['^A\\d'] },
+        { id: 'b', page: 2, title: 'BLOC « Amphi »', patterns: ['^Amphi'] },
+      ],
+    };
+    const grid = buildDayGrid(parsed.sessions, pmeta, 0, options);
+    expect(grid.pages?.length).toBe(2);
+    const xml = await documentXml(grid, options);
+    // Two sections → two tables, but the day name header appears only once.
+    expect(tagged(xml, 'w:tbl').length).toBe(2);
+    const occurrences = xml.split(grid.dayName).length - 1;
+    expect(occurrences).toBe(1);
+    // The header row must not be marked as a repeating table header.
+    expect(xml).not.toContain('w:tblHeader');
+  });
+
+  it('marks the header row as repeating when repeatDayHeader is true', async () => {
+    const options = {
+      ...DEFAULT_OPTIONS,
+      repeatDayHeader: true,
+      blocs: [
+        { id: 'a', page: 1, title: 'BLOC « A »', patterns: ['^A\\d'] },
+        { id: 'b', page: 2, title: 'BLOC « Amphi »', patterns: ['^Amphi'] },
+      ],
+    };
+    const grid = buildDayGrid(parsed.sessions, pmeta, 0, options);
+    const xml = await documentXml(grid, options);
+    expect(xml).toContain('w:tblHeader');
+  });
+
+  it('honours cellFontSize in the legacy plain-cell layout', async () => {
+    const options = { ...DEFAULT_OPTIONS, cellFontSize: 9 };
+    const grid = buildDayGrid(parsed.sessions, pmeta, 0, options);
+    const xml = await documentXml(grid, options);
+    // 9pt → 18 half-points on session cells.
+    expect(xml).toContain('w:sz w:val="18"');
+  });
+
+  it('preserves non-contiguous page numbers in section properties', async () => {
+    const options = {
+      ...DEFAULT_OPTIONS,
+      blocs: [
+        { id: 'a', page: 1, title: 'BLOC « A »', patterns: ['^A\\d'] },
+        { id: 'b', page: 3, title: 'BLOC « Amphi »', patterns: ['^Amphi'] },
+      ],
+    };
+    const grid = buildDayGrid(parsed.sessions, pmeta, 0, options);
+    expect(grid.pages).toEqual([{ page: 1, blocs: [0] }, { page: 3, blocs: [1] }]);
+    const xml = await documentXml(grid, options);
+    // The second section restarts numbering at the configured page (3).
+    expect(xml).toContain('w:start="3"');
   });
 
   it('renders rich multi-line cells with the configured font size', async () => {

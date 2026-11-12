@@ -191,7 +191,7 @@ export default function Home() {
                     Surligner les changements
                   </label>
                 )}
-                <DayPreview id={sel.id} day={day} refreshKey={refreshKey} highlightCells={highlightCells} showHighlight={showHighlight} source={highlightSource} profile={activeProfileId} />
+                <DayPreview id={sel.id} day={day} refreshKey={refreshKey} highlightCells={highlightCells} showHighlight={showHighlight} source={highlightSource} profile={activeProfileId} options={profiles?.profiles.find((p) => p.id === activeProfileId)?.options ?? null} />
 
                 <div className="foot">
                   <button className="link" onClick={() => setShowOptions(!showOptions)}>{showOptions ? '▾' : '▸'} Options du document Word</button>

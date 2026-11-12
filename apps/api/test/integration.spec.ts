@@ -226,7 +226,27 @@ describe('API integration (PostgreSQL)', () => {
       })
       .expect(200);
     const zip = await JSZip.loadAsync(docx.body);
-    expect(await zip.file('word/document.xml')?.async('string')).toBeTruthy();
+    const docXml = await zip.file('word/document.xml')?.async('string');
+    expect(docXml).toBeTruthy();
+    // compact is the default profile → plain day name, no suffix.
+    expect(docx.headers['content-disposition']).toContain('Lundi.docx');
+
+    // A non-default profile suffixes the file name with the sanitized profile name.
+    const docxStandard = await request(app!.getHttpServer())
+      .get(`/api/timetables/${timetable.id}/days/0/docx?profile=${defaultId}`)
+      .buffer(true)
+      .parse((response, callback) => {
+        const chunks: Buffer[] = [];
+        response.on('data', (chunk: Buffer) => chunks.push(chunk));
+        response.on('end', () => callback(null, Buffer.concat(chunks)));
+      })
+      .expect(200);
+    expect(docxStandard.headers['content-disposition']).toContain('Lundi%20-%20Standard.docx');
+
+    // The compact profile's custom template renders group + subject lines.
+    const compactZip = await JSZip.loadAsync(docx.body);
+    const compactXml = await compactZip.file('word/document.xml')?.async('string');
+    expect(compactXml).toContain('Grp-');
 
     // Cannot delete the last remaining profile; can delete the non-default one.
     await request(app!.getHttpServer()).delete(`/api/settings/export-profiles/${defaultId}`).expect(200);
