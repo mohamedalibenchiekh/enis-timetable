@@ -190,8 +190,8 @@ export default function SauvegardesPage() {
     }
   };
 
-  const newestAuto = data?.autoBackups[0];
-  const isStale = !newestAuto || (Date.now() - new Date(newestAuto.createdAt).getTime() > 30 * 24 * 3600 * 1000);
+  const newestAuto = data?.autoBackups.find((b) => !b.isPreRestore);
+  const isStale = !newestAuto || (Date.now() - new Date(newestAuto.createdAt).getTime() > 24 * 3600 * 1000);
 
   return (
     <div style={{ maxWidth: 960, margin: '0 auto', padding: '24px 20px 80px' }}>
@@ -210,7 +210,7 @@ export default function SauvegardesPage() {
             <div className={isStale ? 'warning' : 'card'} style={{ padding: '12px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div>
                 <strong>Dernière sauvegarde automatique :</strong> {formatDate(newestAuto.createdAt)} ({timeAgo(newestAuto.createdAt)})
-                {isStale && <div className="small" style={{ marginTop: 4 }}>Attention : votre dernière sauvegarde date de plus de 30 jours.</div>}
+                {isStale && <div className="small" style={{ marginTop: 4 }}>Attention : votre dernière sauvegarde automatique date de plus de 24 heures.</div>}
               </div>
               <span className="small muted">{formatBytes(newestAuto.sizeBytes)}</span>
             </div>

@@ -8,6 +8,7 @@ import {
   BACKUP_SCHEMA_VERSION,
   BACKUP_TABLES,
   BackupTableName,
+  SENSITIVE_KEY_REGEX,
 } from './backup-schema.js';
 import { BackupCounts, BackupManifest } from './backup-types.js';
 
@@ -24,10 +25,11 @@ export class BackupCreator {
    */
   async createArchive(options: CreateArchiveOptions): Promise<{ buffer: Buffer; manifest: BackupManifest }> {
     const queryRunner = this.dataSource.createQueryRunner();
-    await queryRunner.connect();
-    await queryRunner.startTransaction('REPEATABLE READ');
 
     try {
+      await queryRunner.connect();
+      await queryRunner.startTransaction('REPEATABLE READ');
+
       const em = queryRunner.manager;
       const counts: BackupCounts = {
         timetables: 0,
@@ -77,10 +79,12 @@ export class BackupCreator {
 
       return { buffer: archiveBuffer, manifest };
     } catch (error) {
-      await queryRunner.rollbackTransaction().catch(() => {});
+      if (queryRunner.isTransactionActive) {
+        await queryRunner.rollbackTransaction().catch(() => {});
+      }
       throw error;
     } finally {
-      await queryRunner.release();
+      await queryRunner.release().catch(() => {});
     }
   }
 
@@ -97,15 +101,16 @@ export class BackupCreator {
         return em.query('SELECT * FROM sessions ORDER BY id ASC');
       }
       case 'settings': {
-        // Exclude sensitive keys (passwords, database URLs, auth secrets)
+        // Exclude sensitive keys (passwords, database URLs, auth tokens/secrets)
         const rows = await em.query(
           `SELECT * FROM settings 
            WHERE key NOT ILIKE '%password%' 
              AND key NOT ILIKE '%secret%' 
              AND key NOT ILIKE '%database%url%'
+             AND key NOT ILIKE '%token%'
            ORDER BY key ASC`,
         );
-        return rows;
+        return rows.filter((r: any) => !SENSITIVE_KEY_REGEX.test(r.key));
       }
       case 'teacher_names': {
         const rows = await em.query('SELECT * FROM teacher_names ORDER BY id ASC');

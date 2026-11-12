@@ -16,7 +16,7 @@ export const BACKUP_TABLES = [
 export type BackupTableName = (typeof BACKUP_TABLES)[number];
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const SENSITIVE_KEY_REGEX = /(?:password|secret|database.*url|auth.*token)/i;
+export const SENSITIVE_KEY_REGEX = /(?:password|secret|database.*url|auth.*token)/i;
 
 export interface BackupData {
   timetables: any[];
@@ -35,6 +35,9 @@ export const SCHEMA_UPGRADERS: Record<number, SchemaUpgrader> = {
 };
 
 export function upgradeBackupData(data: BackupData, fromVersion: number, targetVersion = BACKUP_SCHEMA_VERSION): BackupData {
+  if (!Number.isInteger(fromVersion) || fromVersion < 1) {
+    throw new ValidationError(`Version de schéma de sauvegarde non valide (${fromVersion}).`);
+  }
   let current = data;
   let v = fromVersion;
   while (v < targetVersion) {
@@ -74,9 +77,15 @@ export function validateRow(table: BackupTableName, row: unknown, index: number)
       if (typeof r.generatedAt !== 'string') r.generatedAt = '';
       if (!Array.isArray(r.days)) throw new ValidationError(`Ligne ${index + 1} de « timetables » : liste des jours invalide.`);
       if (!Array.isArray(r.slots)) throw new ValidationError(`Ligne ${index + 1} de « timetables » : liste des créneaux invalide.`);
+      for (let sIdx = 0; sIdx < r.slots.length; sIdx++) {
+        const slot = r.slots[sIdx];
+        if (!slot || typeof slot !== 'object' || typeof slot.raw !== 'string' || typeof slot.base !== 'string') {
+          throw new ValidationError(`Ligne ${index + 1} de « timetables » : format du créneau ${sIdx + 1} invalide.`);
+        }
+      }
       if (!Array.isArray(r.rooms)) r.rooms = [];
       if (!Array.isArray(r.files)) r.files = [];
-      if (r.createdAt && isNaN(Date.parse(r.createdAt))) {
+      if (r.createdAt && (typeof r.createdAt !== 'string' || isNaN(Date.parse(r.createdAt)))) {
         throw new ValidationError(`Ligne ${index + 1} de « timetables » : date de création invalide.`);
       }
       return {
@@ -158,6 +167,12 @@ export function validateRow(table: BackupTableName, row: unknown, index: number)
       if (typeof r.displayName !== 'string' || !r.displayName.trim() || r.displayName.length > 60) {
         throw new ValidationError(`Ligne ${index + 1} de « ${table} » : displayName invalide.`);
       }
+      if (r.createdAt && (typeof r.createdAt !== 'string' || isNaN(Date.parse(r.createdAt)))) {
+        throw new ValidationError(`Ligne ${index + 1} de « ${table} » : date de création invalide.`);
+      }
+      if (r.updatedAt && (typeof r.updatedAt !== 'string' || isNaN(Date.parse(r.updatedAt)))) {
+        throw new ValidationError(`Ligne ${index + 1} de « ${table} » : date de modification invalide.`);
+      }
       return {
         id: r.id,
         key: r.key.trim(),
@@ -187,9 +202,16 @@ export function computeSchemaFingerprint(): string {
     .filter((t) => typeof t.name === 'string' && BACKUP_TABLES.includes(t.name as BackupTableName))
     .map((t) => {
       const tableName = t.name as string;
-      const target = typeof t.target === 'function' ? t.target.name : String(t.target);
+      const targetFunc = typeof t.target === 'function' ? t.target : null;
+      const target = targetFunc ? targetFunc.name : String(t.target);
       const cols = storage.columns
-        .filter((c) => (typeof c.target === 'function' ? c.target.name : String(c.target)) === target)
+        .filter((c) => {
+          if (c.target === t.target) return true;
+          if (targetFunc && typeof c.target === 'function') {
+            return targetFunc.prototype instanceof c.target;
+          }
+          return false;
+        })
         .map((c) => ({
           propertyName: c.propertyName,
           mode: c.mode,

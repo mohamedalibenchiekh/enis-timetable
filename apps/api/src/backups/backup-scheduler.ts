@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { DataSource } from 'typeorm';
@@ -101,8 +102,18 @@ export class BackupSchedulerService {
 
       const now = this.clock.now();
       const ts = now.toISOString().replace(/[-:]/g, '').replace('T', '-').slice(0, 15);
-      const fileName = `auto-${ts}.enisbackup`;
-      const targetPath = path.join(autoDir, fileName);
+      const ms = String(now.getMilliseconds()).padStart(3, '0');
+      let fileName = `auto-${ts}.enisbackup`;
+      let targetPath = path.join(autoDir, fileName);
+      if (fs.existsSync(targetPath)) {
+        fileName = `auto-${ts}-${ms}.enisbackup`;
+        targetPath = path.join(autoDir, fileName);
+        if (fs.existsSync(targetPath)) {
+          const suffix = randomBytes(2).toString('hex');
+          fileName = `auto-${ts}-${ms}-${suffix}.enisbackup`;
+          targetPath = path.join(autoDir, fileName);
+        }
+      }
 
       const creator = new BackupCreator(this.dataSource);
       const { buffer } = await creator.createArchive({ appVersion: this.appVersion });
@@ -158,6 +169,10 @@ export class BackupSchedulerService {
       this.clock.clearTimeout(this.debounceTimer);
       this.debounceTimer = null;
     }
+  }
+
+  cancelTimer(): void {
+    this.cancelPending();
   }
 }
 

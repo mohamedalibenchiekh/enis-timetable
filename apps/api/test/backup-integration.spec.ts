@@ -43,6 +43,8 @@ describe('Backup and Restore Integration (PostgreSQL Round-Trip & Safety)', () =
   let embeddedDb: any = null;
   let tmpBaseDir: string;
   let backupsDir: string;
+  let testSchema: string;
+  let rawDbUrl: string;
   let dataSource: DataSource;
   let app: NestExpressApplication;
   let backupsService: BackupsService;
@@ -75,7 +77,18 @@ describe('Backup and Restore Integration (PostgreSQL Round-Trip & Safety)', () =
       dbUrl = `postgres://enis:integration-test-password@127.0.0.1:${port}/enis_timetable`;
     }
 
-    process.env.DATABASE_URL = dbUrl;
+    rawDbUrl = dbUrl;
+    testSchema = `enis_backup_integration_${process.pid}_${randomUUID().replace(/-/g, '')}`;
+    const admin = new DataSource({ type: 'postgres', url: dbUrl });
+    await admin.initialize();
+    await admin.query(`CREATE SCHEMA IF NOT EXISTS ${testSchema}`);
+    await admin.destroy();
+
+    const parsedUrl = new URL(dbUrl);
+    parsedUrl.searchParams.set('options', `-csearch_path=${testSchema},public`);
+    const isolatedDbUrl = parsedUrl.toString();
+
+    process.env.DATABASE_URL = isolatedDbUrl;
     process.env.BACKUPS_DIR = backupsDir;
     process.env.APP_VERSION = '1.0.6';
 
@@ -98,7 +111,18 @@ describe('Backup and Restore Integration (PostgreSQL Round-Trip & Safety)', () =
   }, 60_000);
 
   afterAll(async () => {
+    if (backupsService?.scheduler) {
+      backupsService.scheduler.cancelPending();
+    }
     if (app) await app.close();
+    if (rawDbUrl && testSchema) {
+      try {
+        const admin = new DataSource({ type: 'postgres', url: rawDbUrl });
+        await admin.initialize();
+        await admin.query(`DROP SCHEMA IF EXISTS ${testSchema} CASCADE`);
+        await admin.destroy();
+      } catch { /* ignore */ }
+    }
     if (embeddedDb) await embeddedDb.stop().catch(() => {});
     fs.rmSync(tmpBaseDir, { recursive: true, force: true });
   });

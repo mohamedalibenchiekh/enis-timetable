@@ -272,8 +272,12 @@ app.whenReady().then(async () => {
   Menu.setApplicationMenu(Menu.buildFromTemplate(buildApplicationMenu({
     openGuide: () => {
       if (!win || win.isDestroyed()) return;
-      const origin = new URL(win.webContents.getURL()).origin;
-      void win.loadURL(`${origin}/aide/`);
+      const currentUrl = win.webContents.getURL();
+      if (!currentUrl || currentUrl.startsWith('about:')) return;
+      try {
+        const origin = new URL(currentUrl).origin;
+        if (origin && origin !== 'null') void win.loadURL(`${origin}/aide/`);
+      } catch { /* ignore if invalid URL */ }
     },
     saveGuidePdf: () => { void saveGuideAsPdf(); },
     showAbout: () => {
@@ -290,8 +294,12 @@ app.whenReady().then(async () => {
     checkForUpdates: () => { void updaterService?.checkForUpdates(true); },
     openBackupsScreen: () => {
       if (!win || win.isDestroyed()) return;
-      const origin = new URL(win.webContents.getURL()).origin;
-      void win.loadURL(`${origin}/sauvegardes/`);
+      const currentUrl = win.webContents.getURL();
+      if (!currentUrl || currentUrl.startsWith('about:')) return;
+      try {
+        const origin = new URL(currentUrl).origin;
+        if (origin && origin !== 'null') void win.loadURL(`${origin}/sauvegardes/`);
+      } catch { /* ignore if invalid URL */ }
     },
     openBackups: () => {
         const directory = path.join(app.getPath('userData'), 'backups');

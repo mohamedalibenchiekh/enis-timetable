@@ -162,7 +162,7 @@ describe('BackupSchedulerService with fake timers', () => {
     expect(remaining).toContain('auto-20261112-100006.enisbackup');
   });
 
-  it('cleans stale temp files at start', () => {
+  it('cleans stale temp files when scheduler starts', async () => {
     const autoDir = path.join(tmpDir, 'auto');
     fs.mkdirSync(autoDir, { recursive: true });
     const stale1 = path.join(autoDir, '.tmp-auto-partial.enisbackup');
@@ -173,7 +173,16 @@ describe('BackupSchedulerService with fake timers', () => {
     fs.writeFileSync(stale2, 'partial');
     fs.writeFileSync(normal, 'good');
 
-    BackupCreator.cleanStaleTempFiles(tmpDir);
+    const scheduler = new BackupSchedulerService(
+      {} as any,
+      tmpDir,
+      '1.0.6',
+      async () => ({ enabled: false, retention: 10 }),
+      fakeClock,
+    );
+
+    // Exercise start() integration point
+    await scheduler.start();
 
     expect(fs.existsSync(stale1)).toBe(false);
     expect(fs.existsSync(stale2)).toBe(false);

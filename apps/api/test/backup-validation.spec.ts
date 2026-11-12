@@ -159,6 +159,60 @@ describe('Hostile archive hardening & validation suite', () => {
     );
   });
 
+  it('rejects archive when a mandatory data file is missing', async () => {
+    const manifest = validManifest({
+      counts: { timetables: 0, sessions: 0, settings: 0, teacher_names: 0, room_labels: 0 },
+      sha256: {},
+    });
+    // Missing data/timetables.ndjson
+    const badZip = await makeArchive({
+      'manifest.json': JSON.stringify(manifest),
+    });
+    await expect(BackupInspector.inspectArchive(badZip)).rejects.toThrow(
+      'Fichier de données obligatoire manquant dans l’archive : data/timetables.ndjson.',
+    );
+  });
+
+  it('rejects archive with orphan sessions referencing non-existent timetables', async () => {
+    const emptyHash = createHash('sha256').update(Buffer.alloc(0)).digest('hex');
+    const orphanSession = JSON.stringify({
+      id: 1,
+      timetableId: randomUUID(), // not in timetables table!
+      source: 'rooms',
+      owner: 'A01',
+      day: 0,
+      slot: 0,
+      groups: 'INFO1',
+      teachers: 'BEN AHMED',
+      room: 'A01',
+    }) + '\n';
+    const sHash = createHash('sha256').update(orphanSession).digest('hex');
+
+    const manifest = validManifest({
+      counts: { timetables: 0, sessions: 1, settings: 0, teacher_names: 0, room_labels: 0 },
+      sha256: {
+        'data/timetables.ndjson': emptyHash,
+        'data/sessions.ndjson': sHash,
+        'data/settings.ndjson': emptyHash,
+        'data/teacher_names.ndjson': emptyHash,
+        'data/room_labels.ndjson': emptyHash,
+      },
+    });
+
+    const zip = await makeArchive({
+      'manifest.json': JSON.stringify(manifest),
+      'data/timetables.ndjson': '',
+      'data/sessions.ndjson': orphanSession,
+      'data/settings.ndjson': '',
+      'data/teacher_names.ndjson': '',
+      'data/room_labels.ndjson': '',
+    });
+
+    await expect(BackupInspector.inspectArchive(zip)).rejects.toThrow(
+      /séance orpheline/,
+    );
+  });
+
   it('successfully inspects a fully valid archive', async () => {
     const tId = randomUUID();
     const timetablesData = JSON.stringify({
@@ -166,7 +220,7 @@ describe('Hostile archive hardening & validation suite', () => {
       name: 'Emploi du temps S1',
       institution: 'ENISo',
       days: ['Lundi', 'Mardi'],
-      slots: [{ start: '08:30', end: '10:00' }],
+      slots: [{ raw: '08:30-10:00', base: '08:30-10:00', overrides: {}, note: '' }],
       rooms: ['A01'],
       files: [],
       createdAt: new Date().toISOString(),
@@ -184,6 +238,7 @@ describe('Hostile archive hardening & validation suite', () => {
       room: 'A01',
     }) + '\n';
 
+    const emptyHash = createHash('sha256').update(Buffer.alloc(0)).digest('hex');
     const tHash = createHash('sha256').update(timetablesData).digest('hex');
     const sHash = createHash('sha256').update(sessionsData).digest('hex');
 
@@ -192,6 +247,9 @@ describe('Hostile archive hardening & validation suite', () => {
       sha256: {
         'data/timetables.ndjson': tHash,
         'data/sessions.ndjson': sHash,
+        'data/settings.ndjson': emptyHash,
+        'data/teacher_names.ndjson': emptyHash,
+        'data/room_labels.ndjson': emptyHash,
       },
     });
 
@@ -199,6 +257,9 @@ describe('Hostile archive hardening & validation suite', () => {
       'manifest.json': JSON.stringify(manifest),
       'data/timetables.ndjson': timetablesData,
       'data/sessions.ndjson': sessionsData,
+      'data/settings.ndjson': '',
+      'data/teacher_names.ndjson': '',
+      'data/room_labels.ndjson': '',
     });
 
     const inspected = await BackupInspector.inspectArchive(zip);

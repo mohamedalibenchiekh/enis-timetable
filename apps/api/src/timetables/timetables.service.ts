@@ -63,7 +63,7 @@ export class TimetablesService {
     const kinds = parsed.map((p) => p.data.kind);
     if (new Set(kinds).size !== kinds.length) throw new BadRequestException('Deux fichiers du même type (teachers/rooms/groups) ont été envoyés');
 
-    return this.ds.transaction(async (em) => {
+    const result = await this.ds.transaction(async (em) => {
       let t: Timetable;
       if (opts.timetableId) {
         t = await em.findOneByOrFail(Timetable, { id: opts.timetableId }).catch(() => {
@@ -92,9 +92,10 @@ export class TimetablesService {
         if (data.kind === 'rooms') t.rooms = data.owners;
       }
       const saved = await em.save(Timetable, t);
-      this.backups?.scheduler?.notifyDataChanged();
       return saved;
     });
+    this.backups?.scheduler?.notifyDataChanged();
+    return result;
   }
 
   /** Which view feeds the room grids: rooms (best) → teachers → groups. */

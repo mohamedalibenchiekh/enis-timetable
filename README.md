@@ -75,7 +75,7 @@ Sous le dossier de données utilisateur (`<userData>/backups/`) :
 ### Modes de restauration
 La restauration valide d'abord le fichier de manière stricte (protection contre les archives hostiles, validation de schéma et des types) :
 1. **Remplacer toutes les données** : vide les tables existantes et restaure l'état exact de la sauvegarde. Une sauvegarde de sécurité (`auto/pre-restore-<timestamp>.enisbackup`) est créée automatiquement avant toute suppression ; en cas d'erreur, une annulation atomique (ROLLBACK) garantit que la base reste intacte.
-2. **Ajouter les emplois du temps de la sauvegarde (fusion)** : importe les emplois du temps et séances avec de nouveaux identifiants (UUID) sans écraser les données existantes. Les corrections de noms/salles sont appliquées uniquement si absentes.
+2. **Ajouter les emplois du temps de la sauvegarde (fusion)** : importe les emplois du temps avec de nouveaux identifiants UUID et réinsère leurs séances avec de nouveaux identifiants entiers séquentiels sans écraser les données existantes. Les corrections de noms/salles sont appliquées uniquement si absentes.
 
 ### Changer d'ordinateur
 1. Sur l'ancien poste, rendez-vous dans **Sauvegardes** et cliquez sur **Créer une sauvegarde maintenant**.

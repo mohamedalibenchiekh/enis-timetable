@@ -1,5 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import { createHash } from 'node:crypto';
+import * as path from 'node:path';
 import JSZip from 'jszip';
 import {
   BACKUP_FORMAT_VERSION,
@@ -52,23 +53,33 @@ export class BackupInspector {
       throw new BadRequestException('L’archive contient un nombre d’entrées anormal.');
     }
 
+    let totalUncompressed = 0;
+
     // 1. Path-traversal and file naming check
-    for (const name of fileNames) {
-      if (name.includes('..') || name.startsWith('/') || name.startsWith('\\') || name.includes(':')) {
+    for (const [key, fileObj] of Object.entries(zip.files)) {
+      const originalName = (fileObj as any).unsafeOriginalName || fileObj.name || key;
+      if (
+        originalName.includes('..') ||
+        originalName.startsWith('/') ||
+        originalName.startsWith('\\') ||
+        originalName.includes(':') ||
+        path.isAbsolute(originalName) ||
+        originalName.split(/[/\\]/).includes('..')
+      ) {
         throw new BadRequestException('L’archive contient des chemins de fichiers interdits (tentative d’évasion).');
       }
-      if (name.endsWith('/')) {
+      if (originalName.endsWith('/')) {
         // Directory entry
-        if (name !== 'data/') {
-          throw new BadRequestException(`Dossier inattendu dans l’archive : « ${name} ».`);
+        if (originalName !== 'data/') {
+          throw new BadRequestException(`Dossier inattendu dans l’archive : « ${originalName} ».`);
         }
         continue;
       }
-      if (name === 'manifest.json') continue;
+      if (originalName === 'manifest.json') continue;
 
-      const match = /^data\/([a-z_]+)\.ndjson$/.exec(name);
+      const match = /^data\/([a-z_]+)\.ndjson$/.exec(originalName);
       if (!match || !BACKUP_TABLES.includes(match[1] as BackupTableName)) {
-        throw new BadRequestException(`L’archive contient un fichier inattendu ou non reconnu : « ${name} ».`);
+        throw new BadRequestException(`L’archive contient un fichier inattendu ou non reconnu : « ${originalName} ».`);
       }
     }
 
@@ -80,13 +91,33 @@ export class BackupInspector {
 
     let manifest: BackupManifest;
     try {
-      const manifestText = await manifestFile.async('text');
-      manifest = JSON.parse(manifestText) as BackupManifest;
-    } catch {
+      const manifestBuffer = await manifestFile.async('nodebuffer');
+      if (manifestBuffer.length > 2 * 1024 * 1024) {
+        throw new BadRequestException('Le fichier manifest.json dépasse la taille maximale autorisée.');
+      }
+      totalUncompressed += manifestBuffer.length;
+      manifest = JSON.parse(manifestBuffer.toString('utf8')) as BackupManifest;
+    } catch (err) {
+      if (err instanceof BadRequestException) throw err;
       throw new BadRequestException('Le fichier manifest.json est corrompu ou n’est pas un JSON valide.');
     }
 
-    if (typeof manifest.formatVersion !== 'number' || typeof manifest.schemaVersion !== 'number' || !manifest.createdAt) {
+    if (
+      !manifest ||
+      typeof manifest !== 'object' ||
+      typeof manifest.formatVersion !== 'number' ||
+      typeof manifest.schemaVersion !== 'number' ||
+      !Number.isInteger(manifest.schemaVersion) ||
+      manifest.schemaVersion < 1 ||
+      typeof manifest.appVersion !== 'string' ||
+      !manifest.appVersion.trim() ||
+      typeof manifest.createdAt !== 'string' ||
+      isNaN(Date.parse(manifest.createdAt)) ||
+      !manifest.counts ||
+      typeof manifest.counts !== 'object' ||
+      !manifest.sha256 ||
+      typeof manifest.sha256 !== 'object'
+    ) {
       throw new BadRequestException('Le fichier manifest.json est incomplet ou malformé.');
     }
 
@@ -100,8 +131,14 @@ export class BackupInspector {
       );
     }
 
+    for (const table of BACKUP_TABLES) {
+      const count = manifest.counts[table];
+      if (typeof count !== 'number' || !Number.isInteger(count) || count < 0) {
+        throw new BadRequestException(`Compte invalide dans le manifeste pour la table « ${table} ».`);
+      }
+    }
+
     // 3. Decompress, check uncompressed size, verify sha256 and parse rows
-    let totalUncompressed = 0;
     const parsedData: BackupData = {
       timetables: [],
       sessions: [],
@@ -115,21 +152,34 @@ export class BackupInspector {
       const zipEntry = zip.file(filePath);
 
       if (!zipEntry) {
-        if (manifest.counts && manifest.counts[table] > 0) {
-          throw new BadRequestException(`Fichier de données manquant dans l’archive : ${filePath}.`);
-        }
-        continue;
+        throw new BadRequestException(`Fichier de données obligatoire manquant dans l’archive : ${filePath}.`);
       }
 
-      const contentBuffer = await zipEntry.async('nodebuffer');
-      totalUncompressed += contentBuffer.length;
+      const contentBuffer = await new Promise<Buffer>((resolve, reject) => {
+        const chunks: Buffer[] = [];
+        let bytesRead = 0;
+        const stream = zipEntry.nodeStream();
 
-      if (totalUncompressed > MAX_UNCOMPRESSED_SIZE) {
-        throw new BadRequestException('Le volume décompressé de l’archive dépasse la limite autorisée.');
-      }
-      if (contentBuffer.length > 10 * 1024 * 1024 && totalUncompressed / buffer.length > MAX_ZIP_RATIO) {
-        throw new BadRequestException('Ratio de compression anormal détecté (protection anti zip-bomb).');
-      }
+        stream.on('data', (chunk: Buffer) => {
+          bytesRead += chunk.length;
+          totalUncompressed += chunk.length;
+
+          if (totalUncompressed > MAX_UNCOMPRESSED_SIZE) {
+            (stream as any).destroy?.();
+            reject(new BadRequestException('Le volume décompressé de l’archive dépasse la limite autorisée.'));
+            return;
+          }
+          if (bytesRead > 10 * 1024 * 1024 && totalUncompressed / buffer.length > MAX_ZIP_RATIO) {
+            (stream as any).destroy?.();
+            reject(new BadRequestException('Ratio de compression anormal détecté (protection anti zip-bomb).'));
+            return;
+          }
+          chunks.push(chunk);
+        });
+
+        stream.on('end', () => resolve(Buffer.concat(chunks)));
+        stream.on('error', (err) => reject(new BadRequestException(`Erreur lors de la lecture de l’archive : ${err.message}`)));
+      });
 
       // SHA-256 check
       const expectedHash = manifest.sha256?.[filePath];
@@ -174,6 +224,17 @@ export class BackupInspector {
     const data = manifest.schemaVersion < BACKUP_SCHEMA_VERSION
       ? upgradeBackupData(parsedData, manifest.schemaVersion, BACKUP_SCHEMA_VERSION)
       : parsedData;
+
+    // Check for orphan sessions (P1)
+    const timetableIds = new Set(data.timetables.map((t: any) => t.id));
+    for (let i = 0; i < data.sessions.length; i++) {
+      const session = data.sessions[i];
+      if (!timetableIds.has(session.timetableId)) {
+        throw new BadRequestException(
+          `L’archive contient une séance orpheline (ligne ${i + 1}) faisant référence à un emploi du temps inexistant (« ${session.timetableId} »).`,
+        );
+      }
+    }
 
     // 5. Build summary
     const timetableSummaries: TimetableSummary[] = data.timetables.map((t: any) => ({

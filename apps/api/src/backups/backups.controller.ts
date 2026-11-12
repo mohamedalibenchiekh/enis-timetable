@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -28,7 +29,19 @@ export class BackupsController {
   constructor(private readonly backupsService: BackupsService) {}
 
   @Get()
-  list() {
+  async listOrDownload(
+    @Query('download') downloadQuery: string,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const isDownload = downloadQuery === '1' || downloadQuery === 'true';
+    if (isDownload) {
+      const result = await this.backupsService.createBackup(true);
+      res.set({
+        'Content-Type': ENIS_BACKUP_MIME,
+        'Content-Disposition': attachment(result.fileName),
+      });
+      return new StreamableFile(result.buffer);
+    }
     return this.backupsService.listBackups();
   }
 
@@ -92,13 +105,15 @@ export class BackupsController {
   restore(
     @Body('id') id?: string,
     @Body('uploadToken') uploadToken?: string,
-    @Body('mode') mode?: BackupMode,
+    @Body('mode') mode?: string,
   ) {
-    const safeMode: BackupMode = mode === 'merge' ? 'merge' : 'replace';
+    if (mode !== 'replace' && mode !== 'merge') {
+      throw new BadRequestException('Mode de restauration non valide. Les modes autorisés sont « replace » ou « merge ».');
+    }
     return this.backupsService.restoreBackup({
       id: id || undefined,
       uploadToken: uploadToken || undefined,
-      mode: safeMode,
+      mode,
     });
   }
 

@@ -55,7 +55,29 @@ export class BackupsService implements OnModuleInit {
 
   async onModuleInit(): Promise<void> {
     this.ensureDirectories();
+    this.cleanStaleInspectFiles();
     await this.scheduler.start();
+  }
+
+  cleanStaleInspectFiles(): void {
+    const tmpDir = path.join(this.backupsDirectory, 'tmp');
+    if (!fs.existsSync(tmpDir)) return;
+    const now = Date.now();
+    const maxAge = 30 * 60 * 1000; // 30 minutes
+    try {
+      const files = fs.readdirSync(tmpDir);
+      for (const file of files) {
+        if (file.startsWith('inspect-') && file.endsWith('.enisbackup')) {
+          const fullPath = path.join(tmpDir, file);
+          const stat = fs.statSync(fullPath);
+          if (now - stat.mtimeMs > maxAge) {
+            try {
+              fs.unlinkSync(fullPath);
+            } catch { /* ignore */ }
+          }
+        }
+      }
+    } catch { /* ignore */ }
   }
 
   private ensureDirectories(): void {
@@ -84,6 +106,7 @@ export class BackupsService implements OnModuleInit {
         : current.retention,
     };
     await this.settingsRepo.save({ key: 'backup', value: next });
+    this.scheduler.pruneOldBackups(next.retention);
     return next;
   }
 
@@ -221,8 +244,13 @@ export class BackupsService implements OnModuleInit {
         return { buffer, fileName, manifest };
       } else {
         const ss = String(now.getSeconds()).padStart(2, '0');
-        const fileName = `auto-${YYYY}${MM}${DD}-${HH}${mm}${ss}.enisbackup`;
-        const filePath = path.join(this.backupsDirectory, 'auto', fileName);
+        const ms = String(now.getMilliseconds()).padStart(3, '0');
+        let fileName = `auto-${YYYY}${MM}${DD}-${HH}${mm}${ss}.enisbackup`;
+        let filePath = path.join(this.backupsDirectory, 'auto', fileName);
+        if (fs.existsSync(filePath)) {
+          fileName = `auto-${YYYY}${MM}${DD}-${HH}${mm}${ss}-${ms}.enisbackup`;
+          filePath = path.join(this.backupsDirectory, 'auto', fileName);
+        }
         BackupCreator.writeArchiveAtomically(filePath, buffer);
         const settings = await this.getSettings();
         this.scheduler.pruneOldBackups(settings.retention);
@@ -251,32 +279,40 @@ export class BackupsService implements OnModuleInit {
     let uploadToken: string | undefined;
 
     if (options.fileBuffer) {
+      this.cleanStaleInspectFiles();
       buffer = options.fileBuffer;
       uploadToken = randomUUID();
       const tmpPath = path.join(this.backupsDirectory, 'tmp', `inspect-${uploadToken}.enisbackup`);
       fs.writeFileSync(tmpPath, buffer);
+      try {
+        const { inspectResult } = await BackupInspector.inspectArchive(buffer);
+        inspectResult.uploadToken = uploadToken;
+        return inspectResult;
+      } catch (err) {
+        try {
+          fs.unlinkSync(tmpPath);
+        } catch { /* ignore */ }
+        throw err;
+      }
     } else if (options.id) {
       const { fullPath } = this.resolveAutoFile(options.id);
       buffer = fs.readFileSync(fullPath);
+      const { inspectResult } = await BackupInspector.inspectArchive(buffer);
+      inspectResult.id = options.id;
+      return inspectResult;
     } else {
       throw new BadRequestException('Aucun fichier ou identifiant fourni pour l’inspection.');
     }
-
-    const { inspectResult } = await BackupInspector.inspectArchive(buffer);
-    if (uploadToken) {
-      inspectResult.uploadToken = uploadToken;
-    } else {
-      inspectResult.id = options.id;
-    }
-    return inspectResult;
   }
 
   /**
    * Restores a backup.
    */
   async restoreBackup(options: { id?: string; uploadToken?: string; mode: BackupMode }): Promise<RestoreResult> {
-    return this.maintenanceService.runExclusive('restoreBackup', async () => {
-      this.maintenanceService.setMaintenance(true, 'Restauration en cours');
+    return this.maintenanceService.runExclusive(
+      'restoreBackup',
+      async () => {
+        this.maintenanceService.setMaintenance(true, 'Restauration en cours');
 
       let buffer: Buffer;
       let tempFilePath: string | null = null;
@@ -320,6 +356,6 @@ export class BackupsService implements OnModuleInit {
       } finally {
         this.maintenanceService.setMaintenance(false);
       }
-    });
+    }, true);
   }
 }

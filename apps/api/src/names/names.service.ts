@@ -102,7 +102,9 @@ export class NamesService {
       if (removals.length) await repository.delete({ key: In(removals) });
       if (updates.length) await repository.upsert(updates, ['key']);
     });
-    this.backups?.scheduler?.notifyDataChanged();
+    if (inputs.length > 0) {
+      this.backups?.scheduler?.notifyDataChanged();
+    }
     return { ok: true, saved: inputs.length };
   }
 

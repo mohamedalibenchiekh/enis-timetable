@@ -194,7 +194,7 @@ L’écran **[Sauvegardes et restauration]**, accessible depuis le lien **[Sauve
 
 ### Configurer les sauvegardes automatiques
 
-L’application crée automatiquement une sauvegarde au démarrage si la plus récente date de plus de 24 heures, ainsi que 30 secondes après toute modification.
+L’application crée automatiquement une sauvegarde au démarrage si la plus récente date de plus de 24 heures, ainsi que 30 secondes après la dernière modification des données (le délai étant réinitialisé à chaque nouveau changement).
 
 1. Dans la section **[Sauvegardes automatiques]**, activez **[Activer les sauvegardes automatiques]**.
 2. Modifiez le champ **[Rétention (3 à 50) :]** pour définir le nombre de sauvegardes à conserver.
@@ -219,7 +219,7 @@ La restauration inspecte d’abord le fichier sans modifier vos données et cré
 
 ### Sauvegardes de mise à jour (avancé)
 
-Avant chaque mise à jour, une copie de la base est placée dans un dossier `database-...`. Dans la section **[Sauvegardes de mise à jour (avancé)]**, sélectionnez **[Ouvrir le dossier]** pour afficher son contenu.
+Avant chaque mise à jour, l’application tente de copier la base de données dans un dossier `database-...`. Cette sauvegarde physique pré-mise à jour s’effectue au mieux (best-effort) : en cas d’échec de la copie, le démarrage n’est pas bloqué et un avertissement s’affiche au lancement. Dans la section **[Sauvegardes de mise à jour (avancé)]**, sélectionnez **[Ouvrir le dossier]** pour afficher son contenu.
 
 ## Problèmes fréquents
 
@@ -246,13 +246,16 @@ Avant chaque mise à jour, une copie de la base est placée dans un dossier `dat
 - « L’archive contient un nombre d’entrées anormal » : l’archive contient plus de fichiers que prévu.
 - « L’archive contient des chemins de fichiers interdits (tentative d’évasion) » : l’archive contient des noms de chemins suspects.
 - « Dossier inattendu dans l’archive » ou « L’archive contient un fichier inattendu ou non reconnu » : l’archive contient des fichiers non prévus.
-- « L’archive ne contient pas de fichier manifest.json », « Le fichier manifest.json est corrompu ou n’est pas un JSON valide » ou « Le fichier manifest.json est incomplet ou malformé » : le manifeste obligatoire est absent ou incorrect.
+- « L’archive ne contient pas de fichier manifest.json », « Le fichier manifest.json est corrompu ou n’est pas un JSON valide », « Le fichier manifest.json est incomplet ou malformé » ou « Le fichier manifest.json dépasse la taille maximale autorisée » : le manifeste obligatoire est absent ou incorrect.
 - « Format d’archive non pris en charge (format v » : l’archive utilise une version de format inconnue.
-- « Cette sauvegarde a été créée avec une version plus récente de l’application (schéma v … ). Mettez à jour l’application pour pouvoir la restaurer » : installez la version la plus récente de l’application.
-- « Fichier de données manquant dans l’archive » : une table attendue est absente.
+- « Version de schéma de sauvegarde non valide » ou « Cette sauvegarde a été créée avec une version plus récente de l’application (schéma v … ). Mettez à jour l’application pour pouvoir la restaurer » : installez la version la plus récente de l’application.
+- « Compte invalide dans le manifeste pour la table » : le nombre de lignes déclaré est erroné.
+- « Fichier de données manquant dans l’archive » ou « Fichier de données obligatoire manquant dans l’archive » : une table attendue est absente.
 - « Le volume décompressé de l’archive dépasse la limite autorisée » ou « Ratio de compression anormal détecté (protection anti zip-bomb) » : l’archive dépasse les seuils de sécurité de décompression.
 - « Somme de contrôle manquante dans le manifeste pour » ou « Somme de contrôle (SHA-256) invalide pour le fichier … . L’archive est corrompue ou a été modifiée » : l’intégrité des fichiers n’a pas pu être vérifiée.
-- « Nombre de lignes incohérent pour la table » ou « Ligne … invalide dans … : JSON malformé » : les données de l’archive ne respectent pas le schéma attendu.
+- « Nombre de lignes incohérent pour la table », « Ligne … invalide dans … : JSON malformé », « date de création invalide », « date de modification invalide », « format du créneau » ou « Clé de paramètre en doublon détectée dans l’archive » : les données de l’archive ne respectent pas le schéma attendu.
+- « L’archive contient une séance orpheline » ou « Séance orpheline détectée pour l’emploi du temps » : une séance fait référence à un emploi du temps absent.
+- « Mode de restauration non valide. Les modes autorisés sont « replace » ou « merge » » : choisissez un mode de restauration valide.
 - « Impossible de créer la sauvegarde de sécurité préalable. La restauration a été annulée et aucune donnée n’a été modifiée » : la création de la sauvegarde de sécurité a échoué.
 - « Incohérence détectée après restauration (emplois du temps: … , séances: … ). Annulation » : les données insérées ne correspondent pas au manifeste, la transaction a été annulée.
 - « Identifiant de sauvegarde invalide » ou « Sauvegarde introuvable » : la sauvegarde demandée n’existe pas dans le dossier.
