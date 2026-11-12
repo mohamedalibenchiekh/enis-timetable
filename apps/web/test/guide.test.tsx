@@ -11,7 +11,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 const root = path.resolve(__dirname, '../../..');
 const temporary: string[] = [];
 const sourceFiles = [
-  'apps/web/app/page.tsx', 'apps/web/components/ImportPanel.tsx', 'apps/web/components/OptionsPanel.tsx',
+  'apps/web/app/page.tsx', 'apps/web/app/sauvegardes/page.tsx', 'apps/web/components/ImportPanel.tsx', 'apps/web/components/OptionsPanel.tsx',
   'apps/web/components/NamesPanel.tsx', 'apps/web/components/UpdateBanner.tsx', 'apps/web/components/ComparePanel.tsx', 'apps/web/lib/api.ts', 'apps/desktop/src/main.ts', 'apps/desktop/src/menu.ts',
   'apps/desktop/src/updater.ts',
 ];
@@ -133,6 +133,8 @@ describe('guide drift protection', () => {
       'Vous avez la dernière version': 'Informational success message, not an error.',
       'Arguments IPC inattendus': 'Internal IPC validation guard; malformed calls can only come from application code, not a user action.',
       'Chemin de fichier invalide': 'Internal IPC validation guard; the file path is supplied by the application after the native save dialog.',
+      'Table non gérée': 'Internal exhaustive switch check for table serialization; cannot occur from user actions.',
+      'Aucune fonction de migration (upgrader) enregistrée': 'Internal developer guard when upgrading older schema versions without a registered migration function.',
     };
     const sources = ['apps/api/src', 'apps/desktop/src'].flatMap((directory) => {
       const walk = (current: string): string[] => fs.readdirSync(path.join(root, current), { withFileTypes: true })

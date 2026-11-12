@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import * as fs from 'fs';
@@ -12,6 +12,7 @@ import { buildDayDocx } from '../export/docx-builder.js';
 import { SettingsService } from '../settings/settings.service.js';
 import { NamesService } from '../names/names.service.js';
 import { NameResolver } from '../export/name-resolver.js';
+import { BackupsService } from '../backups/backups.service.js';
 import { CompareService } from '../compare/compare.service.js';
 import type { CompareSummary } from '../compare/types.js';
 
@@ -31,6 +32,7 @@ export class TimetablesService {
     private settings: SettingsService,
     private names: NamesService,
     private compare: CompareService,
+    @Optional() private backups?: BackupsService,
   ) {}
 
   list() {
@@ -46,6 +48,7 @@ export class TimetablesService {
   async remove(id: string) {
     await this.get(id);
     await this.repo.delete(id);
+    this.backups?.scheduler?.notifyDataChanged();
   }
 
   /** Parse the uploaded HTML files and store them (new timetable, or add/replace views of an existing one). */
@@ -77,7 +80,7 @@ export class TimetablesService {
     if (previous && !['teachers', 'rooms', 'groups'].some((k) => kinds.includes(k as SourceKind) && previous!.files?.some((f) => f.kind === k)))
       throw new BadRequestException('Les deux emplois du temps ne partagent aucune vue commune (teachers/rooms/groups)');
 
-    return this.ds.transaction(async (em) => {
+    const result = await this.ds.transaction(async (em) => {
       let t: Timetable;
       if (opts.timetableId) {
         t = await em.findOneByOrFail(Timetable, { id: opts.timetableId }).catch(() => {
@@ -120,6 +123,8 @@ export class TimetablesService {
         return saved;
       }
     });
+    this.backups?.scheduler?.notifyDataChanged();
+    return result;
   }
 
   /** Which view feeds the room grids: rooms (best) → teachers → groups. */

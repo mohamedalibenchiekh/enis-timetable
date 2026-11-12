@@ -111,9 +111,18 @@ async function startApi(): Promise<number> {
   const be = resolveBackend();
   if (!fs.existsSync(be.main)) throw new Error(`Backend introuvable : ${be.main}\nLancez « npm run build » à la racine du projet.`);
   const port = await freePort();
+  const backupsDirectory = path.join(app.getPath('userData'), 'backups');
   api = spawn(process.execPath, [be.main], {
     cwd: be.cwd,
-    env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', PORT: String(port), WEB_DIR: be.web, DATABASE_URL: databaseUrl },
+    env: {
+      ...process.env,
+      ELECTRON_RUN_AS_NODE: '1',
+      PORT: String(port),
+      WEB_DIR: be.web,
+      DATABASE_URL: databaseUrl,
+      BACKUPS_DIR: backupsDirectory,
+      APP_VERSION: app.getVersion(),
+    },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   const keep = (d: Buffer) => { apiLog = (apiLog + d.toString()).slice(-4000); };
@@ -263,8 +272,12 @@ app.whenReady().then(async () => {
   Menu.setApplicationMenu(Menu.buildFromTemplate(buildApplicationMenu({
     openGuide: () => {
       if (!win || win.isDestroyed()) return;
-      const origin = new URL(win.webContents.getURL()).origin;
-      void win.loadURL(`${origin}/aide/`);
+      const currentUrl = win.webContents.getURL();
+      if (!currentUrl || currentUrl.startsWith('about:')) return;
+      try {
+        const origin = new URL(currentUrl).origin;
+        if (origin && origin !== 'null') void win.loadURL(`${origin}/aide/`);
+      } catch { /* ignore if invalid URL */ }
     },
     saveGuidePdf: () => { void saveGuideAsPdf(); },
     showAbout: () => {
@@ -279,6 +292,15 @@ app.whenReady().then(async () => {
     },
     openConfig: () => shell.showItemInFolder(ensureConfigFile()),
     checkForUpdates: () => { void updaterService?.checkForUpdates(true); },
+    openBackupsScreen: () => {
+      if (!win || win.isDestroyed()) return;
+      const currentUrl = win.webContents.getURL();
+      if (!currentUrl || currentUrl.startsWith('about:')) return;
+      try {
+        const origin = new URL(currentUrl).origin;
+        if (origin && origin !== 'null') void win.loadURL(`${origin}/sauvegardes/`);
+      } catch { /* ignore if invalid URL */ }
+    },
     openBackups: () => {
         const directory = path.join(app.getPath('userData'), 'backups');
         fs.mkdirSync(directory, { recursive: true });
