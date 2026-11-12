@@ -1,12 +1,13 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { api, DayGrid, normalizeName, SourceKind } from '@/lib/api';
+import { api, CellSession, DayGrid, normalizeName, SourceKind } from '@/lib/api';
 
-export function DayPreview({ id, day, refreshKey, highlightCells, showHighlight, source }: {
+export function DayPreview({ id, day, refreshKey, highlightCells, showHighlight, source, profile }: {
   id: string; day: number; refreshKey: number;
   highlightCells?: Set<string> | null;
   showHighlight?: boolean;
   source?: SourceKind | null;
+  profile?: string | null;
 }) {
   const [grid, setGrid] = useState<DayGrid | null>(null);
   const [error, setError] = useState('');
@@ -15,31 +16,42 @@ export function DayPreview({ id, day, refreshKey, highlightCells, showHighlight,
     let alive = true;
     setGrid(null);
     setError('');
-    api.preview(id, day, source ?? undefined).then((g) => alive && setGrid(g)).catch((e) => alive && setError((e as Error).message));
+    api.preview(id, day, source ?? undefined, profile ?? undefined).then((g) => alive && setGrid(g)).catch((e) => alive && setError((e as Error).message));
     return () => { alive = false; };
-  }, [id, day, refreshKey, source]);
+  }, [id, day, refreshKey, source, profile]);
 
   if (error) return <p className="error">{error}</p>;
   if (!grid) return <p className="muted">Chargement…</p>;
   const span = grid.headers.length + 1;
   const hl = showHighlight && highlightCells && highlightCells.size > 0 ? highlightCells : undefined;
+
+  // Group blocs into pages for visual separators (matches the DOCX page groups).
+  const pageGroups: { page: number; blocs: typeof grid.blocs }[] = grid.pages && grid.pages.length > 1
+    ? grid.pages.map((pg) => ({ page: pg.page, blocs: pg.blocs.map((i) => grid.blocs[i]).filter(Boolean) }))
+    : [{ page: 1, blocs: grid.blocs }];
+
   return (
     <div className="gridwrap">
-      <table className="grid">
-        <thead>
-          <tr>
-            <th className="dayhead">{grid.dayName}</th>
-            {grid.headers.map((h, i) => (
-              <th key={i} className="slothead">{h.map((l, j) => <div key={j}>{l}</div>)}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {grid.blocs.map((b) => (
-            <FragmentRows key={b.title} title={b.title} span={span} rows={b.rows} headers={grid.headers} day={day} highlightCells={hl} />
-          ))}
-        </tbody>
-      </table>
+      {pageGroups.map((pg, pgIndex) => (
+        <div key={pg.page}>
+          {pgIndex > 0 && <div className="pagebreak" aria-hidden="true"><span>— saut de page —</span></div>}
+          <table className="grid">
+            <thead>
+              <tr>
+                <th className="dayhead">{grid.dayName}</th>
+                {grid.headers.map((h, i) => (
+                  <th key={i} className="slothead">{h.map((l, j) => <div key={j}>{l}</div>)}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {pg.blocs.map((b) => (
+                <FragmentRows key={b.title} title={b.title} span={span} rows={b.rows} headers={grid.headers} day={day} highlightCells={hl} />
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ))}
       <p className="muted small">{grid.sessionCount} séances ce jour-là.</p>
     </div>
   );
@@ -61,9 +73,28 @@ function FragmentRows({ title, span, rows, headers, day, highlightCells }: {
           {r.cells.map((c, i) => {
             const slotHeader = headers[i]?.join(' ') ?? '';
             const isHl = !!highlightCells?.has(`${day}|${normalizeName(r.room)}|${slotHeader}`);
-            return <td key={i} className={isHl ? 'hl' : undefined}>{c}</td>;
+            const details = r.details?.[i];
+            return (
+              <td key={i} className={isHl ? 'hl' : undefined}>
+                {details ? <RichCell entries={details} /> : c}
+              </td>
+            );
           })}
         </tr>
+      ))}
+    </>
+  );
+}
+
+function RichCell({ entries }: { entries: CellSession[] }) {
+  return (
+    <>
+      {entries.map((entry, ei) => (
+        <div key={ei} className={ei > 0 ? 'cell-session' : undefined}>
+          {entry.lines.map((line, li) => (
+            <div key={li} className={li > 0 ? 'cell-detail' : undefined}>{line}</div>
+          ))}
+        </div>
       ))}
     </>
   );

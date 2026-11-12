@@ -1,6 +1,6 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
-import { api, KIND_LABEL, SourceKind, Timetable } from '@/lib/api';
+import { api, ExportProfilesState, KIND_LABEL, SourceKind, Timetable } from '@/lib/api';
 import { ImportPanel } from '@/components/ImportPanel';
 import { DayPreview } from '@/components/DayPreview';
 import { OptionsPanel } from '@/components/OptionsPanel';
@@ -30,6 +30,8 @@ export default function Home() {
   const [desktopVersion, setDesktopVersion] = useState<string | null>(null);
   const [desktopVersionError, setDesktopVersionError] = useState(false);
   const [updateStatus, setUpdateStatus] = useState<UpdateStatus | null>(null);
+  const [profiles, setProfiles] = useState<ExportProfilesState | null>(null);
+  const [activeProfileId, setActiveProfileId] = useState<string | null>(null);
 
   const reload = useCallback(async (select?: string) => {
     try {
@@ -41,6 +43,11 @@ export default function Home() {
     }
   }, []);
   useEffect(() => { reload(); }, [reload]);
+  useEffect(() => {
+    api.listProfiles()
+      .then((s) => { setProfiles(s); setActiveProfileId((cur) => cur ?? s.defaultId); })
+      .catch(() => { /* profiles unavailable — exports fall back to the default profile */ });
+  }, []);
   useEffect(() => {
     const bridge = window.enis;
     if (!bridge) return;
@@ -76,7 +83,7 @@ export default function Home() {
     const dir = await window.enis.chooseFolder();
     if (!dir) return;
     try {
-      const r = await api.exportToFolder(sel.id, dir);
+      const r = await api.exportToFolder(sel.id, dir, activeProfileId ?? undefined);
       setStatus(`${r.files.length} fichiers Word enregistrés dans ${r.dir}`);
       window.enis.showInFolder(r.files[0]);
     } catch (e) { setError((e as Error).message); }
@@ -157,8 +164,8 @@ export default function Home() {
                 </p>
               </div>
               <div className="actions">
-                <a className="primary btn" href={api.docxUrl(sel.id, day)}>Télécharger le document du jour</a>
-                <a className="btn" href={api.zipUrl(sel.id)}>Tous les jours (.zip)</a>
+                <a className="primary btn" href={api.docxUrl(sel.id, day, activeProfileId ?? undefined)}>Télécharger le document du jour</a>
+                <a className="btn" href={api.zipUrl(sel.id, activeProfileId ?? undefined)}>Tous les jours (.zip)</a>
                 {typeof window !== 'undefined' && window.enis && <button onClick={exportToFolder}>Enregistrer dans un dossier…</button>}
               </div>
             </div>
@@ -184,14 +191,22 @@ export default function Home() {
                     Surligner les changements
                   </label>
                 )}
-                <DayPreview id={sel.id} day={day} refreshKey={refreshKey} highlightCells={highlightCells} showHighlight={showHighlight} source={highlightSource} />
+                <DayPreview id={sel.id} day={day} refreshKey={refreshKey} highlightCells={highlightCells} showHighlight={showHighlight} source={highlightSource} profile={activeProfileId} />
 
                 <div className="foot">
                   <button className="link" onClick={() => setShowOptions(!showOptions)}>{showOptions ? '▾' : '▸'} Options du document Word</button>
                   <button className="link" onClick={() => setImportMode('add')}>Ajouter / remplacer des fichiers</button>
                   <button className="link danger" onClick={remove}>Supprimer cet emploi du temps</button>
                 </div>
-                {showOptions && <OptionsPanel onSaved={() => setRefreshKey((k) => k + 1)} />}
+                {showOptions && (
+                  <OptionsPanel
+                    profiles={profiles}
+                    activeProfileId={activeProfileId}
+                    onProfilesChange={setProfiles}
+                    onActiveProfileChange={setActiveProfileId}
+                    onSaved={() => setRefreshKey((k) => k + 1)}
+                  />
+                )}
               </>
             ) : activeTab === 'names' ? (
               <NamesPanel id={sel.id} onSaved={() => setRefreshKey((key) => key + 1)} />

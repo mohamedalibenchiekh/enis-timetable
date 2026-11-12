@@ -3,16 +3,21 @@ import { describe, expect, it, vi } from 'vitest';
 import { DayPreview } from '../components/DayPreview';
 import { ImportPanel } from '../components/ImportPanel';
 import { OptionsPanel } from '../components/OptionsPanel';
-import { DayGrid, ExportOptions, Timetable } from '../lib/api';
+import { DayGrid, ExportOptions, ExportProfilesState, Timetable } from '../lib/api';
 
 const grid: DayGrid = {
   day: 0, dayName: 'Lundi', headers: [['08:00-09:30']], sessionCount: 1,
   blocs: [{ title: 'BLOC « A »', rows: [{ room: 'A01', label: 'A 0-1', cells: ['Prof Dupont'] }] }],
 };
 const options: ExportOptions = {
-  blocs: [{ title: 'BLOC « A »', patterns: ['^A\\d\\d'] }],
+  optionsVersion: 2,
+  blocs: [{ id: 'bloc-a', page: 1, title: 'BLOC « A »', patterns: ['^A\\d\\d'] }],
   abbreviateBen: true, showFrequency: true, pauseLabel: 'Pause', includeEmptyRooms: true,
+  cellTemplate: '{teacher}', subjectMode: 'full', subjectMaxLength: 0, groupSeparator: ', ',
+  cellFontSize: 10, detailItalic: false, detailSmaller: false,
+  orientation: 'portrait', repeatDayHeader: true, showPageTitle: false,
 };
+const profiles: ExportProfilesState = { optionsVersion: 2, defaultId: 'default', profiles: [{ id: 'default', name: 'Standard', options }] };
 const timetable = { id: 'fixture-id', name: 'S1 test' } as Timetable;
 const response = (body: unknown, ok = true) => ({ ok, statusText: 'Bad Request', json: async () => body });
 
@@ -67,23 +72,53 @@ describe('DayPreview', () => {
 });
 
 describe('OptionsPanel', () => {
-  it('toggles options, adds/removes a bloc, and saves the edited options', async () => {
-    const fetchMock = vi.fn()
-      .mockResolvedValueOnce(response(options))
-      .mockImplementationOnce(async (_url: string, init: RequestInit) => response(JSON.parse(String(init.body))));
+  const renderPanel = (onSaved = vi.fn(), onProfilesChange = vi.fn()) => {
+    render(
+      <OptionsPanel
+        profiles={profiles}
+        activeProfileId="default"
+        onProfilesChange={onProfilesChange}
+        onActiveProfileChange={vi.fn()}
+        onSaved={onSaved}
+      />,
+    );
+    return { onSaved, onProfilesChange };
+  };
+
+  it('toggles options, edits the bloc table, and saves via the profile endpoint', async () => {
+    const fetchMock = vi.fn().mockImplementation(async (_url: string, init: RequestInit) => {
+      const body = JSON.parse(String(init.body));
+      return response({ ...profiles, profiles: [{ id: 'default', name: 'Standard', options: body.options ?? options }] });
+    });
     vi.stubGlobal('fetch', fetchMock);
-    const onSaved = vi.fn();
-    render(<OptionsPanel onSaved={onSaved} />);
+    const { onSaved, onProfilesChange } = renderPanel();
+
     const frequency = await screen.findByLabelText(/Afficher « 1\/15 »/);
     fireEvent.click(frequency);
+    // Add a bloc via the table's add button.
     fireEvent.click(screen.getByRole('button', { name: '+ ajouter un bloc' }));
     expect(screen.getAllByDisplayValue(/BLOC/)).toHaveLength(2);
-    fireEvent.click(screen.getAllByText('supprimer')[1]);
+    // Remove the second bloc.
+    const removeButtons = screen.getAllByText('supprimer');
+    fireEvent.click(removeButtons[removeButtons.length - 1]);
+
     fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
     await waitFor(() => expect(screen.getByText('Options enregistrées')).not.toBeNull());
     expect(onSaved).toHaveBeenCalledOnce();
-    const body = JSON.parse(String(fetchMock.mock.calls[1][1].body));
-    expect(body.showFrequency).toBe(false);
-    expect(body.blocs).toHaveLength(1);
+    expect(onProfilesChange).toHaveBeenCalled();
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('/api/settings/export-profiles/default');
+    const body = JSON.parse(String(init.body));
+    expect(body.options.showFrequency).toBe(false);
+    expect(body.options.blocs).toHaveLength(1);
+  });
+
+  it('switches the cell template preset', async () => {
+    vi.stubGlobal('fetch', vi.fn());
+    renderPanel();
+    const preset = await screen.findByRole('button', { name: 'Enseignant + groupe' });
+    fireEvent.click(preset);
+    const textarea = screen.getByLabelText(/Modèle de cellule/) as HTMLTextAreaElement;
+    expect(textarea.value).toBe('{teacher}\n{group}');
   });
 });
