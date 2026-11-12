@@ -30,6 +30,84 @@ export interface NamesImportSummary {
   ignored: number;
 }
 
+export type BackupMode = 'replace' | 'merge';
+
+export interface BackupCounts {
+  timetables: number;
+  sessions: number;
+  settings: number;
+  teacher_names: number;
+  room_labels: number;
+}
+
+export interface BackupManifest {
+  formatVersion: number;
+  appVersion: string;
+  schemaVersion: number;
+  createdAt: string;
+  counts: BackupCounts;
+  sha256: Record<string, string>;
+}
+
+export interface BackupSettings {
+  enabled: boolean;
+  retention: number;
+}
+
+export interface AutoBackupItem {
+  id: string;
+  fileName: string;
+  createdAt: string;
+  sizeBytes: number;
+  appVersion: string;
+  schemaVersion: number;
+  counts: BackupCounts;
+  isPreRestore: boolean;
+}
+
+export interface PreUpdateBackupItem {
+  id: string;
+  name: string;
+  version: string;
+  createdAt: string;
+  sizeBytes: number;
+  path: string;
+}
+
+export interface BackupsSummary {
+  autoBackups: AutoBackupItem[];
+  preUpdateBackups: PreUpdateBackupItem[];
+  settings: BackupSettings;
+  lastAutoBackup: {
+    successAt: string | null;
+    error: string | null;
+  };
+}
+
+export interface InspectResult {
+  uploadToken?: string;
+  id?: string;
+  manifest: BackupManifest;
+  compatibility: {
+    compatible: boolean;
+    upgradeRequired: boolean;
+    message: string;
+  };
+  summary: {
+    timetables: { id: string; name: string; sessionCount: number; days: string[] }[];
+    teacherOverridesCount: number;
+    roomOverridesCount: number;
+    hasSettings: boolean;
+  };
+}
+
+export interface RestoreResult {
+  ok: boolean;
+  mode: BackupMode;
+  restoredCounts: BackupCounts;
+  safetyBackupPath: string;
+}
+
 export type UpdateStatus =
   | { status: 'checking' }
   | { status: 'available'; version: string }
@@ -97,6 +175,38 @@ export const api = {
     req<NamesImportSummary>('/api/names/import', {
       method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(data),
     }),
+  backups: {
+    list: () => req<BackupsSummary>('/api/backups'),
+    createUrl: () => '/api/backups?download=1',
+    createAuto: () => req<{ ok: true; fileName: string; filePath?: string }>('/api/backups', { method: 'POST' }),
+    downloadUrl: (id: string) => `/api/backups/${encodeURIComponent(id)}/download`,
+    delete: (id: string) => req<{ ok: true }>(`/api/backups/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+    inspect: (source: { file?: File; id?: string }) => {
+      if (source.file) {
+        const fd = new FormData();
+        fd.append('file', source.file);
+        return req<InspectResult>('/api/backups/inspect', { method: 'POST', body: fd });
+      }
+      return req<InspectResult>('/api/backups/inspect', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ id: source.id }),
+      });
+    },
+    restore: (payload: { id?: string; uploadToken?: string; mode: BackupMode }) =>
+      req<RestoreResult>('/api/backups/restore', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(payload),
+      }),
+    getSettings: () => req<BackupSettings>('/api/backups/settings'),
+    saveSettings: (settings: Partial<BackupSettings>) =>
+      req<BackupSettings>('/api/backups/settings', {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(settings),
+      }),
+  },
 };
 
 export function guessKind(name: string): SourceKind | null {
