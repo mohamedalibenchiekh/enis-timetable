@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { getMetadataArgsStorage } from 'typeorm';
 import { BackupCounts, BackupManifest } from './backup-types.js';
 
-export const BACKUP_SCHEMA_VERSION = 1;
+export const BACKUP_SCHEMA_VERSION = 2;
 export const BACKUP_FORMAT_VERSION = 1;
 
 export const BACKUP_TABLES = [
@@ -30,8 +30,13 @@ export type SchemaUpgrader = (data: BackupData) => BackupData;
 
 export const SCHEMA_UPGRADERS: Record<number, SchemaUpgrader> = {
   // Key N upgrades schema from version N to version N + 1.
-  // Example for future schema bumps:
-  // 1: (data) => { ... return upgradedData; },
+  1: (data) => ({
+    ...data,
+    timetables: data.timetables.map((t) => ({
+      ...t,
+      previousTimetableId: t.previousTimetableId ?? null,
+    })),
+  }),
 };
 
 export function upgradeBackupData(data: BackupData, fromVersion: number, targetVersion = BACKUP_SCHEMA_VERSION): BackupData {
@@ -88,6 +93,9 @@ export function validateRow(table: BackupTableName, row: unknown, index: number)
       if (r.createdAt && (typeof r.createdAt !== 'string' || isNaN(Date.parse(r.createdAt)))) {
         throw new ValidationError(`Ligne ${index + 1} de « timetables » : date de création invalide.`);
       }
+      if (r.previousTimetableId && (typeof r.previousTimetableId !== 'string' || !UUID_REGEX.test(r.previousTimetableId))) {
+        throw new ValidationError(`Ligne ${index + 1} de « timetables » : previousTimetableId UUID invalide.`);
+      }
       return {
         id: r.id,
         name: r.name.trim(),
@@ -98,6 +106,7 @@ export function validateRow(table: BackupTableName, row: unknown, index: number)
         slots: r.slots,
         rooms: r.rooms,
         files: r.files,
+        previousTimetableId: r.previousTimetableId ?? null,
         createdAt: r.createdAt ? new Date(r.createdAt) : new Date(),
       };
     }

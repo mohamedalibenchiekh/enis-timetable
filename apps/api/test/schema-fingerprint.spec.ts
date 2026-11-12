@@ -1,6 +1,6 @@
 import 'reflect-metadata';
+import { createRequire } from 'node:module';
 import { describe, expect, it } from 'vitest';
-import '../dist/entities/timetable.entity.js';
 import {
   BACKUP_SCHEMA_VERSION,
   computeSchemaFingerprint,
@@ -8,11 +8,14 @@ import {
   upgradeBackupData,
 } from '../src/backups/backup-schema.js';
 
+const apiRequire = createRequire(import.meta.url);
+apiRequire('../dist/entities/timetable.entity.js');
+
 // If this committed fingerprint changes, you MUST:
 // 1. Increment BACKUP_SCHEMA_VERSION in apps/api/src/backups/backup-schema.ts
 // 2. Register an upgrader function in SCHEMA_UPGRADERS in apps/api/src/backups/backup-schema.ts
 // 3. Update COMMITTED_SCHEMA_FINGERPRINT below to the new hash.
-export const COMMITTED_SCHEMA_FINGERPRINT = 'f3f61cd5c33d873981d7f8da966186e7e6b69d0bbae9fe87a5c0a10991d90a80';
+export const COMMITTED_SCHEMA_FINGERPRINT = '0cc3a468f57150cfa2570bdd4ab65571e27be4be00498b5d59d89797f2623b1e';
 
 describe('Backup schema safety and fingerprint guard', () => {
   it('schema fingerprint matches committed entity definitions', () => {
