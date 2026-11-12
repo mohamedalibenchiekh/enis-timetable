@@ -56,6 +56,7 @@ Run all commands from repository root unless scoped with `-w`.
 - **Room formatting**: Standardize room labels: `A02` → `A 0-2`, `B12 (Labo Anglais)` → `B 1-2`, `Amphi` → `Amphi` (strip notes in parentheses, insert space and hyphen between block letter and digits).
 - **Settings table**: User preferences (`blocs` regex list, `abbreviateBen` [BEN → B], `showFrequency` [1/15], `includeEmptyRooms`) persist in PostgreSQL `settings` table (`key = 'export'`).
 - **Name override tables**: `teacher_names` and `room_labels` store globally scoped normalized keys, the source name associated with each override, and display names. Formatting happens in `apps/api/src/export` only; overrides are applied through `NameResolver`. They persist across timetables and app updates; never write overrides into `sessions`.
+- **Backup schema safety**: Any entity change requires bumping `BACKUP_SCHEMA_VERSION` and adding an upgrader; the fingerprint test enforces it.
 
 ## Packaging Gotchas
 - **ASAR disabled (`asar: false`)**: PostgreSQL binaries (`embedded-postgres`) must remain raw executable files on disk; bundling into ASAR breaks execution.
