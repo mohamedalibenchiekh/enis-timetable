@@ -12,7 +12,7 @@ const root = path.resolve(__dirname, '../../..');
 const temporary: string[] = [];
 const sourceFiles = [
   'apps/web/app/page.tsx', 'apps/web/components/ImportPanel.tsx', 'apps/web/components/OptionsPanel.tsx',
-  'apps/web/components/NamesPanel.tsx', 'apps/web/components/UpdateBanner.tsx', 'apps/web/lib/api.ts', 'apps/desktop/src/main.ts', 'apps/desktop/src/menu.ts',
+  'apps/web/components/NamesPanel.tsx', 'apps/web/components/UpdateBanner.tsx', 'apps/web/components/ComparePanel.tsx', 'apps/web/lib/api.ts', 'apps/desktop/src/main.ts', 'apps/desktop/src/menu.ts',
   'apps/desktop/src/updater.ts',
 ];
 

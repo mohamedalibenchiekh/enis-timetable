@@ -1,0 +1,405 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>FET - Rooms</title>
+  </head>
+  <body>
+    <table>
+      <tr>
+        <th>Nom établissement</th>
+        <td>ENISo Test</td>
+      </tr>
+      <tr>
+        <th>Commentaire</th>
+        <td>Fixture test data</td>
+      </tr>
+    </table>
+
+    <!-- Room: A01 -->
+    <table id="table_0">
+      <thead>
+        <tr>
+          <th colspan="7">A01</th>
+        </tr>
+        <tr>
+          <th class="xAxis">Lundi</th>
+          <th class="xAxis">Mardi</th>
+          <th class="xAxis">Mercredi</th>
+          <th class="xAxis">Jeudi</th>
+          <th class="xAxis">Vendredi</th>
+          <th class="xAxis">Samedi</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <th class="yAxis">8:00-9:30</th>
+          <!-- Lundi: T101 removed; Mardi: T201 moved from Jeudi; Samedi: T802 added -->
+          <td>---</td>
+          <td>Grp-B2<br />Prof Martin<br />T201 | Algèbre<br /></td>
+          <td>---</td>
+          <td>---</td>
+          <td>---</td>
+          <td>Grp-A1<br />Prof Dupont<br />T802 | Projet tutoré<br /></td>
+        </tr>
+        <tr>
+          <th class="yAxis">9:45-11:15</th>
+          <!-- Lundi: T301 moved to Mardi (rowspan preserved) -->
+          <td>---</td>
+          <td rowspan="2">Grp-C3<br/>Prof Laurent<br/>T301 | Physique<br/></td>
+          <td>---</td>
+          <td>---</td>
+          <td>---</td>
+          <td>---</td>
+        </tr>
+        <tr>
+          <th class="yAxis">11:30-13:00 (M/S: 12:00-13:30)</th>
+          <!-- Lundi: empty; Mardi: carried by rowspan -->
+          <td>---</td>
+          <td>---</td>
+          <td>---</td>
+          <td>---</td>
+          <td>---</td>
+        </tr>
+        <tr>
+          <th class="yAxis">13:00-14:30</th>
+          <td>---</td>
+          <td>---</td>
+          <td>---</td>
+          <td>---</td>
+          <td>---</td>
+          <td>---</td>
+        </tr>
+        <tr>
+          <th class="yAxis">14:30-16:00 (V: 14:00-15:30)</th>
+          <td>---</td>
+          <td>---</td>
+          <td>---</td>
+          <td>---</td>
+          <td>---</td>
+          <td>---</td>
+        </tr>
+        <tr>
+          <th class="yAxis">16:15-17:45 (V: 15:45-17:15)</th>
+          <td>---</td>
+          <td>---</td>
+          <td>---</td>
+          <td>---</td>
+          <td>---</td>
+          <td>---</td>
+        </tr>
+        <tr class="foot">
+          <td colspan="7">Planning généré avec FET v6.20.3</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- Room: B01 -->
+    <table id="table_1">
+      <thead>
+        <tr>
+          <th colspan="7">B01</th>
+        </tr>
+        <tr>
+          <th class="xAxis">Lundi</th>
+          <th class="xAxis">Mardi</th>
+          <th class="xAxis">Mercredi</th>
+          <th class="xAxis">Jeudi</th>
+          <th class="xAxis">Vendredi</th>
+          <th class="xAxis">Samedi</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <th class="yAxis">8:00-9:30</th>
+          <!-- Lundi: detailed split cell; T401 teacher swapped (Moreau→Roche), T501 moved to Amphi -->
+          <td>
+            <table class="detailed">
+              <tr>
+                <td>B01</td>
+                <td>Amphi</td>
+                <td>B01</td>
+              </tr>
+              <tr>
+                <td>Grp-D4</td>
+                <td>Grp-E5</td>
+                <td>Grp-D4</td>
+              </tr>
+              <tr>
+                <td>Prof Roche, Prof Bernard</td>
+                <td>Prof Bernard</td>
+                <td>Prof Roche, Prof Bernard</td>
+              </tr>
+              <tr>
+                <td>T401 | Mécanique</td>
+                <td>T501 | Optique</td>
+                <td>T401 | Mécanique</td>
+              </tr>
+            </table>
+          </td>
+          <td>---</td>
+          <td>---</td>
+          <td>---</td>
+          <td>---</td>
+          <td>---</td>
+        </tr>
+        <tr>
+          <th class="yAxis">9:45-11:15</th>
+          <td>---</td>
+          <td>---</td>
+          <td>---</td>
+          <td>---</td>
+          <td>---</td>
+          <td>---</td>
+        </tr>
+        <tr>
+          <th class="yAxis">11:30-13:00 (M/S: 12:00-13:30)</th>
+          <td>---</td>
+          <td>---</td>
+          <td>---</td>
+          <td>---</td>
+          <td>---</td>
+          <td>---</td>
+        </tr>
+        <tr>
+          <th class="yAxis">13:00-14:30</th>
+          <td>---</td>
+          <td>---</td>
+          <td>---</td>
+          <td>---</td>
+          <td>---</td>
+          <td>---</td>
+        </tr>
+        <tr>
+          <th class="yAxis">14:30-16:00 (V: 14:00-15:30)</th>
+          <td>---</td>
+          <td>---</td>
+          <td>---</td>
+          <td>---</td>
+          <td>---</td>
+          <td>---</td>
+        </tr>
+        <tr>
+          <th class="yAxis">16:15-17:45 (V: 15:45-17:15)</th>
+          <td>---</td>
+          <td>---</td>
+          <td>---</td>
+          <td>---</td>
+          <td>---</td>
+          <td>---</td>
+        </tr>
+        <tr class="foot">
+          <td colspan="7">Planning généré avec FET v6.20.3</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- Room: B02 (empty in v2: T501 moved to Amphi) -->
+    <table id="table_2">
+      <thead>
+        <tr>
+          <th colspan="7">B02</th>
+        </tr>
+        <tr>
+          <th class="xAxis">Lundi</th>
+          <th class="xAxis">Mardi</th>
+          <th class="xAxis">Mercredi</th>
+          <th class="xAxis">Jeudi</th>
+          <th class="xAxis">Vendredi</th>
+          <th class="xAxis">Samedi</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <th class="yAxis">8:00-9:30</th>
+          <!-- Lundi: no B02 activity left in v2 -->
+          <td>---</td>
+          <td>---</td>
+          <td>---</td>
+          <td>---</td>
+          <td>---</td>
+          <td>---</td>
+        </tr>
+        <tr>
+          <th class="yAxis">9:45-11:15</th>
+          <td>---</td>
+          <td>---</td>
+          <td>---</td>
+          <td>---</td>
+          <td>---</td>
+          <td>---</td>
+        </tr>
+        <tr>
+          <th class="yAxis">11:30-13:00 (M/S: 12:00-13:30)</th>
+          <td>---</td>
+          <td>---</td>
+          <td>---</td>
+          <td>---</td>
+          <td>---</td>
+          <td>---</td>
+        </tr>
+        <tr>
+          <th class="yAxis">13:00-14:30</th>
+          <td>---</td>
+          <td>---</td>
+          <td>---</td>
+          <td>---</td>
+          <td>---</td>
+          <td>---</td>
+        </tr>
+        <tr>
+          <th class="yAxis">14:30-16:00 (V: 14:00-15:30)</th>
+          <td>---</td>
+          <td>---</td>
+          <td>---</td>
+          <td>---</td>
+          <td>---</td>
+          <td>---</td>
+        </tr>
+        <tr>
+          <th class="yAxis">16:15-17:45 (V: 15:45-17:15)</th>
+          <td>---</td>
+          <td>---</td>
+          <td>---</td>
+          <td>---</td>
+          <td>---</td>
+          <td>---</td>
+        </tr>
+        <tr class="foot">
+          <td colspan="7">Planning généré avec FET v6.20.3</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- Room: Amphi (receives T501 in v2) -->
+    <table id="table_3">
+      <thead>
+        <tr>
+          <th colspan="7">Amphi</th>
+        </tr>
+        <tr>
+          <th class="xAxis">Lundi</th>
+          <th class="xAxis">Mardi</th>
+          <th class="xAxis">Mercredi</th>
+          <th class="xAxis">Jeudi</th>
+          <th class="xAxis">Vendredi</th>
+          <th class="xAxis">Samedi</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <th class="yAxis">8:00-9:30</th>
+          <!-- Lundi: detailed split cell; Amphi keeps T501 -->
+          <td>
+            <table class="detailed">
+              <tr>
+                <td>B01</td>
+                <td>Amphi</td>
+                <td>B01</td>
+              </tr>
+              <tr>
+                <td>Grp-D4</td>
+                <td>Grp-E5</td>
+                <td>Grp-D4</td>
+              </tr>
+              <tr>
+                <td>Prof Roche, Prof Bernard</td>
+                <td>Prof Bernard</td>
+                <td>Prof Roche, Prof Bernard</td>
+              </tr>
+              <tr>
+                <td>T401 | Mécanique</td>
+                <td>T501 | Optique</td>
+                <td>T401 | Mécanique</td>
+              </tr>
+            </table>
+          </td>
+          <td>---</td>
+          <td>---</td>
+          <td>---</td>
+          <td>---</td>
+          <td>---</td>
+        </tr>
+        <tr>
+          <th class="yAxis">9:45-11:15</th>
+          <td>---</td>
+          <td>---</td>
+          <td>---</td>
+          <td>---</td>
+          <td>---</td>
+          <td>---</td>
+        </tr>
+        <tr>
+          <th class="yAxis">11:30-13:00 (M/S: 12:00-13:30)</th>
+          <td>---</td>
+          <td>---</td>
+          <td>---</td>
+          <td>---</td>
+          <td>---</td>
+          <td>---</td>
+        </tr>
+        <tr>
+          <th class="yAxis">13:00-14:30</th>
+          <td>---</td>
+          <td>---</td>
+          <td>---</td>
+          <td>---</td>
+          <td>---</td>
+          <td>---</td>
+        </tr>
+        <tr>
+          <th class="yAxis">14:30-16:00 (V: 14:00-15:30)</th>
+          <td>---</td>
+          <td>---</td>
+          <td>---</td>
+          <td>---</td>
+          <td>---</td>
+          <td>---</td>
+        </tr>
+        <tr>
+          <th class="yAxis">16:15-17:45 (V: 15:45-17:15)</th>
+          <td>---</td>
+          <td>---</td>
+          <td>---</td>
+          <td>---</td>
+          <td>---</td>
+          <td>---</td>
+        </tr>
+        <tr class="foot">
+          <td colspan="7">Planning généré avec FET v6.20.3</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- Synthetic edge case: room with a scheduled session that has no teacher. -->
+    <table id="table_4">
+      <thead>
+        <tr>
+          <th colspan="7">A03</th>
+        </tr>
+        <tr>
+          <th class="xAxis">Lundi</th>
+          <th class="xAxis">Mardi</th>
+          <th class="xAxis">Mercredi</th>
+          <th class="xAxis">Jeudi</th>
+          <th class="xAxis">Vendredi</th>
+          <th class="xAxis">Samedi</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <th class="yAxis">8:00-9:30</th>
+          <td>Grp-Z1b<br /><br />T700 | Atelier sans enseignant<br /></td>
+          <td>---</td>
+          <td>---</td>
+          <td>---</td>
+          <td>---</td>
+          <td>---</td>
+        </tr>
+        <tr class="foot">
+          <td colspan="7">Planning généré avec FET test</td>
+        </tr>
+      </tbody>
+    </table>
+  </body>
+</html>

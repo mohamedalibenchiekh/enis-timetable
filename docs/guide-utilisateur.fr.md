@@ -157,6 +157,34 @@ Sur Windows et Linux AppImage, l’application installée vérifie les mises à 
 
 **Résultat attendu :** l’application installe la mise à jour au redémarrage choisi. Une connexion Internet est nécessaire pour rechercher et télécharger une mise à jour. Si la dernière version est déjà installée, l’application l’indique.
 
+## Comparer deux versions
+
+### Importer une nouvelle version
+
+Quand un emploi du temps est réédité (nouvelle période, séances déplacées, salles changées), importez les nouveaux fichiers HTML en choisissant la version précédente dans le champ **[Nouvelle version de…]** de l’écran d’import. Le champ propose les emplois du temps déjà importés ; laissez **[— Aucun (première version) —]** pour un premier import. Après l’import, l’onglet **[Changements]** s’ouvre pour comparer les deux versions.
+
+Ce champ n’est disponible qu’à la création d’un emploi du temps : il ne peut pas être combiné avec **[Ajouter / remplacer des fichiers]**. Le message « « Nouvelle version de… » ne peut être utilisé qu’à la création d’un emploi du temps » apparaît si les deux options sont demandées ensemble. Si le message « Version précédente introuvable » ou « Version précédente invalide » apparaît, rechargez la liste des emplois du temps et choisissez à nouveau la version de base.
+
+### Lire les changements
+
+L’onglet **[Changements]** compare la version affichée avec une version de base choisie dans **[Comparer avec]**. Par défaut, la version précédente déclarée à l’import est pré-sélectionnée. Le sélecteur **[Vue]** choisit la source de comparaison : **[Automatique]** utilise les enseignants si les deux versions les ont, sinon les salles, sinon les groupes.
+
+Chaque changement est classé par type : **[Ajoutée]**, **[Supprimée]**, **[Déplacée]**, **[Salle changée]**, **[Groupe changé]** ou **[Enseignant changé]**. Pour chaque entrée, l’application affiche le jour, l’horaire et la salle avant et après la modification. Les filtres **[Tous les types]**, **[Enseignant]**, **[Salle]**, **[Tous les jours]** et **[Rechercher…]** permettent de réduire la liste ; **[Afficher plus]** charge les changements suivants par lots.
+
+La liste **[Jours à rééditer]** indique les jours dont le document Word change : ce sont les fichiers à régénérer et à réimprimer. Si aucun changement n’existe, le message « Aucun changement entre ces deux versions. » s’affiche. Si plus de la moitié des séances diffèrent, le bandeau « Ces deux emplois du temps semblent très différents » avertit que les deux versions sont peut-être sans rapport.
+
+### Exporter la fiche des changements
+
+Les boutons **[Exporter la fiche (.docx)]** et **[Exporter (.csv)]** produisent un document récapitulatif : la fiche Word contient le résumé, les jours à rééditer et le détail des changements ; le CSV contient une ligne par changement, lisible dans un tableur.
+
+### Surligner les changements dans l’aperçu
+
+Depuis l’onglet **[Emploi du temps]**, activez **[Surligner les changements]** pour mettre en évidence dans la grille les cellules qui diffèrent entre les deux versions comparées. Le surlignage est purement visuel : il n’apparaît pas dans les documents Word exportés.
+
+### Limites de la comparaison
+
+La comparaison rapproche les séances par leur identité (enseignants, groupe, matière, horaire et salle). Une séance dont plusieurs attributs changent en même temps peut apparaître comme une suppression suivie d’un ajout plutôt que comme un déplacement. Un groupe renommé n’est reconnu comme **[Groupe changé]** que si tout le reste est identique : enseignant, matière (code et intitulé), horaire, salle et fréquence. Sinon la séance apparaît comme supprimée puis ajoutée. Les messages « Les deux emplois du temps ne partagent aucune vue commune (teachers/rooms/groups) », « Source de comparaison invalide : … (attendu : auto, teachers, rooms ou groups) », « La vue … est absente de l’un des deux emplois du temps » et « Impossible de comparer un emploi du temps avec lui-même » signalent une comparaison impossible.
+
 ## Vos données et sauvegardes
 
 ### Retrouver vos données

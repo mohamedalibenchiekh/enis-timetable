@@ -6,6 +6,7 @@ import { DayPreview } from '@/components/DayPreview';
 import { OptionsPanel } from '@/components/OptionsPanel';
 import { UpdateBanner } from '@/components/UpdateBanner';
 import { NamesPanel } from '@/components/NamesPanel';
+import { ComparePanel } from '@/components/ComparePanel';
 import type { UpdateStatus } from '@/lib/api';
 
 function errorMessage(error: unknown): string {
@@ -16,7 +17,10 @@ export default function Home() {
   const [items, setItems] = useState<Timetable[] | null>(null);
   const [selId, setSelId] = useState<string | null>(null);
   const [day, setDay] = useState(0);
-  const [activeTab, setActiveTab] = useState<'schedule' | 'names'>('schedule');
+  const [activeTab, setActiveTab] = useState<'schedule' | 'names' | 'changes'>('schedule');
+  const [highlightCells, setHighlightCells] = useState<Set<string> | null>(null);
+  const [highlightSource, setHighlightSource] = useState<SourceKind | null>(null);
+  const [showHighlight, setShowHighlight] = useState(false);
   const [importMode, setImportMode] = useState<null | 'new' | 'add'>(null);
   const [showOptions, setShowOptions] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -59,6 +63,12 @@ export default function Home() {
 
   const sel = items?.find((t) => t.id === selId) ?? null;
   useEffect(() => { if (sel && day >= sel.days.length) setDay(0); }, [sel, day]);
+  useEffect(() => { setHighlightCells(null); setHighlightSource(null); setShowHighlight(false); }, [selId]);
+  // Stable identity: ComparePanel's highlight effect depends on this callback.
+  const onHighlight = useCallback((cells: Set<string> | null, source?: SourceKind) => {
+    setHighlightCells(cells);
+    setHighlightSource(source ?? null);
+  }, []);
 
   const exportToFolder = async () => {
     if (!sel || !window.enis) return;
@@ -117,7 +127,13 @@ export default function Home() {
         {items && (importMode || !sel) && (
           <ImportPanel
             timetable={importMode === 'add' ? sel ?? undefined : undefined}
-            onDone={(t) => { setImportMode(null); setActiveTab('schedule'); setRefreshKey((k) => k + 1); reload(t.id); }}
+            onDone={(t) => {
+              const isNewVersion = importMode !== 'add' && !!t.previousTimetableId;
+              setImportMode(null);
+              setActiveTab(isNewVersion ? 'changes' : 'schedule');
+              setRefreshKey((k) => k + 1);
+              reload(t.id);
+            }}
           />
         )}
 
@@ -144,14 +160,25 @@ export default function Home() {
 
             <div className="tabs view-tabs" role="group" aria-label="Vue de l’emploi du temps">
               <button aria-pressed={activeTab === 'schedule'} className={activeTab === 'schedule' ? 'on' : ''} onClick={() => setActiveTab('schedule')}>Emploi du temps</button>
+              <button aria-pressed={activeTab === 'changes'} className={activeTab === 'changes' ? 'on' : ''} onClick={() => setActiveTab('changes')}>Changements</button>
               <button aria-pressed={activeTab === 'names'} className={activeTab === 'names' ? 'on' : ''} onClick={() => setActiveTab('names')}>Noms</button>
+            </div>
+            {/* ComparePanel stays mounted (hidden) so its highlight set survives tab switches. */}
+            <div hidden={activeTab !== 'changes'}>
+              <ComparePanel timetable={sel} versions={items ?? []} onHighlight={onHighlight} />
             </div>
             {activeTab === 'schedule' ? (
               <>
                 <div className="tabs day-tabs" role="group" aria-label="Jours">
                   {sel.days.map((d, i) => <button key={d} aria-pressed={i === day} className={i === day ? 'on' : ''} onClick={() => setDay(i)}>{d}</button>)}
                 </div>
-                <DayPreview id={sel.id} day={day} refreshKey={refreshKey} />
+                {highlightCells && highlightCells.size > 0 && (
+                  <label className="highlight-toggle">
+                    <input type="checkbox" checked={showHighlight} onChange={(e) => setShowHighlight(e.target.checked)} />
+                    Surligner les changements
+                  </label>
+                )}
+                <DayPreview id={sel.id} day={day} refreshKey={refreshKey} highlightCells={highlightCells} showHighlight={showHighlight} source={highlightSource} />
 
                 <div className="foot">
                   <button className="link" onClick={() => setShowOptions(!showOptions)}>{showOptions ? '▾' : '▸'} Options du document Word</button>
@@ -160,9 +187,9 @@ export default function Home() {
                 </div>
                 {showOptions && <OptionsPanel onSaved={() => setRefreshKey((k) => k + 1)} />}
               </>
-            ) : (
+            ) : activeTab === 'names' ? (
               <NamesPanel id={sel.id} onSaved={() => setRefreshKey((key) => key + 1)} />
-            )}
+            ) : null}
           </>
         )}
       </main>

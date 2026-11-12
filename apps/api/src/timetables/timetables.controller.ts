@@ -1,5 +1,5 @@
 import {
-  Body, Controller, Delete, Get, Param, ParseIntPipe, ParseUUIDPipe, Post, Res, StreamableFile, UploadedFiles, UseInterceptors,
+  Body, Controller, Delete, Get, Param, ParseIntPipe, ParseUUIDPipe, Post, Query, Res, StreamableFile, UploadedFiles, UseInterceptors,
 } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { Response } from 'express';
@@ -31,15 +31,16 @@ export class TimetablesController {
     @UploadedFiles() files: { originalname: string; buffer: Buffer }[],
     @Body('name') name?: string,
     @Body('timetableId') timetableId?: string,
+    @Body('previousTimetableId') previousTimetableId?: string,
   ) {
     // browsers send file names as latin1 in multipart: restore UTF-8
     const fixed = (files ?? []).map((f) => ({ originalname: Buffer.from(f.originalname, 'latin1').toString('utf8'), buffer: f.buffer }));
-    return this.svc.importFiles(fixed, { name, timetableId: timetableId || undefined });
+    return this.svc.importFiles(fixed, { name, timetableId: timetableId || undefined, previousTimetableId: previousTimetableId || undefined });
   }
 
   @Get(':id/days/:day/preview')
-  preview(@Param('id', ParseUUIDPipe) id: string, @Param('day', ParseIntPipe) day: number) {
-    return this.svc.dayGrid(id, day);
+  preview(@Param('id', ParseUUIDPipe) id: string, @Param('day', ParseIntPipe) day: number, @Query('source') source?: string) {
+    return this.svc.dayGrid(id, day, undefined, source as 'rooms' | 'teachers' | 'groups' | undefined);
   }
 
   @Get(':id/days/:day/docx')

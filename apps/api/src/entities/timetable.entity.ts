@@ -1,4 +1,4 @@
-import { Column, CreateDateColumn, Entity, Index, ManyToOne, OneToMany, PrimaryColumn, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm';
+import { Column, CreateDateColumn, Entity, Index, JoinColumn, ManyToOne, OneToMany, PrimaryColumn, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm';
 import { SlotLabel, SourceKind } from '../parser/types.js';
 
 export interface SourceFileInfo {
@@ -20,6 +20,11 @@ export class Timetable {
   /** Every room known from the "rooms" export (also the empty ones). */
   @Column('jsonb', { default: [] }) rooms: string[];
   @Column('jsonb', { default: [] }) files: SourceFileInfo[];
+  /** Older version this timetable was declared to replace ("Nouvelle version de…"). */
+  @Column('uuid', { nullable: true }) previousTimetableId: string | null;
+  @ManyToOne(() => Timetable, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'previousTimetableId' })
+  previousTimetable: Timetable | null;
   @CreateDateColumn() createdAt: Date;
   @OneToMany(() => SessionEntity, (s) => s.timetable) sessions: SessionEntity[];
 }

@@ -278,4 +278,86 @@ describe('API integration (PostgreSQL)', () => {
     }).expect(400);
     expect(response.body.message).toBe('Le fichier de noms dépasse 1 Mo');
   });
+
+  const v2Dir = path.join(fixtureDir, 'v2');
+  const v2Files = (): [string, Buffer][] => [
+    ['FET_rooms_v2.html', fs.readFileSync(path.join(v2Dir, 'FET_rooms_v2.html'))],
+    ['FET_teachers_v2.html', fs.readFileSync(path.join(v2Dir, 'FET_teachers_v2.html'))],
+    ['FET_groups_v2.html', fs.readFileSync(path.join(v2Dir, 'FET_groups_v2.html'))],
+  ] as const;
+
+  async function createV1AndV2() {
+    const v1 = await createTimetable();
+    const v2 = await upload(v2Files(), { previousTimetableId: v1.id }).expect(201);
+    return { v1: v1.id as string, v2: v2.body.id as string, v2Body: v2.body };
+  }
+
+  databaseTest('imports a new version linked to the previous one and returns a comparison summary', async () => {
+    const { v1, v2, v2Body } = await createV1AndV2();
+    expect(v2Body.previousTimetableId).toBe(v1);
+    expect(v2Body.comparison).toMatchObject({ total: expect.any(Number), byType: expect.any(Object) });
+    expect(v2Body.comparison.total).toBeGreaterThan(0);
+  });
+
+  databaseTest('rejects previousTimetableId combined with timetableId and unknown previous ids', async () => {
+    const timetable = await createTimetable();
+    await upload(v2Files(), { timetableId: timetable.id, previousTimetableId: timetable.id }).expect(400);
+    await upload(v2Files(), { previousTimetableId: randomUUID() }).expect(404);
+    await upload(v2Files(), { previousTimetableId: 'not-a-uuid' }).expect(400);
+  });
+
+  databaseTest('compares two timetables with summary, changes and day impact', async () => {
+    const { v1, v2 } = await createV1AndV2();
+    const res = await request(app!.getHttpServer()).get(`/api/timetables/${v1}/compare/${v2}`).expect(200);
+    expect(res.body.base.id).toBe(v1);
+    expect(res.body.target.id).toBe(v2);
+    expect(res.body.source).toBe('teachers');
+    expect(res.body.summary.byType.moved).toBe(2);
+    expect(res.body.summary.byType.room_changed).toBe(1);
+    expect(res.body.summary.byType.added).toBe(1);
+    expect(res.body.summary.byType.removed).toBe(1);
+    expect(res.body.changes.length).toBe(res.body.summary.total);
+    expect(res.body.days.length).toBeGreaterThan(0);
+    expect(res.body.days.every((d: { dayName: string; cells: unknown[] }) => d.dayName && Array.isArray(d.cells))).toBe(true);
+  });
+
+  databaseTest('honours the source query parameter and rejects invalid ones', async () => {
+    const { v1, v2 } = await createV1AndV2();
+    const rooms = await request(app!.getHttpServer()).get(`/api/timetables/${v1}/compare/${v2}?source=rooms`).expect(200);
+    expect(rooms.body.source).toBe('rooms');
+    expect(rooms.body.summary.byType.group_changed).toBe(1);
+    await request(app!.getHttpServer()).get(`/api/timetables/${v1}/compare/${v2}?source=bogus`).expect(400);
+  });
+
+  databaseTest('rejects comparing a timetable with itself and unknown ids', async () => {
+    const { v1 } = await createV1AndV2();
+    await request(app!.getHttpServer()).get(`/api/timetables/${v1}/compare/${v1}`).expect(400);
+    await request(app!.getHttpServer()).get(`/api/timetables/${v1}/compare/${randomUUID()}`).expect(404);
+  });
+
+  databaseTest('serves a valid compare DOCX fiche and a BOM CSV', async () => {
+    const { v1, v2 } = await createV1AndV2();
+    const docx = await request(app!.getHttpServer())
+      .get(`/api/timetables/${v1}/compare/${v2}/export.docx`)
+      .buffer(true)
+      .parse((response, callback) => {
+        const chunks: Buffer[] = [];
+        response.on('data', (chunk: Buffer) => chunks.push(chunk));
+        response.on('end', () => callback(null, Buffer.concat(chunks)));
+      })
+      .expect(200);
+    expect(docx.headers['content-type']).toContain('application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+    expect(docx.headers['content-disposition']).toContain('Fiche-des-changements');
+    const zip = await JSZip.loadAsync(docx.body);
+    const xml = await zip.file('word/document.xml')?.async('string');
+    expect(xml).toContain('Fiche des changements');
+    expect(xml).toContain('Jours à rééditer');
+
+    const csv = await request(app!.getHttpServer()).get(`/api/timetables/${v1}/compare/${v2}/export.csv`).expect(200);
+    expect(csv.headers['content-type']).toContain('text/csv');
+    const text = csv.text ?? String(csv.body);
+    expect(text.charCodeAt(0)).toBe(0xfeff);
+    expect(text.split('\n')[0]).toContain(';');
+    expect(text).toContain('Déplacée');
+  });
 });

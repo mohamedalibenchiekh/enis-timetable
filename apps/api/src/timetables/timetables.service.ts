@@ -12,6 +12,8 @@ import { buildDayDocx } from '../export/docx-builder.js';
 import { SettingsService } from '../settings/settings.service.js';
 import { NamesService } from '../names/names.service.js';
 import { NameResolver } from '../export/name-resolver.js';
+import { CompareService } from '../compare/compare.service.js';
+import type { CompareSummary } from '../compare/types.js';
 
 const PRIORITY: SourceKind[] = ['rooms', 'teachers', 'groups'];
 
@@ -28,6 +30,7 @@ export class TimetablesService {
     private ds: DataSource,
     private settings: SettingsService,
     private names: NamesService,
+    private compare: CompareService,
   ) {}
 
   list() {
@@ -46,8 +49,19 @@ export class TimetablesService {
   }
 
   /** Parse the uploaded HTML files and store them (new timetable, or add/replace views of an existing one). */
-  async importFiles(files: UploadedHtml[], opts: { name?: string; timetableId?: string }) {
+  async importFiles(files: UploadedHtml[], opts: { name?: string; timetableId?: string; previousTimetableId?: string }) {
     if (!files?.length) throw new BadRequestException('Aucun fichier HTML reçu');
+    if (opts.previousTimetableId && opts.timetableId)
+      throw new BadRequestException('« Nouvelle version de… » ne peut être utilisé qu’à la création d’un emploi du temps');
+    let previous: Timetable | undefined;
+    if (opts.previousTimetableId) {
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(opts.previousTimetableId))
+        throw new BadRequestException('Version précédente invalide');
+      previous = await this.get(opts.previousTimetableId).catch((e) => {
+        if (e instanceof NotFoundException) throw new NotFoundException('Version précédente introuvable');
+        throw e;
+      });
+    }
     const parsed: { file: UploadedHtml; data: ParsedFile }[] = [];
     for (const f of files) {
       const html = f.buffer.toString('utf8');
@@ -59,6 +73,9 @@ export class TimetablesService {
     }
     const kinds = parsed.map((p) => p.data.kind);
     if (new Set(kinds).size !== kinds.length) throw new BadRequestException('Deux fichiers du même type (teachers/rooms/groups) ont été envoyés');
+    // Fail before saving when the two versions share no comparable view.
+    if (previous && !['teachers', 'rooms', 'groups'].some((k) => kinds.includes(k as SourceKind) && previous!.files?.some((f) => f.kind === k)))
+      throw new BadRequestException('Les deux emplois du temps ne partagent aucune vue commune (teachers/rooms/groups)');
 
     return this.ds.transaction(async (em) => {
       let t: Timetable;
@@ -71,6 +88,7 @@ export class TimetablesService {
         t = em.create(Timetable, {
           name: opts.name?.trim() || ref.data.comment || path.parse(ref.file.originalname).name,
           files: [],
+          previousTimetableId: opts.previousTimetableId ?? null,
         });
       }
       t = await em.save(Timetable, t);
@@ -88,7 +106,19 @@ export class TimetablesService {
         if (data.slots.length) t.slots = data.slots;
         if (data.kind === 'rooms') t.rooms = data.owners;
       }
-      return em.save(Timetable, t);
+      const saved = await em.save(Timetable, t);
+      return saved;
+    }).then(async (saved) => {
+      if (!opts.previousTimetableId) return saved;
+      // Best-effort: the version is already committed, so a comparison failure
+      // must not surface as an import error (a retry would create a duplicate).
+      // The Changements tab can always recompute the comparison on demand.
+      try {
+        const comparison = await this.compare.compareSummary(opts.previousTimetableId!, saved.id);
+        return { ...saved, comparison } as Timetable & { comparison: CompareSummary };
+      } catch {
+        return saved;
+      }
     });
   }
 
@@ -99,11 +129,12 @@ export class TimetablesService {
     return kind;
   }
 
-  async dayGrid(id: string, day: number, nameResolver?: NameResolver): Promise<DayGrid> {
+  async dayGrid(id: string, day: number, nameResolver?: NameResolver, source?: SourceKind): Promise<DayGrid> {
     const t = await this.get(id);
     if (!Number.isInteger(day) || day < 0 || day >= t.days.length) throw new BadRequestException('Jour invalide');
-    const source = this.pickSource(t);
-    const rows = await this.sessions.find({ where: { timetableId: id, source, day } });
+    const requested = source && PRIORITY.includes(source) && t.files.some((f) => f.kind === source) ? source : undefined;
+    const kind = requested ?? this.pickSource(t);
+    const rows = await this.sessions.find({ where: { timetableId: id, source: kind, day } });
     const options = await this.settings.getExportOptions();
     const resolver = nameResolver ?? await this.names.getResolver();
     return buildDayGrid(rows, { days: t.days, slots: t.slots, rooms: t.rooms }, day, options, resolver);
