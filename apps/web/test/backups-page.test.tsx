@@ -59,6 +59,29 @@ const mockInspectResult: InspectResult = {
   },
 };
 
+const mockInspectAutoResult: InspectResult = {
+  id: 'YXV0by0x',
+  manifest: {
+    formatVersion: 1,
+    appVersion: '1.0.6',
+    schemaVersion: 1,
+    createdAt: '2026-11-12T10:00:00.000Z',
+    counts: { timetables: 1, sessions: 60, settings: 1, teacher_names: 8, room_labels: 4 },
+    sha256: {},
+  },
+  compatibility: {
+    compatible: true,
+    upgradeRequired: false,
+    message: 'Sauvegarde compatible avec cette version.',
+  },
+  summary: {
+    timetables: [{ id: 't1', name: 'Semestre 1', sessionCount: 60, days: ['Lundi'] }],
+    teacherOverridesCount: 8,
+    roomOverridesCount: 4,
+    hasSettings: true,
+  },
+};
+
 const mockRestoreResult: RestoreResult = {
   ok: true,
   mode: 'replace',
@@ -95,9 +118,11 @@ describe('SauvegardesPage Component', () => {
   });
 
   it('saves retention settings', async () => {
+    let capturedBody: unknown = null;
     const fetchMock = vi.fn().mockImplementation((url: string, init?: RequestInit) => {
       if (url === '/api/backups') return Promise.resolve(jsonResponse(mockSummary));
       if (url === '/api/backups/settings' && init?.method === 'PUT') {
+        capturedBody = JSON.parse(init.body as string);
         return Promise.resolve(jsonResponse({ enabled: true, retention: 20 }));
       }
       return Promise.reject(new Error(`Unhandled: ${url}`));
@@ -116,6 +141,7 @@ describe('SauvegardesPage Component', () => {
     await waitFor(() => {
       expect(screen.getByText('Paramètres de sauvegarde enregistrés.')).not.toBeNull();
     });
+    expect(capturedBody).toEqual({ enabled: true, retention: 20 });
   });
 
   it('inspects a backup file and enables restore after confirmation checkbox in replace mode', async () => {
@@ -157,10 +183,12 @@ describe('SauvegardesPage Component', () => {
   });
 
   it('allows merge mode restore without destructive replacement checkbox', async () => {
+    let capturedRestoreBody: unknown = null;
     const fetchMock = vi.fn().mockImplementation((url: string, init?: RequestInit) => {
       if (url === '/api/backups') return Promise.resolve(jsonResponse(mockSummary));
-      if (url === '/api/backups/inspect') return Promise.resolve(jsonResponse(mockInspectResult));
+      if (url === '/api/backups/inspect') return Promise.resolve(jsonResponse(mockInspectAutoResult));
       if (url === '/api/backups/restore') {
+        capturedRestoreBody = JSON.parse(init?.body as string);
         return Promise.resolve(jsonResponse({ ...mockRestoreResult, mode: 'merge' }));
       }
       return Promise.reject(new Error(`Unhandled: ${url}`));
@@ -192,6 +220,8 @@ describe('SauvegardesPage Component', () => {
     await waitFor(() => {
       expect(screen.getByText(/Restauration terminée \(Fusion\)/)).not.toBeNull();
     });
+
+    expect(capturedRestoreBody).toEqual({ id: 'YXV0by0x', mode: 'merge' });
   });
 
   it('calls showInFolder when Ouvrir le dossier is clicked on pre-update backup', async () => {

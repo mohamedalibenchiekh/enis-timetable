@@ -122,6 +122,8 @@ describe('Hostile archive hardening & validation suite', () => {
   });
 
   it('rejects row validation errors in table data', async () => {
+    const emptyHash = createHash('sha256').update(Buffer.alloc(0)).digest('hex');
+
     // 1. Invalid UUID in timetables
     const badIdRow = JSON.stringify({
       id: 'not-a-valid-uuid',
@@ -133,9 +135,19 @@ describe('Hostile archive hardening & validation suite', () => {
     const zip1 = await makeArchive({
       'manifest.json': JSON.stringify(validManifest({
         counts: { timetables: 1, sessions: 0, settings: 0, teacher_names: 0, room_labels: 0 },
-        sha256: { 'data/timetables.ndjson': hash1 },
+        sha256: {
+          'data/timetables.ndjson': hash1,
+          'data/sessions.ndjson': emptyHash,
+          'data/settings.ndjson': emptyHash,
+          'data/teacher_names.ndjson': emptyHash,
+          'data/room_labels.ndjson': emptyHash,
+        },
       })),
       'data/timetables.ndjson': badIdRow,
+      'data/sessions.ndjson': '',
+      'data/settings.ndjson': '',
+      'data/teacher_names.ndjson': '',
+      'data/room_labels.ndjson': '',
     });
     await expect(BackupInspector.inspectArchive(zip1)).rejects.toThrow(
       'Ligne 1 de « timetables » : identifiant UUID invalide.',
@@ -150,9 +162,19 @@ describe('Hostile archive hardening & validation suite', () => {
     const zip2 = await makeArchive({
       'manifest.json': JSON.stringify(validManifest({
         counts: { timetables: 0, sessions: 0, settings: 1, teacher_names: 0, room_labels: 0 },
-        sha256: { 'data/settings.ndjson': hash2 },
+        sha256: {
+          'data/timetables.ndjson': emptyHash,
+          'data/sessions.ndjson': emptyHash,
+          'data/settings.ndjson': hash2,
+          'data/teacher_names.ndjson': emptyHash,
+          'data/room_labels.ndjson': emptyHash,
+        },
       })),
+      'data/timetables.ndjson': '',
+      'data/sessions.ndjson': '',
       'data/settings.ndjson': evilSetting,
+      'data/teacher_names.ndjson': '',
+      'data/room_labels.ndjson': '',
     });
     await expect(BackupInspector.inspectArchive(zip2)).rejects.toThrow(
       'Ligne 1 de « settings » : clé interdite (« databaseUrl »).',
