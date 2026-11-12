@@ -166,6 +166,9 @@ describe('API integration (PostgreSQL)', () => {
     const preview = await request(app!.getHttpServer()).get(`/api/timetables/${timetable.id}/days/0/preview`).expect(200);
     expect(JSON.stringify(preview.body)).toContain('Prof Dupont');
     expect(JSON.stringify(preview.body)).not.toContain('1/15');
+    // The preview echoes the resolved options so the client can mirror the layout.
+    expect(preview.body.options.abbreviateBen).toBe(false);
+    expect(preview.body.options.showFrequency).toBe(false);
   });
 
   databaseTest('manages export profiles and applies them to preview and DOCX', async () => {

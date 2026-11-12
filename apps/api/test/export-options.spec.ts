@@ -158,16 +158,16 @@ describe('options validation and migration', () => {
       ],
     });
     // bloc-a matches the default 'bloc-a' id → Amphi patterns restored.
-    expect(o.blocs[0].patterns).toEqual(['^A\\d\\d']);
+    expect(o.blocs[0].patterns).toEqual(DEFAULT_OPTIONS.blocs[0].patterns);
     // custom has no default match at index 1 → falls back to the positional default.
-    expect(o.blocs[1].patterns.length).toBeGreaterThan(0);
+    expect(o.blocs[1].patterns).toEqual(DEFAULT_OPTIONS.blocs[1].patterns);
   });
 
   it('normalizeOptions restores positional default patterns for unmatched blocs', () => {
     const o = normalizeOptions({ blocs: [{ title: 'X', patterns: ['['] }] });
     // Single custom bloc at index 0 restores positional default patterns, so it survives.
     expect(o.blocs.length).toBeGreaterThan(0);
-    expect(o.blocs[0].patterns.length).toBeGreaterThan(0);
+    expect(o.blocs[0].patterns).toEqual(DEFAULT_OPTIONS.blocs[0].patterns);
   });
 
   it('mergeOptions keeps legacy shallow-merge semantics', () => {
@@ -356,7 +356,8 @@ describe('buildDayDocx layout', () => {
     };
     const grid = buildDayGrid(parsed.sessions, pmeta, 0, options);
     const xml = await documentXml(grid, options);
-    expect(xml).toContain('w:tblHeader');
+    // Both page groups repeat the header → one w:tblHeader per table.
+    expect(tagged(xml, 'w:tblHeader')).toHaveLength(2);
   });
 
   it('honours cellFontSize in the legacy plain-cell layout', async () => {

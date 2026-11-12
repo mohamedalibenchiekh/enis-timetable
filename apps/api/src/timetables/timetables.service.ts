@@ -150,10 +150,13 @@ export class TimetablesService {
     return buildDayGrid(rows, { days: t.days, slots: t.slots, rooms: t.rooms }, day, options, resolver);
   }
 
-  async dayGrid(id: string, day: number, nameResolver?: NameResolver, source?: SourceKind, profileId?: string): Promise<DayGrid> {
+  async dayGrid(id: string, day: number, nameResolver?: NameResolver, source?: SourceKind, profileId?: string): Promise<DayGrid & { options: ExportOptions }> {
     const t = await this.get(id);
     const { options } = await this.resolveProfile(profileId);
-    return this.gridFor(t, day, options, nameResolver, source);
+    const grid = await this.gridFor(t, day, options, nameResolver, source);
+    // Echo the resolved options so the client preview mirrors the exact layout
+    // the server used, even when the profiles list could not be loaded.
+    return { ...grid, options };
   }
 
   async dayDocx(id: string, day: number, nameResolver?: NameResolver, profileId?: string) {

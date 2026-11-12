@@ -40,6 +40,8 @@ export interface DayGrid {
   day: number; dayName: string; headers: string[][]; sessionCount: number;
   blocs: BlocGrid[];
   pages?: DayPage[];
+  /** Resolved export options used to build this grid (preview only). */
+  options?: ExportOptions;
 }
 export interface BlocConfig { id?: string; title: string; patterns: string[]; page?: number }
 export type SubjectMode = 'full' | 'code' | 'both';

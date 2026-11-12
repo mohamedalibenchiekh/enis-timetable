@@ -30,10 +30,13 @@ export function DayPreview({ id, day, refreshKey, highlightCells, showHighlight,
   const pageGroups: { page: number; blocs: typeof grid.blocs }[] = grid.pages && grid.pages.length > 1
     ? grid.pages.map((pg) => ({ page: pg.page, blocs: pg.blocs.map((i) => grid.blocs[i]).filter(Boolean) }))
     : [{ page: 1, blocs: grid.blocs }];
+  // Prefer the profile options passed by the parent; fall back to the options
+  // the server resolved for this grid so the preview always matches the export.
+  const opts = options ?? grid.options ?? null;
   // Mirror the DOCX layout options: header only on the first page group unless
   // repeatDayHeader is set, and an optional bold page title per group.
-  const showHeader = (pgIndex: number) => pgIndex === 0 || options?.repeatDayHeader !== false;
-  const showTitle = options?.showPageTitle === true;
+  const showHeader = (pgIndex: number) => pgIndex === 0 || opts?.repeatDayHeader !== false;
+  const showTitle = opts?.showPageTitle === true;
 
   return (
     <div className="gridwrap">
@@ -54,7 +57,7 @@ export function DayPreview({ id, day, refreshKey, highlightCells, showHighlight,
             )}
             <tbody>
               {pg.blocs.map((b) => (
-                <FragmentRows key={b.title} title={b.title} span={span} rows={b.rows} headers={grid.headers} day={day} highlightCells={hl} options={options} />
+                <FragmentRows key={b.title} title={b.title} span={span} rows={b.rows} headers={grid.headers} day={day} highlightCells={hl} options={opts} />
               ))}
             </tbody>
           </table>
@@ -73,6 +76,9 @@ function FragmentRows({ title, span, rows, headers, day, highlightCells, options
   highlightCells?: Set<string>;
   options?: ExportOptions | null;
 }) {
+  // Session cells use the profile's font size (points), like the DOCX export.
+  const cellFontSize = options?.cellFontSize;
+  const cellStyle = cellFontSize ? { fontSize: `${cellFontSize}pt` } : undefined;
   return (
     <>
       <tr><td className="bloc" colSpan={span}>{title}</td></tr>
@@ -84,7 +90,7 @@ function FragmentRows({ title, span, rows, headers, day, highlightCells, options
             const isHl = !!highlightCells?.has(`${day}|${normalizeName(r.room)}|${slotHeader}`);
             const details = r.details?.[i];
             return (
-              <td key={i} className={isHl ? 'hl' : undefined}>
+              <td key={i} className={isHl ? 'hl' : undefined} style={cellStyle}>
                 {details ? <RichCell entries={details} options={options} /> : c}
               </td>
             );

@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { api, ExportOptions, ExportProfilesState } from '@/lib/api';
 
 const PRESETS: { id: string; label: string; template: string }[] = [
@@ -21,6 +21,11 @@ export function OptionsPanel({ profiles, activeProfileId, onProfilesChange, onAc
   const [msg, setMsg] = useState('');
   const [error, setError] = useState('');
   const [newName, setNewName] = useState('');
+  const [busy, setBusy] = useState(false);
+  // Latest editor state, mirrored into refs so async responses can detect
+  // edits or profile switches that happened while a request was in flight.
+  const oRef = useRef<ExportOptions | null>(null);
+  const profileIdRef = useRef<string | null>(null);
 
   const profile = useMemo(() => profiles?.profiles.find((p) => p.id === activeProfileId) ?? null, [profiles, activeProfileId]);
 
@@ -29,6 +34,8 @@ export function OptionsPanel({ profiles, activeProfileId, onProfilesChange, onAc
     setO(profile ? structuredClone(profile.options) : null);
     setMsg(''); setError('');
   }, [profile?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { oRef.current = o; }, [o]);
+  useEffect(() => { profileIdRef.current = profile?.id ?? null; }, [profile?.id]);
 
   if (!profiles || !profile || !o) return error ? <p className="error">{error}</p> : null;
 
@@ -39,21 +46,28 @@ export function OptionsPanel({ profiles, activeProfileId, onProfilesChange, onAc
   const activePreset = PRESETS.find((p) => p.template === o.cellTemplate)?.id ?? 'custom';
 
   const run = async (fn: () => Promise<ExportProfilesState>, done?: string) => {
-    setError('');
+    setError(''); setBusy(true);
     try {
       const state = await fn();
       onProfilesChange(state);
       if (done) setMsg(done);
       return state;
     } catch (e) { setError((e as Error).message); return null; }
+    finally { setBusy(false); }
   };
 
   const save = async () => {
-    const state = await run(() => api.updateProfile(profile.id, { options: o }), 'Options enregistrées');
+    const savedId = profile.id;
+    const sent = o;
+    const state = await run(() => api.updateProfile(savedId, { options: sent }), 'Options enregistrées');
     if (state) {
-      // Resync the editor with the normalized options returned by the server.
-      const updated = state.profiles.find((p) => p.id === profile.id);
-      if (updated) setO(structuredClone(updated.options));
+      // Resync the editor with the normalized options returned by the server —
+      // but only if the editor still shows the saved profile and the user has
+      // not edited since the request was sent.
+      const updated = state.profiles.find((p) => p.id === savedId);
+      if (updated && profileIdRef.current === savedId && oRef.current === sent) {
+        setO(structuredClone(updated.options));
+      }
       onSaved();
     }
   };
@@ -92,7 +106,7 @@ export function OptionsPanel({ profiles, activeProfileId, onProfilesChange, onAc
       {/* ----- Profiles ----- */}
       <h3>Profils d’export</h3>
       <div className="profilebar">
-        <select value={profile.id} onChange={(e) => onActiveProfileChange(e.target.value)} aria-label="Profil actif">
+        <select value={profile.id} disabled={busy} onChange={(e) => onActiveProfileChange(e.target.value)} aria-label="Profil actif">
           {profiles.profiles.map((p) => <option key={p.id} value={p.id}>{p.name}{p.id === profiles.defaultId ? ' (défaut)' : ''}</option>)}
         </select>
         <button className="link" onClick={renameProfile}>renommer</button>
@@ -179,7 +193,7 @@ export function OptionsPanel({ profiles, activeProfileId, onProfilesChange, onAc
       <label>Libellé de la pause <input className="text inline" value={o.pauseLabel} onChange={(e) => set('pauseLabel', e.target.value)} /></label>
 
       {error && <p className="error">{error}</p>}
-      <div><button className="primary" onClick={save}>Enregistrer</button> {msg && <span className="ok">{msg}</span>}</div>
+      <div><button className="primary" disabled={busy} onClick={save}>Enregistrer</button> {msg && <span className="ok">{msg}</span>}</div>
     </div>
   );
 }
