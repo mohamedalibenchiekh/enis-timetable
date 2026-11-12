@@ -90,15 +90,13 @@ export class BackupRestorer {
           }
 
           // Restore previousTimetableId lineage (after all timetables exist to prevent FK issues)
+          const timetableIdSet = new Set(data.timetables.map((t) => t.id));
           for (const t of data.timetables) {
-            if (t.previousTimetableId) {
-              const targetExists = data.timetables.some((other) => other.id === t.previousTimetableId);
-              if (targetExists) {
-                await em.query(
-                  `UPDATE timetables SET "previousTimetableId" = $1 WHERE id = $2`,
-                  [t.previousTimetableId, t.id],
-                );
-              }
+            if (t.previousTimetableId && timetableIdSet.has(t.previousTimetableId)) {
+              await em.query(
+                `UPDATE timetables SET "previousTimetableId" = $1 WHERE id = $2`,
+                [t.previousTimetableId, t.id],
+              );
             }
           }
         }
