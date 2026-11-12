@@ -134,41 +134,51 @@ export class TimetablesService {
     return kind;
   }
 
-  async dayGrid(id: string, day: number, nameResolver?: NameResolver, source?: SourceKind): Promise<DayGrid> {
+  /** Resolve export options for a profile id (falls back to the default profile). */
+  private async resolveOptions(profileId?: string) {
+    if (profileId) {
+      const { profile } = await this.settings.getProfileOptions(profileId);
+      return profile.options;
+    }
+    return this.settings.getExportOptions();
+  }
+
+  async dayGrid(id: string, day: number, nameResolver?: NameResolver, source?: SourceKind, profileId?: string): Promise<DayGrid> {
     const t = await this.get(id);
     if (!Number.isInteger(day) || day < 0 || day >= t.days.length) throw new BadRequestException('Jour invalide');
     const requested = source && PRIORITY.includes(source) && t.files.some((f) => f.kind === source) ? source : undefined;
     const kind = requested ?? this.pickSource(t);
     const rows = await this.sessions.find({ where: { timetableId: id, source: kind, day } });
-    const options = await this.settings.getExportOptions();
+    const options = await this.resolveOptions(profileId);
     const resolver = nameResolver ?? await this.names.getResolver();
     return buildDayGrid(rows, { days: t.days, slots: t.slots, rooms: t.rooms }, day, options, resolver);
   }
 
-  async dayDocx(id: string, day: number, nameResolver?: NameResolver) {
-    const grid = await this.dayGrid(id, day, nameResolver);
-    return { fileName: `${grid.dayName}.docx`, buffer: await buildDayDocx(grid) };
+  async dayDocx(id: string, day: number, nameResolver?: NameResolver, profileId?: string) {
+    const grid = await this.dayGrid(id, day, nameResolver, undefined, profileId);
+    const options = await this.resolveOptions(profileId);
+    return { fileName: `${grid.dayName}.docx`, buffer: await buildDayDocx(grid, options) };
   }
 
-  async allDocx(id: string) {
+  async allDocx(id: string, profileId?: string) {
     const t = await this.get(id);
     const nameResolver = await this.names.getResolver();
     const out: { fileName: string; buffer: Buffer }[] = [];
-    for (let d = 0; d < t.days.length; d++) out.push(await this.dayDocx(id, d, nameResolver));
+    for (let d = 0; d < t.days.length; d++) out.push(await this.dayDocx(id, d, nameResolver, profileId));
     return out;
   }
 
-  async zip(id: string) {
+  async zip(id: string, profileId?: string) {
     const zip = new JSZip();
-    for (const f of await this.allDocx(id)) zip.file(f.fileName, f.buffer);
+    for (const f of await this.allDocx(id, profileId)) zip.file(f.fileName, f.buffer);
     return zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' });
   }
 
-  async exportToFolder(id: string, dir: string) {
+  async exportToFolder(id: string, dir: string, profileId?: string) {
     if (!dir || !path.isAbsolute(dir) || !fs.existsSync(dir) || !fs.statSync(dir).isDirectory())
       throw new BadRequestException('Dossier invalide');
     const written: string[] = [];
-    for (const f of await this.allDocx(id)) {
+    for (const f of await this.allDocx(id, profileId)) {
       const target = path.join(dir, f.fileName);
       fs.writeFileSync(target, f.buffer);
       written.push(target);
