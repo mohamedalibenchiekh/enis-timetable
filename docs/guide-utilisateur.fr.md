@@ -96,16 +96,38 @@ Le téléchargement du navigateur est enregistré dans le dossier habituellement
 
 ## Options du document Word
 
-### Modifier les options
+### Choisir un profil d’export
+
+Un **profil** est un ensemble nommé d’options du document Word. Le profil actif s’applique à l’aperçu et à tous les téléchargements (jour, archive ZIP et dossier).
 
 1. Dans l’onglet **[Emploi du temps]**, ouvrez **[Options du document Word]**.
-2. Activez **[Abréger « BEN » en « B » (ex. B Rhouma Asma)]** pour raccourcir ce préfixe dans les noms affichés.
-3. Activez **[Afficher « 1/15 » pour les séances une semaine sur deux]** pour afficher cette indication de fréquence.
-4. Activez **[Lister aussi les salles libres]** pour inclure les salles sans séance.
-5. Modifiez **[Libellé de la pause]** pour choisir le texte affiché dans les créneaux de pause vides.
-6. Sélectionnez **[Enregistrer]**.
+2. Dans **[Profils d’export]**, choisissez le profil à modifier dans la liste.
+3. Utilisez **[renommer]**, **[définir par défaut]** ou **[supprimer]** pour gérer le profil sélectionné.
+4. Pour créer une variante, saisissez un nom dans le champ à côté de **[+ nouveau profil]** puis sélectionnez ce bouton. Le nouveau profil copie les options du profil actif.
 
-**Résultat attendu :** le message **[Options enregistrées]** apparaît. Les prochains aperçus et documents utilisent ces options.
+**Résultat attendu :** le profil choisi est utilisé pour l’aperçu et les prochains documents. Le profil par défaut est utilisé quand aucun profil n’est explicitement sélectionné.
+
+### Régler le contenu des cellules
+
+Le contenu de chaque case peut être composé de plusieurs lignes : enseignant, groupe et matière.
+
+1. Dans **[Contenu des cellules]**, choisissez un préréglage ou personnalisez le **[Modèle de cellule]**.
+2. Les préréglages proposés sont : enseignant seul, enseignant + groupe, enseignant + groupe + matière, et groupe + matière.
+3. Le modèle accepte les jetons `{teacher}`, `{group}`, `{subjectCode}`, `{subject}` et `{frequency}`. Un saut de ligne dans le modèle crée une ligne dans la cellule.
+4. Réglez **[Affichage de la matière]** (nom complet, code ou code + nom), **[Longueur max du nom (0 = illimité)]**, **[Séparateur de groupes]**, **[Taille de police des cellules (pt)]**, **[Italique pour les lignes secondaires (groupe + matière)]** et **[Taille réduite pour les lignes secondaires]**.
+
+**Résultat attendu :** les cases de l’aperçu et du document Word affichent les lignes configurées.
+
+### Régler la mise en page et les pages
+
+Vous pouvez répartir les blocs sur plusieurs pages et changer l’orientation du document.
+
+1. Dans **[Mise en page]**, choisissez **[Portrait]** ou **[Paysage]**.
+2. Activez **[Répéter l’en-tête du jour sur chaque page]** pour réafficher le nom du jour et les horaires en haut de chaque page.
+3. Activez **[Afficher un titre de page (noms des blocs)]** pour afficher les noms des blocs au-dessus de chaque tableau.
+4. Dans le tableau **[Blocs et pages]**, assignez chaque bloc à une page avec la liste **[Page]**. Les blocs d’une même page sont imprimés ensemble ; chaque page devient une section du document Word.
+
+**Résultat attendu :** le document Word est découpé en sections selon les pages configurées, avec l’orientation et les en-têtes choisis.
 
 ### Régler les blocs et leurs expressions
 
@@ -124,6 +146,16 @@ Le champ des expressions accepte plusieurs règles séparées par des virgules. 
 5. Sélectionnez **[Enregistrer]**.
 
 **Résultat attendu :** les salles correspondantes sont regroupées sous le titre du bloc dans le prochain aperçu ou document Word.
+
+### Options générales
+
+1. Activez **[Abréger « BEN » en « B » (ex. B Rhouma Asma)]** pour raccourcir ce préfixe dans les noms affichés.
+2. Activez **[Afficher « 1/15 » pour les séances une semaine sur deux]** pour afficher cette indication de fréquence.
+3. Activez **[Lister aussi les salles libres]** pour inclure les salles sans séance.
+4. Modifiez **[Libellé de la pause]** pour choisir le texte affiché dans les créneaux de pause vides.
+5. Sélectionnez **[Enregistrer]**.
+
+**Résultat attendu :** le message **[Options enregistrées]** apparaît. Les prochains aperçus et documents utilisent ces options.
 
 ## Noms et libellés
 
@@ -291,6 +323,15 @@ Avant chaque mise à jour, l’application tente de copier la base de données d
 - « Aucun fichier ou identifiant fourni pour l’inspection », « Fichier de restauration temporaire expiré ou introuvable. Veuillez réessayer » ou « Identifiant ou jeton de restauration manquant » : relancez l’analyse ou choisissez une sauvegarde.
 - « Restauration en cours. L’application est temporairement en maintenance. Veuillez patienter » : une restauration est en train de modifier la base.
 - « Une opération de sauvegarde ou de restauration est déjà en cours » : attendez la fin de l’opération en cours.
+
+### Erreurs des options du document Word et des profils
+
+Les messages suivants peuvent apparaître quand une option ou un profil est invalide :
+
+- « Le modèle de cellule doit être un texte », « Le modèle de cellule dépasse 500 caractères », « Le modèle de cellule contient un caractère de contrôle » ou « Jeton inconnu … dans le modèle de cellule … jetons disponibles » : corrigez le modèle de cellule et n’utilisez que les jetons `{teacher}`, `{group}`, `{subjectCode}`, `{subject}` et `{frequency}`.
+- « blocs » doit être une liste, « Au moins un bloc est requis », « le titre est obligatoire », « chaque motif doit être un texte », « expression régulière invalide » ou « au moins un motif valide est requis » : corrigez la liste des blocs dans les options.
+- « Le nom du profil est obligatoire », « Au moins un profil est requis », « Profil introuvable », « Un profil avec ce nom existe déjà », « Impossible de supprimer le dernier profil » ou « isDefault » doit être un booléen : corrigez le nom ou la sélection du profil d’export.
+- « … » doit être un booléen, « … » doit être l'une des valeurs : …, « … » doit être un entier entre … et … ou « … » doit être un texte : une option du document Word (par exemple `subjectMode`, `orientation`, `cellFontSize`, `subjectMaxLength`, `detailItalic`, `detailSmaller`, `repeatDayHeader`, `showPageTitle`, `abbreviateBen`, `showFrequency`, `includeEmptyRooms`, `pauseLabel` ou `groupSeparator`) a reçu une valeur du mauvais type ou hors de la plage autorisée. Corrigez l’option signalée et enregistrez-la de nouveau.
 
 ### Une salle est vide ou une case manque
 

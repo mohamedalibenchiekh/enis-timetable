@@ -32,14 +32,40 @@ export interface CompareResult {
   summary: CompareSummary; changes: CompareChange[]; days: CompareDay[];
 }
 export interface UploadResult extends Timetable { comparison?: CompareSummary | null }
+export interface CellSession { lines: string[] }
+export interface RoomRow { room: string; label: string; cells: string[]; details?: CellSession[][] }
+export interface BlocGrid { title: string; rows: RoomRow[] }
+export interface DayPage { page: number; blocs: number[] }
 export interface DayGrid {
   day: number; dayName: string; headers: string[][]; sessionCount: number;
-  blocs: { title: string; rows: { room: string; label: string; cells: string[] }[] }[];
+  blocs: BlocGrid[];
+  pages?: DayPage[];
+  /** Resolved export options used to build this grid (preview only). */
+  options?: ExportOptions;
 }
-export interface BlocConfig { title: string; patterns: string[] }
+export interface BlocConfig { id?: string; title: string; patterns: string[]; page?: number }
+export type SubjectMode = 'full' | 'code' | 'both';
+export type Orientation = 'portrait' | 'landscape';
 export interface ExportOptions {
-  blocs: BlocConfig[]; abbreviateBen: boolean; showFrequency: boolean; pauseLabel: string; includeEmptyRooms: boolean;
+  optionsVersion: number;
+  blocs: BlocConfig[];
+  abbreviateBen: boolean;
+  showFrequency: boolean;
+  pauseLabel: string;
+  includeEmptyRooms: boolean;
+  cellTemplate: string;
+  subjectMode: SubjectMode;
+  subjectMaxLength: number;
+  groupSeparator: string;
+  cellFontSize: number;
+  detailItalic: boolean;
+  detailSmaller: boolean;
+  orientation: Orientation;
+  repeatDayHeader: boolean;
+  showPageTitle: boolean;
 }
+export interface ExportProfile { id: string; name: string; options: ExportOptions }
+export interface ExportProfilesState { optionsVersion: number; defaultId: string; profiles: ExportProfile[] }
 export interface NameEntry {
   key: string;
   sourceName: string;
@@ -185,17 +211,29 @@ export const api = {
     `/api/timetables/${id}/compare/${otherId}/export.docx${source && source !== 'auto' ? `?source=${source}` : ''}`,
   compareCsvUrl: (id: string, otherId: string, source?: string) =>
     `/api/timetables/${id}/compare/${otherId}/export.csv${source && source !== 'auto' ? `?source=${source}` : ''}`,
-  preview: (id: string, day: number, source?: SourceKind) =>
-    req<DayGrid>(`/api/timetables/${id}/days/${day}/preview${source ? `?source=${source}` : ''}`),
-  docxUrl: (id: string, day: number) => `/api/timetables/${id}/days/${day}/docx`,
-  zipUrl: (id: string) => `/api/timetables/${id}/export.zip`,
-  exportToFolder: (id: string, dir: string) =>
+  preview: (id: string, day: number, source?: SourceKind, profile?: string) => {
+    const params = new URLSearchParams();
+    if (source) params.set('source', source);
+    if (profile) params.set('profile', profile);
+    const qs = params.toString();
+    return req<DayGrid>(`/api/timetables/${id}/days/${day}/preview${qs ? `?${qs}` : ''}`);
+  },
+  docxUrl: (id: string, day: number, profile?: string) => `/api/timetables/${id}/days/${day}/docx${profile ? `?profile=${encodeURIComponent(profile)}` : ''}`,
+  zipUrl: (id: string, profile?: string) => `/api/timetables/${id}/export.zip${profile ? `?profile=${encodeURIComponent(profile)}` : ''}`,
+  exportToFolder: (id: string, dir: string, profile?: string) =>
     req<{ dir: string; files: string[] }>(`/api/timetables/${id}/export-to-folder`, {
-      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ dir }),
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ dir, profile }),
     }),
   getOptions: () => req<ExportOptions>('/api/settings/export'),
   saveOptions: (o: ExportOptions) =>
     req<ExportOptions>('/api/settings/export', { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify(o) }),
+  listProfiles: () => req<ExportProfilesState>('/api/settings/export-profiles'),
+  createProfile: (name: string, options?: Partial<ExportOptions>) =>
+    req<ExportProfilesState>('/api/settings/export-profiles', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name, options }) }),
+  updateProfile: (id: string, patch: { name?: string; options?: Partial<ExportOptions>; isDefault?: boolean }) =>
+    req<ExportProfilesState>(`/api/settings/export-profiles/${encodeURIComponent(id)}`, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify(patch) }),
+  deleteProfile: (id: string) =>
+    req<ExportProfilesState>(`/api/settings/export-profiles/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   getNames: (kind: NameCategory, timetableId: string) =>
     req<NameList>(`/api/names/${kind}?timetableId=${encodeURIComponent(timetableId)}`),
   saveNames: (kind: NameCategory, items: { sourceName: string; displayName: string }[]) =>

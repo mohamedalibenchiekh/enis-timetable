@@ -101,6 +101,7 @@ exports[`Word documents > matches the reviewed Monday DayGrid golden file 1`] = 
       "16:15-17:45",
     ],
   ],
+  "pages": undefined,
   "sessionCount": 6,
 }
 `;

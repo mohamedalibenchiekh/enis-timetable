@@ -46,7 +46,17 @@ npm run dev:web    # http://localhost:3000   (Next.js, proxies /api to :4000)
 1. **Importer** → drop the 3 HTML files (the _rooms_ file alone is enough to produce the Word files).
 2. Pick a day tab to preview it.
 3. **Télécharger Lundi.docx** (one day), **Tous les jours (.zip)**, or **Enregistrer dans un dossier…** (desktop only: writes the 6 files straight into a folder you choose).
-4. _Options du document Word_: abbreviate `BEN` → `B`, show `1/15` for bi-weekly sessions, list free rooms, and define the blocs (regex per bloc).
+4. _Options du document Word_: choose an **export profile**, then configure the cell content (teacher/group/subject template), the page layout (orientation, repeated day header, page titles, bloc→page assignment) and the general options (abbreviate `BEN` → `B`, show `1/15`, list free rooms, bloc regexes).
+
+## Options du document Word et profils d'export
+
+Export settings are versioned (`ExportOptions` v2) and stored as named **profiles** so several layouts can coexist (e.g. a compact teacher-only sheet and a detailed group+subject sheet). The default profile reproduces the historical `Jeudi.docx` layout byte-for-byte.
+
+- **Cell content** — a template with tokens `{teacher}` `{group}` `{subjectCode}` `{subject}` `{frequency}`; `\n` starts a new line. Presets cover teacher-only, teacher+group, teacher+group+subject and group+subject. Subject display mode (`full`/`code`/`both`), max name length, group separator, cell font size and secondary-line styling (italic/smaller) are configurable.
+- **Page layout** — portrait/landscape orientation, optional repeated day header on every page, optional page titles, and per-bloc page assignment that splits the document into multiple Word sections (one per page group).
+- **Profiles** — CRUD via `GET/POST/PUT/DELETE /api/settings/export-profiles` and `GET …/:id/options`. Exports accept `?profile=<id>` on the preview, day DOCX, ZIP and export-to-folder endpoints; the legacy `GET/PUT /api/settings/export` still reads/writes the default profile for backward compatibility.
+
+The template engine (`apps/api/src/export/template.ts`), grid builder (`grid-builder.ts`) and DOCX builder (`docx-builder.ts`) are pure and deterministic; the legacy single-section layout is preserved verbatim when the options match the defaults.
 
 ## Noms et libellés
 
@@ -66,36 +76,45 @@ REST endpoints: `GET /api/timetables/:id/compare/:otherId?source=auto|teachers|r
 
 ## Sauvegardes et restauration
 
-L'application intègre un écran dédié **Sauvegardes** (accessible depuis la barre latérale ou via le menu *Fichier → Sauvegardes…*) permettant de créer des sauvegardes logiques, de programmer des sauvegardes automatiques et de restaurer les données en toute sécurité.
+L'application intègre un écran dédié **Sauvegardes** (accessible depuis la barre latérale ou via le menu _Fichier → Sauvegardes…_) permettant de créer des sauvegardes logiques, de programmer des sauvegardes automatiques et de restaurer les données en toute sécurité.
 
 ### Format de l'archive (`.enisbackup`)
+
 Une sauvegarde `.enisbackup` est une archive ZIP standard contenant :
+
 - `manifest.json` : métadonnées (`formatVersion`, `appVersion`, `schemaVersion`, horodatage UTC ISO, nombre de lignes par table, empreinte SHA-256 de chaque fichier).
 - `data/<table>.ndjson` : données au format NDJSON pour chaque entité (`timetables`, `sessions`, `teacher_names`, `room_labels`, `settings`).
 
 **Ce qui est exclu :** les fichiers de configuration système (`config.json`), les identifiants, mots de passe et URL de connexion à la base de données ne sont **jamais** inclus dans l'archive. Les sauvegardes ne sont pas chiffrées ; conservez-les dans un emplacement sécurisé.
 
 ### Emplacements et dossiers
+
 Sous le dossier de données utilisateur (`<userData>/backups/`) :
+
 - `auto/` : sauvegardes automatiques planifiées (nommées `auto-YYYYMMDD-HHmmss.enisbackup`).
 - `manual/` : copies manuelles éventuelles.
 - `database-<version>-<timestamp>` : instantanés physiques créés automatiquement avant chaque mise à jour de l'application.
 
 ### Sauvegardes automatiques et rétention
+
 - **Planification** : sauvegarde automatique au démarrage si la plus récente date de plus de 24 h, et 30 secondes (temporisation anti-rebond) après toute modification de données (importation, suppression, modification de noms/paramètres, restauration).
 - **Rétention** : conserve par défaut les 10 sauvegardes les plus récentes (paramétrable entre 3 et 50), suppression automatique des plus anciennes.
 
 ### Modes de restauration
+
 La restauration valide d'abord le fichier de manière stricte (protection contre les archives hostiles, validation de schéma et des types) :
+
 1. **Remplacer toutes les données** : vide les tables existantes et restaure l'état exact de la sauvegarde. Une sauvegarde de sécurité (`auto/pre-restore-<timestamp>.enisbackup`) est créée automatiquement avant toute suppression ; en cas d'erreur, une annulation atomique (ROLLBACK) garantit que la base reste intacte.
 2. **Ajouter les emplois du temps de la sauvegarde (fusion)** : importe les emplois du temps avec de nouveaux identifiants UUID et réinsère leurs séances avec de nouveaux identifiants entiers séquentiels sans écraser les données existantes. Les corrections de noms/salles sont appliquées uniquement si absentes.
 
 ### Changer d'ordinateur
+
 1. Sur l'ancien poste, rendez-vous dans **Sauvegardes** et cliquez sur **Créer une sauvegarde maintenant**.
 2. Copiez le fichier `.enisbackup` téléchargé sur une clé USB ou un dossier partagé.
 3. Sur le nouveau poste, installez l'application, ouvrez **Sauvegardes**, déposez le fichier dans la zone de restauration, inspectez-le, puis confirmez la restauration.
 
 ### Différence avec les sauvegardes de mise à jour physiques
+
 - Les dossiers `database-<version>-<timestamp>` sont des copies brutes du dossier de données PostgreSQL (`pgdata`) réalisées hors ligne avant une mise à jour applicative.
 - Pour restaurer manuellement une copie de mise à jour physique : fermer complètement l'application, supprimer ou renommer `<userData>/database`, et copier le contenu du dossier `database-<version>-<timestamp>` à la place de `database`.
 - À l'inverse, l'archive `.enisbackup` est une sauvegarde logique applicative, indépendante de la version du moteur PostgreSQL et compatible avec les bases locales ou distantes.
@@ -133,7 +152,7 @@ Notes
 ## REST API (used by the UI)
 
 `POST /api/timetables` (multipart `files`) · `GET /api/timetables` · `GET /api/timetables/:id/days/:day/preview` · `GET …/days/:day/docx` ·
-`GET …/export.zip` · `POST …/export-to-folder {dir}` · `GET|PUT /api/settings/export` ·
+`GET …/export.zip` · `POST …/export-to-folder {dir, profile?}` · `GET|PUT /api/settings/export` ·
 `GET /api/names/teachers|rooms?timetableId=…` · `PUT /api/names/teachers|rooms` ·
 `DELETE /api/names/teachers|rooms/:key` · `GET /api/names/export` · `POST /api/names/import`.
 The server only listens on `127.0.0.1`.

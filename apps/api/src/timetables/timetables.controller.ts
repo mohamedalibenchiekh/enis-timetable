@@ -39,26 +39,36 @@ export class TimetablesController {
   }
 
   @Get(':id/days/:day/preview')
-  preview(@Param('id', ParseUUIDPipe) id: string, @Param('day', ParseIntPipe) day: number, @Query('source') source?: string) {
-    return this.svc.dayGrid(id, day, undefined, source as 'rooms' | 'teachers' | 'groups' | undefined);
+  preview(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('day', ParseIntPipe) day: number,
+    @Query('source') source?: string,
+    @Query('profile') profile?: string,
+  ) {
+    return this.svc.dayGrid(id, day, undefined, source as 'rooms' | 'teachers' | 'groups' | undefined, profile || undefined);
   }
 
   @Get(':id/days/:day/docx')
-  async docx(@Param('id', ParseUUIDPipe) id: string, @Param('day', ParseIntPipe) day: number, @Res({ passthrough: true }) res: Response) {
-    const f = await this.svc.dayDocx(id, day);
+  async docx(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('day', ParseIntPipe) day: number,
+    @Query('profile') profile: string | undefined,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const f = await this.svc.dayDocx(id, day, undefined, profile || undefined);
     res.set({ 'Content-Type': DOCX, 'Content-Disposition': attachment(f.fileName) });
     return new StreamableFile(f.buffer);
   }
 
   @Get(':id/export.zip')
-  async zip(@Param('id', ParseUUIDPipe) id: string, @Res({ passthrough: true }) res: Response) {
-    const buf = await this.svc.zip(id);
+  async zip(@Param('id', ParseUUIDPipe) id: string, @Query('profile') profile: string | undefined, @Res({ passthrough: true }) res: Response) {
+    const buf = await this.svc.zip(id, profile || undefined);
     res.set({ 'Content-Type': 'application/zip', 'Content-Disposition': attachment('Emplois-du-temps.zip') });
     return new StreamableFile(buf);
   }
 
   @Post(':id/export-to-folder')
-  exportToFolder(@Param('id', ParseUUIDPipe) id: string, @Body('dir') dir: string) {
-    return this.svc.exportToFolder(id, dir);
+  exportToFolder(@Param('id', ParseUUIDPipe) id: string, @Body('dir') dir: string, @Body('profile') profile?: string) {
+    return this.svc.exportToFolder(id, dir, profile || undefined);
   }
 }

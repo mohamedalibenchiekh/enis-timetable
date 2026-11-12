@@ -6,8 +6,8 @@ import { ParsedSession } from '../src/parser/types';
 import { createNameResolver } from '../src/export/name-resolver';
 import { normalizeName, validateDisplayName } from '../src/names/name-normalization';
 
-const session = (fields: Partial<ParsedSession> = {}): Pick<ParsedSession, 'day' | 'slot' | 'room' | 'teachers' | 'frequency'> => ({
-  day: 0, slot: 0, room: 'A01', teachers: 'BEN RHOUMA Asma', frequency: '', ...fields,
+const session = (fields: Partial<ParsedSession> = {}): Pick<ParsedSession, 'day' | 'slot' | 'room' | 'teachers' | 'groups' | 'subjectCode' | 'subject' | 'frequency'> => ({
+  day: 0, slot: 0, room: 'A01', teachers: 'BEN RHOUMA Asma', groups: 'G1', subjectCode: 'ALG', subject: 'Algorithmique', frequency: '', ...fields,
 });
 const meta = {
   days: ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'],
