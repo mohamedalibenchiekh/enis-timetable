@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import * as fs from 'fs';
@@ -12,6 +12,7 @@ import { buildDayDocx } from '../export/docx-builder.js';
 import { SettingsService } from '../settings/settings.service.js';
 import { NamesService } from '../names/names.service.js';
 import { NameResolver } from '../export/name-resolver.js';
+import { BackupsService } from '../backups/backups.service.js';
 
 const PRIORITY: SourceKind[] = ['rooms', 'teachers', 'groups'];
 
@@ -28,6 +29,7 @@ export class TimetablesService {
     private ds: DataSource,
     private settings: SettingsService,
     private names: NamesService,
+    @Optional() private backups?: BackupsService,
   ) {}
 
   list() {
@@ -43,6 +45,7 @@ export class TimetablesService {
   async remove(id: string) {
     await this.get(id);
     await this.repo.delete(id);
+    this.backups?.scheduler?.notifyDataChanged();
   }
 
   /** Parse the uploaded HTML files and store them (new timetable, or add/replace views of an existing one). */
@@ -88,7 +91,9 @@ export class TimetablesService {
         if (data.slots.length) t.slots = data.slots;
         if (data.kind === 'rooms') t.rooms = data.owners;
       }
-      return em.save(Timetable, t);
+      const saved = await em.save(Timetable, t);
+      this.backups?.scheduler?.notifyDataChanged();
+      return saved;
     });
   }
 

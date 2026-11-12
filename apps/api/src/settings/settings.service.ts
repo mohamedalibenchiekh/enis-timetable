@@ -1,12 +1,16 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Setting } from '../entities/timetable.entity.js';
 import { ExportOptions, mergeOptions } from '../export/options.js';
+import { BackupsService } from '../backups/backups.service.js';
 
 @Injectable()
 export class SettingsService {
-  constructor(@InjectRepository(Setting) private repo: Repository<Setting>) {}
+  constructor(
+    @InjectRepository(Setting) private repo: Repository<Setting>,
+    @Optional() private backups?: BackupsService,
+  ) {}
 
   async getExportOptions(): Promise<ExportOptions> {
     const row = await this.repo.findOneBy({ key: 'export' });
@@ -19,6 +23,7 @@ export class SettingsService {
       for (const p of b.patterns) new RegExp(p); // throws on invalid pattern → 500, caught by controller
     }
     await this.repo.save({ key: 'export', value: merged });
+    this.backups?.scheduler?.notifyDataChanged();
     return merged;
   }
 }

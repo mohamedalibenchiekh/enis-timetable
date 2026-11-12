@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { RoomLabel, Setting, SessionEntity, TeacherName, Timetable } from './entities/timetable.entity.js';
 import { SettingsController } from './settings/settings.controller.js';
@@ -8,6 +9,8 @@ import { TimetablesService } from './timetables/timetables.service.js';
 import { HealthController } from './health.controller.js';
 import { NamesController } from './names/names.controller.js';
 import { NamesService } from './names/names.service.js';
+import { BackupsModule } from './backups/backups.module.js';
+import { MaintenanceGuard } from './backups/maintenance.guard.js';
 
 @Module({
   imports: [
@@ -20,8 +23,17 @@ import { NamesService } from './names/names.service.js';
       retryDelay: 1000,
     }),
     TypeOrmModule.forFeature([Timetable, SessionEntity, Setting, TeacherName, RoomLabel]),
+    BackupsModule,
   ],
   controllers: [TimetablesController, SettingsController, HealthController, NamesController],
-  providers: [TimetablesService, SettingsService, NamesService],
+  providers: [
+    TimetablesService,
+    SettingsService,
+    NamesService,
+    {
+      provide: APP_GUARD,
+      useClass: MaintenanceGuard,
+    },
+  ],
 })
 export class AppModule {}

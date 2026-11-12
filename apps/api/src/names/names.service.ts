@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, In, Repository } from 'typeorm';
 import { RoomLabel, SessionEntity, TeacherName, Timetable } from '../entities/timetable.entity.js';
@@ -7,6 +7,7 @@ import { createNameResolver, NameResolver } from '../export/name-resolver.js';
 import { ExportOptions } from '../export/options.js';
 import { SettingsService } from '../settings/settings.service.js';
 import { normalizeName, validateDisplayName } from './name-normalization.js';
+import { BackupsService } from '../backups/backups.service.js';
 
 export type NameKind = 'teachers' | 'rooms';
 
@@ -38,6 +39,7 @@ export class NamesService {
     @InjectRepository(Timetable) private readonly timetables: Repository<Timetable>,
     private readonly dataSource: DataSource,
     private readonly settings: SettingsService,
+    @Optional() private readonly backups?: BackupsService,
   ) {}
 
   async list(kind: NameKind, timetableId: string) {
@@ -100,6 +102,7 @@ export class NamesService {
       if (removals.length) await repository.delete({ key: In(removals) });
       if (updates.length) await repository.upsert(updates, ['key']);
     });
+    this.backups?.scheduler?.notifyDataChanged();
     return { ok: true, saved: inputs.length };
   }
 
@@ -108,6 +111,7 @@ export class NamesService {
       throw new BadRequestException('Clé de nom invalide');
     }
     await this.repository(kind).delete({ key });
+    this.backups?.scheduler?.notifyDataChanged();
     return { ok: true };
   }
 
@@ -166,6 +170,7 @@ export class NamesService {
           await manager.getRepository(RoomLabel).upsert(roomPlan.changed, ['key']);
         }
       });
+      this.backups?.scheduler?.notifyDataChanged();
     }
     const teacherCounts = teacherPlan.counts;
     const roomCounts = roomPlan.counts;
