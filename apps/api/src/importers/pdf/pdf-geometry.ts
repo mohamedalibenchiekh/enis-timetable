@@ -59,25 +59,55 @@ export async function extractVectorLines(
         m1 * e + m3 * f + m5,
       ];
     } else if (fn === pdfjs.OPS.constructPath) {
-      const [subOps, coords] = args;
+      // pdfjs-dist v6: args = [fn, drawOps, minMax]
+      // drawOps is a Float32Array with interleaved commands and coordinates using DrawOPS values:
+      // moveTo=0, lineTo=1, curveTo=2, quadraticCurveTo=3, closePath=4, rectangle=5
+      const drawOps = args[1];
+      if (!drawOps || !drawOps.length) continue;
       const pts: [number, number][] = [];
       let ci = 0;
 
-      for (const op of subOps) {
-        if (op === pdfjs.OPS.moveTo || op === pdfjs.OPS.lineTo) {
-          const x = coords[ci++];
-          const y = coords[ci++];
+      // DrawOPS constants (not exported, but stable values)
+      const DRAW_MOVE_TO = 0;
+      const DRAW_LINE_TO = 1;
+      const DRAW_CURVE_TO = 2;
+      const DRAW_QUADRATIC_CURVE_TO = 3;
+      const DRAW_CLOSE_PATH = 4;
+      const DRAW_RECTANGLE = 5;
+
+      while (ci < drawOps.length) {
+        const op = drawOps[ci++];
+        if (op === DRAW_MOVE_TO || op === DRAW_LINE_TO) {
+          const x = drawOps[ci++];
+          const y = drawOps[ci++];
           pts.push([matrix[0] * x + matrix[2] * y + matrix[4], matrix[1] * x + matrix[3] * y + matrix[5]]);
-        } else if (op === pdfjs.OPS.rectangle) {
-          const rx = coords[ci++];
-          const ry = coords[ci++];
-          const rw = coords[ci++];
-          const rh = coords[ci++];
+        } else if (op === DRAW_CURVE_TO) {
+          // bezier curve: 6 coordinates (x1, y1, x2, y2, x3, y3)
+          // We only need the endpoints for line detection, so use the last point
+          ci += 4; // skip control points
+          const x = drawOps[ci++];
+          const y = drawOps[ci++];
+          pts.push([matrix[0] * x + matrix[2] * y + matrix[4], matrix[1] * x + matrix[3] * y + matrix[5]]);
+        } else if (op === DRAW_QUADRATIC_CURVE_TO) {
+          // quadratic curve: 4 coordinates (x1, y1, x2, y2)
+          ci += 2; // skip control point
+          const x = drawOps[ci++];
+          const y = drawOps[ci++];
+          pts.push([matrix[0] * x + matrix[2] * y + matrix[4], matrix[1] * x + matrix[3] * y + matrix[5]]);
+        } else if (op === DRAW_RECTANGLE) {
+          const rx = drawOps[ci++];
+          const ry = drawOps[ci++];
+          const rw = drawOps[ci++];
+          const rh = drawOps[ci++];
           pts.push([matrix[0] * rx + matrix[2] * ry + matrix[4], matrix[1] * rx + matrix[3] * ry + matrix[5]]);
           pts.push([
             matrix[0] * (rx + rw) + matrix[2] * (ry + rh) + matrix[4],
             matrix[1] * (rx + rw) + matrix[3] * (ry + rh) + matrix[5],
           ]);
+        } else if (op === DRAW_CLOSE_PATH) {
+          // closePath has no coordinates
+        } else {
+          // Unknown operation, skip (should not happen with valid PDF)
         }
       }
 
