@@ -1,11 +1,14 @@
 import { Column, CreateDateColumn, Entity, Index, JoinColumn, ManyToOne, OneToMany, PrimaryColumn, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm';
 import { SlotLabel, SourceKind } from '../parser/types.js';
 
+export type ImportOrigin = 'html' | 'csv' | 'pdf';
+
 export interface SourceFileInfo {
   kind: SourceKind;
   fileName: string;
   owners: number;
   sessions: number;
+  origin?: ImportOrigin;
 }
 
 @Entity('timetables')
@@ -70,3 +73,12 @@ export class TeacherName extends NameOverride {}
 @Entity('room_labels')
 @Index(['key'], { unique: true })
 export class RoomLabel extends NameOverride {}
+
+@Entity('known_rooms')
+@Index(['name'], { unique: true })
+export class KnownRoom {
+  @PrimaryGeneratedColumn() id: number;
+  @Column({ length: 255 }) name: string;
+  @CreateDateColumn() createdAt: Date;
+  @UpdateDateColumn() lastSeenAt: Date;
+}

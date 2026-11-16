@@ -6,6 +6,7 @@ export interface BackupCounts {
   settings: number;
   teacher_names: number;
   room_labels: number;
+  known_rooms?: number;
 }
 
 export interface BackupManifest {
@@ -75,6 +76,7 @@ export interface InspectResult {
     teacherOverridesCount: number;
     roomOverridesCount: number;
     hasSettings: boolean;
+    knownRoomsCount?: number;
   };
 }
 

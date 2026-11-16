@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body, Controller, Delete, Get, Param, ParseIntPipe, ParseUUIDPipe, Post, Query, Res, StreamableFile, UploadedFiles, UseInterceptors,
 } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
@@ -25,17 +26,47 @@ export class TimetablesController {
     return { ok: true };
   }
 
+  @Post('analyze')
+  @UseInterceptors(FilesInterceptor('files', 10, { limits: { fileSize: 50 * 1024 * 1024 } }))
+  analyze(
+    @UploadedFiles() files: { originalname: string; buffer: Buffer }[],
+    @Body('previousTimetableId') previousTimetableId?: string,
+  ) {
+    if (!files || !files.length) {
+      throw new BadRequestException('Aucun fichier sélectionné pour l’importation');
+    }
+    const fixed = files.map((f) => ({
+      originalname: Buffer.from(f.originalname, 'latin1').toString('utf8'),
+      buffer: f.buffer,
+    }));
+    return this.svc.analyzeFiles(fixed, {
+      previousTimetableId: previousTimetableId || undefined,
+    });
+  }
+
   @Post()
-  @UseInterceptors(FilesInterceptor('files', 10, { limits: { fileSize: 30 * 1024 * 1024 } }))
+  @UseInterceptors(FilesInterceptor('files', 10, { limits: { fileSize: 50 * 1024 * 1024 } }))
   upload(
     @UploadedFiles() files: { originalname: string; buffer: Buffer }[],
     @Body('name') name?: string,
     @Body('timetableId') timetableId?: string,
     @Body('previousTimetableId') previousTimetableId?: string,
+    @Body('confirmDateMismatch') confirmDateMismatch?: string,
   ) {
+    if (!files || !files.length) {
+      throw new BadRequestException('Aucun fichier sélectionné pour l’importation');
+    }
     // browsers send file names as latin1 in multipart: restore UTF-8
-    const fixed = (files ?? []).map((f) => ({ originalname: Buffer.from(f.originalname, 'latin1').toString('utf8'), buffer: f.buffer }));
-    return this.svc.importFiles(fixed, { name, timetableId: timetableId || undefined, previousTimetableId: previousTimetableId || undefined });
+    const fixed = (files ?? []).map((f) => ({
+      originalname: Buffer.from(f.originalname, 'latin1').toString('utf8'),
+      buffer: f.buffer,
+    }));
+    return this.svc.importFiles(fixed, {
+      name,
+      timetableId: timetableId || undefined,
+      previousTimetableId: previousTimetableId || undefined,
+      confirmDateMismatch: confirmDateMismatch === 'true' || confirmDateMismatch === '1',
+    });
   }
 
   @Get(':id/days/:day/preview')

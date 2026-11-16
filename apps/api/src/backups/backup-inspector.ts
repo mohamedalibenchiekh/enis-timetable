@@ -131,7 +131,11 @@ export class BackupInspector {
       );
     }
 
-    for (const table of BACKUP_TABLES) {
+    const tablesInBackup = BACKUP_TABLES.filter(
+      (t) => !(manifest.schemaVersion < 3 && t === 'known_rooms'),
+    );
+
+    for (const table of tablesInBackup) {
       const count = manifest.counts[table];
       if (typeof count !== 'number' || !Number.isInteger(count) || count < 0) {
         throw new BadRequestException(`Compte invalide dans le manifeste pour la table « ${table} ».`);
@@ -145,9 +149,10 @@ export class BackupInspector {
       settings: [],
       teacher_names: [],
       room_labels: [],
+      known_rooms: [],
     };
 
-    for (const table of BACKUP_TABLES) {
+    for (const table of tablesInBackup) {
       const filePath = `data/${table}.ndjson`;
       const zipEntry = zip.file(filePath);
 
@@ -236,6 +241,19 @@ export class BackupInspector {
       }
     }
 
+    // Check for duplicate room names in known_rooms
+    const knownRoomNames = new Set<string>();
+    for (let i = 0; i < data.known_rooms.length; i++) {
+      const room = data.known_rooms[i];
+      const normName = room.name.trim().toLowerCase();
+      if (knownRoomNames.has(normName)) {
+        throw new BadRequestException(
+          `L’archive contient un nom de salle en doublon dans « known_rooms » (ligne ${i + 1} : « ${room.name} »).`,
+        );
+      }
+      knownRoomNames.add(normName);
+    }
+
     // 5. Build summary
     const timetableSummaries: TimetableSummary[] = data.timetables.map((t: any) => ({
       id: t.id,
@@ -259,6 +277,7 @@ export class BackupInspector {
         teacherOverridesCount: data.teacher_names.length,
         roomOverridesCount: data.room_labels.length,
         hasSettings: data.settings.length > 0,
+        knownRoomsCount: (data.known_rooms ?? []).length,
       },
     };
 

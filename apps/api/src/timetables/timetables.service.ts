@@ -4,7 +4,7 @@ import { DataSource, Repository } from 'typeorm';
 import * as fs from 'fs';
 import * as path from 'path';
 import JSZip from 'jszip';
-import { SessionEntity, SourceFileInfo, Timetable } from '../entities/timetable.entity.js';
+import { KnownRoom, SessionEntity, SourceFileInfo, Timetable } from '../entities/timetable.entity.js';
 import { detectKind, parseHtml } from '../parser/html-parser.js';
 import { ParsedFile, SourceKind } from '../parser/types.js';
 import { buildDayGrid, DayGrid } from '../export/grid-builder.js';
@@ -16,6 +16,8 @@ import { NameResolver } from '../export/name-resolver.js';
 import { BackupsService } from '../backups/backups.service.js';
 import { CompareService } from '../compare/compare.service.js';
 import type { CompareSummary } from '../compare/types.js';
+import { ImporterRegistry } from '../importers/registry.js';
+import { ImportReport } from '../importers/types.js';
 
 const PRIORITY: SourceKind[] = ['rooms', 'teachers', 'groups'];
 
@@ -26,9 +28,12 @@ export interface UploadedHtml {
 
 @Injectable()
 export class TimetablesService {
+  private registry = new ImporterRegistry();
+
   constructor(
     @InjectRepository(Timetable) private repo: Repository<Timetable>,
     @InjectRepository(SessionEntity) private sessions: Repository<SessionEntity>,
+    @InjectRepository(KnownRoom) private knownRooms: Repository<KnownRoom>,
     private ds: DataSource,
     private settings: SettingsService,
     private names: NamesService,
@@ -52,9 +57,25 @@ export class TimetablesService {
     this.backups?.scheduler?.notifyDataChanged();
   }
 
-  /** Parse the uploaded HTML files and store them (new timetable, or add/replace views of an existing one). */
-  async importFiles(files: UploadedHtml[], opts: { name?: string; timetableId?: string; previousTimetableId?: string }) {
-    if (!files?.length) throw new BadRequestException('Aucun fichier HTML reçu');
+  /**
+   * Pre-import analysis: inspects files, runs quality checks, verifies date alignment,
+   * detects cross-view differences, and computes catalog statistics.
+   */
+  async analyzeFiles(
+    files: UploadedHtml[],
+    opts: { previousTimetableId?: string; confirmDateMismatch?: boolean } = {},
+  ): Promise<ImportReport> {
+    return this.registry.analyzeBatch(files, opts);
+  }
+
+  /**
+   * Parse uploaded files (HTML, CSV, or PDF) and store them (new timetable, or add/replace views of an existing one).
+   */
+  async importFiles(
+    files: UploadedHtml[],
+    opts: { name?: string; timetableId?: string; previousTimetableId?: string; confirmDateMismatch?: boolean },
+  ) {
+    if (!files?.length) throw new BadRequestException('Aucun fichier reçu');
     if (opts.previousTimetableId && opts.timetableId)
       throw new BadRequestException('« Nouvelle version de… » ne peut être utilisé qu’à la création d’un emploi du temps');
     let previous: Timetable | undefined;
@@ -66,20 +87,25 @@ export class TimetablesService {
         throw e;
       });
     }
-    const parsed: { file: UploadedHtml; data: ParsedFile }[] = [];
-    for (const f of files) {
-      const html = f.buffer.toString('utf8');
-      const kind = detectKind(f.originalname, html);
-      if (!kind) throw new BadRequestException(`Type de fichier inconnu : « ${f.originalname} » (attendu : teachers, rooms ou groups dans le nom)`);
-      const data = parseHtml(html, kind);
-      if (!data.owners.length) throw new BadRequestException(`« ${f.originalname} » ne contient aucun tableau d'emploi du temps`);
-      parsed.push({ file: f, data });
+
+    const { views, report, allRooms } = await this.registry.resolveBatch(files, opts).catch((err) => {
+      throw new BadRequestException(err.message);
+    });
+
+    const kinds = views.map((p) => p.kind);
+    if (new Set(kinds).size !== kinds.length) {
+      throw new BadRequestException('Deux fichiers du même type (teachers/rooms/groups) ont été envoyés');
     }
-    const kinds = parsed.map((p) => p.data.kind);
-    if (new Set(kinds).size !== kinds.length) throw new BadRequestException('Deux fichiers du même type (teachers/rooms/groups) ont été envoyés');
+
     // Fail before saving when the two versions share no comparable view.
-    if (previous && !['teachers', 'rooms', 'groups'].some((k) => kinds.includes(k as SourceKind) && previous!.files?.some((f) => f.kind === k)))
+    if (
+      previous &&
+      !['teachers', 'rooms', 'groups'].some(
+        (k) => kinds.includes(k as SourceKind) && previous!.files?.some((f) => f.kind === k),
+      )
+    ) {
       throw new BadRequestException('Les deux emplois du temps ne partagent aucune vue commune (teachers/rooms/groups)');
+    }
 
     const result = await this.ds.transaction(async (em) => {
       let t: Timetable;
@@ -88,20 +114,41 @@ export class TimetablesService {
           throw new NotFoundException('Emploi du temps introuvable');
         });
       } else {
-        const ref = parsed.find((p) => p.data.kind === 'rooms') ?? parsed[0];
+        const ref = views.find((p) => p.kind === 'rooms') ?? views[0];
+        const csvFile = report.files.find((f) => f.origin === 'csv');
+        const roomsFile = report.files.find((f) => f.kind === 'rooms');
+        const defaultFile = csvFile ?? roomsFile ?? report.files[0];
+        const defaultName = defaultFile
+          ? path.parse(defaultFile.fileName).name
+          : path.parse(files[0].originalname).name;
+
         t = em.create(Timetable, {
-          name: opts.name?.trim() || ref.data.comment || path.parse(ref.file.originalname).name,
+          name: opts.name?.trim() || ref.comment || defaultName,
           files: [],
           previousTimetableId: opts.previousTimetableId ?? null,
         });
       }
       t = await em.save(Timetable, t);
 
-      for (const { file, data } of parsed) {
+      const csvReport = report.files.find((f) => f.origin === 'csv');
+      const isFromCsv = !!csvReport && report.summary.originKind.includes('CSV');
+
+      for (const data of views) {
         await em.delete(SessionEntity, { timetableId: t.id, source: data.kind });
         const rows = data.sessions.map((s) => em.create(SessionEntity, { ...s, timetableId: t.id, source: data.kind }));
         for (let i = 0; i < rows.length; i += 500) await em.insert(SessionEntity, rows.slice(i, i + 500));
-        const info: SourceFileInfo = { kind: data.kind, fileName: file.originalname, owners: data.owners.length, sessions: data.sessions.length };
+
+        const fileReport = isFromCsv
+          ? csvReport
+          : (report.files.find((f) => f.kind === data.kind) ?? report.files[0]);
+
+        const info: SourceFileInfo = {
+          kind: data.kind,
+          fileName: fileReport ? fileReport.fileName : files[0].originalname,
+          owners: data.owners.length,
+          sessions: data.sessions.length,
+          origin: isFromCsv ? 'csv' : (fileReport ? fileReport.origin : 'html'),
+        };
         t.files = [...(t.files ?? []).filter((x) => x.kind !== data.kind), info];
         t.institution = data.institution || t.institution;
         t.comment = data.comment || t.comment;
@@ -111,6 +158,20 @@ export class TimetablesService {
         if (data.kind === 'rooms') t.rooms = data.owners;
       }
       const saved = await em.save(Timetable, t);
+
+      // Persist learned rooms into known_rooms catalog
+      for (const roomName of allRooms) {
+        if (!roomName || !roomName.trim()) continue;
+        await em
+          .createQueryBuilder()
+          .insert()
+          .into(KnownRoom)
+          .values({ name: roomName.trim(), lastSeenAt: new Date() })
+          .orUpdate(['lastSeenAt'], ['name'])
+          .execute()
+          .catch(() => {});
+      }
+
       return saved;
     }).then(async (saved) => {
       if (!opts.previousTimetableId) return saved;
@@ -126,6 +187,23 @@ export class TimetablesService {
     });
     this.backups?.scheduler?.notifyDataChanged();
     return result;
+  }
+
+  async resolveRoomsUniverse(t: Timetable): Promise<string[]> {
+    const roomsSet = new Set<string>(t.rooms ?? []);
+    if (t.previousTimetableId) {
+      try {
+        const prev = await this.repo.findOneBy({ id: t.previousTimetableId });
+        if (prev?.rooms) {
+          prev.rooms.forEach((r) => roomsSet.add(r));
+        }
+      } catch {}
+    }
+    const known = await this.knownRooms.find();
+    for (const kr of known) {
+      roomsSet.add(kr.name);
+    }
+    return Array.from(roomsSet);
   }
 
   /** Which view feeds the room grids: rooms (best) → teachers → groups. */
@@ -147,7 +225,8 @@ export class TimetablesService {
     const kind = requested ?? this.pickSource(t);
     const rows = await this.sessions.find({ where: { timetableId: t.id, source: kind, day } });
     const resolver = nameResolver ?? await this.names.getResolver();
-    return buildDayGrid(rows, { days: t.days, slots: t.slots, rooms: t.rooms }, day, options, resolver);
+    const roomsUniverse = await this.resolveRoomsUniverse(t);
+    return buildDayGrid(rows, { days: t.days, slots: t.slots, rooms: roomsUniverse }, day, options, resolver);
   }
 
   async dayGrid(id: string, day: number, nameResolver?: NameResolver, source?: SourceKind, profileId?: string): Promise<DayGrid & { options: ExportOptions }> {

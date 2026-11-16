@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { getMetadataArgsStorage } from 'typeorm';
 import { BackupCounts, BackupManifest } from './backup-types.js';
 
-export const BACKUP_SCHEMA_VERSION = 2;
+export const BACKUP_SCHEMA_VERSION = 3;
 export const BACKUP_FORMAT_VERSION = 1;
 
 export const BACKUP_TABLES = [
@@ -11,6 +11,7 @@ export const BACKUP_TABLES = [
   'settings',
   'teacher_names',
   'room_labels',
+  'known_rooms',
 ] as const;
 
 export type BackupTableName = (typeof BACKUP_TABLES)[number];
@@ -24,6 +25,7 @@ export interface BackupData {
   settings: any[];
   teacher_names: any[];
   room_labels: any[];
+  known_rooms: any[];
 }
 
 export type SchemaUpgrader = (data: BackupData) => BackupData;
@@ -36,6 +38,10 @@ export const SCHEMA_UPGRADERS: Record<number, SchemaUpgrader> = {
       ...t,
       previousTimetableId: t.previousTimetableId ?? null,
     })),
+  }),
+  2: (data) => ({
+    ...data,
+    known_rooms: data.known_rooms ?? [],
   }),
 };
 
@@ -191,6 +197,27 @@ export function validateRow(table: BackupTableName, row: unknown, index: number)
         displayName: r.displayName.trim(),
         createdAt: r.createdAt ? new Date(r.createdAt) : new Date(),
         updatedAt: r.updatedAt ? new Date(r.updatedAt) : new Date(),
+      };
+    }
+
+    case 'known_rooms': {
+      if (typeof r.id !== 'number' || !Number.isInteger(r.id) || r.id <= 0) {
+        throw new ValidationError(`Ligne ${index + 1} de « ${table} » : identifiant numérique invalide.`);
+      }
+      if (typeof r.name !== 'string' || !r.name.trim() || r.name.length > 255) {
+        throw new ValidationError(`Ligne ${index + 1} de « ${table} » : nom de salle invalide.`);
+      }
+      if (r.createdAt && (typeof r.createdAt !== 'string' || isNaN(Date.parse(r.createdAt)))) {
+        throw new ValidationError(`Ligne ${index + 1} de « ${table} » : date de création invalide.`);
+      }
+      if (r.lastSeenAt && (typeof r.lastSeenAt !== 'string' || isNaN(Date.parse(r.lastSeenAt)))) {
+        throw new ValidationError(`Ligne ${index + 1} de « ${table} » : date de dernière vue invalide.`);
+      }
+      return {
+        id: r.id,
+        name: r.name.trim(),
+        createdAt: r.createdAt ? new Date(r.createdAt) : new Date(),
+        lastSeenAt: r.lastSeenAt ? new Date(r.lastSeenAt) : new Date(),
       };
     }
 

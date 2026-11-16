@@ -25,6 +25,7 @@ function validManifest(overrides: Partial<BackupManifest> = {}): BackupManifest 
       settings: 0,
       teacher_names: 0,
       room_labels: 0,
+      known_rooms: 0,
     },
     sha256: {},
     ...overrides,
@@ -107,7 +108,7 @@ describe('Hostile archive hardening & validation suite', () => {
     });
     const fakeHash = '0000000000000000000000000000000000000000000000000000000000000000';
     const manifest = validManifest({
-      counts: { timetables: 1, sessions: 0, settings: 0, teacher_names: 0, room_labels: 0 },
+      counts: { timetables: 1, sessions: 0, settings: 0, teacher_names: 0, room_labels: 0, known_rooms: 0 },
       sha256: { 'data/timetables.ndjson': fakeHash },
     });
 
@@ -134,13 +135,14 @@ describe('Hostile archive hardening & validation suite', () => {
     const hash1 = createHash('sha256').update(badIdRow).digest('hex');
     const zip1 = await makeArchive({
       'manifest.json': JSON.stringify(validManifest({
-        counts: { timetables: 1, sessions: 0, settings: 0, teacher_names: 0, room_labels: 0 },
+        counts: { timetables: 1, sessions: 0, settings: 0, teacher_names: 0, room_labels: 0, known_rooms: 0 },
         sha256: {
           'data/timetables.ndjson': hash1,
           'data/sessions.ndjson': emptyHash,
           'data/settings.ndjson': emptyHash,
           'data/teacher_names.ndjson': emptyHash,
           'data/room_labels.ndjson': emptyHash,
+          'data/known_rooms.ndjson': emptyHash,
         },
       })),
       'data/timetables.ndjson': badIdRow,
@@ -148,6 +150,7 @@ describe('Hostile archive hardening & validation suite', () => {
       'data/settings.ndjson': '',
       'data/teacher_names.ndjson': '',
       'data/room_labels.ndjson': '',
+      'data/known_rooms.ndjson': '',
     });
     await expect(BackupInspector.inspectArchive(zip1)).rejects.toThrow(
       'Ligne 1 de « timetables » : identifiant UUID invalide.',
@@ -165,13 +168,14 @@ describe('Hostile archive hardening & validation suite', () => {
       const hashPrev = createHash('sha256').update(badPrevIdRow).digest('hex');
       const zipPrev = await makeArchive({
         'manifest.json': JSON.stringify(validManifest({
-          counts: { timetables: 1, sessions: 0, settings: 0, teacher_names: 0, room_labels: 0 },
+          counts: { timetables: 1, sessions: 0, settings: 0, teacher_names: 0, room_labels: 0, known_rooms: 0 },
           sha256: {
             'data/timetables.ndjson': hashPrev,
             'data/sessions.ndjson': emptyHash,
             'data/settings.ndjson': emptyHash,
             'data/teacher_names.ndjson': emptyHash,
             'data/room_labels.ndjson': emptyHash,
+            'data/known_rooms.ndjson': emptyHash,
           },
         })),
         'data/timetables.ndjson': badPrevIdRow,
@@ -179,6 +183,7 @@ describe('Hostile archive hardening & validation suite', () => {
         'data/settings.ndjson': '',
         'data/teacher_names.ndjson': '',
         'data/room_labels.ndjson': '',
+        'data/known_rooms.ndjson': '',
       });
       await expect(BackupInspector.inspectArchive(zipPrev)).rejects.toThrow(
         'Ligne 1 de « timetables » : previousTimetableId UUID invalide.',
@@ -193,13 +198,14 @@ describe('Hostile archive hardening & validation suite', () => {
     const hash2 = createHash('sha256').update(evilSetting).digest('hex');
     const zip2 = await makeArchive({
       'manifest.json': JSON.stringify(validManifest({
-        counts: { timetables: 0, sessions: 0, settings: 1, teacher_names: 0, room_labels: 0 },
+        counts: { timetables: 0, sessions: 0, settings: 1, teacher_names: 0, room_labels: 0, known_rooms: 0 },
         sha256: {
           'data/timetables.ndjson': emptyHash,
           'data/sessions.ndjson': emptyHash,
           'data/settings.ndjson': hash2,
           'data/teacher_names.ndjson': emptyHash,
           'data/room_labels.ndjson': emptyHash,
+          'data/known_rooms.ndjson': emptyHash,
         },
       })),
       'data/timetables.ndjson': '',
@@ -207,6 +213,7 @@ describe('Hostile archive hardening & validation suite', () => {
       'data/settings.ndjson': evilSetting,
       'data/teacher_names.ndjson': '',
       'data/room_labels.ndjson': '',
+      'data/known_rooms.ndjson': '',
     });
     await expect(BackupInspector.inspectArchive(zip2)).rejects.toThrow(
       'Ligne 1 de « settings » : clé interdite (« databaseUrl »).',
@@ -215,7 +222,7 @@ describe('Hostile archive hardening & validation suite', () => {
 
   it('rejects archive when a mandatory data file is missing', async () => {
     const manifest = validManifest({
-      counts: { timetables: 0, sessions: 0, settings: 0, teacher_names: 0, room_labels: 0 },
+      counts: { timetables: 0, sessions: 0, settings: 0, teacher_names: 0, room_labels: 0, known_rooms: 0 },
       sha256: {},
     });
     // Missing data/timetables.ndjson
@@ -243,13 +250,14 @@ describe('Hostile archive hardening & validation suite', () => {
     const sHash = createHash('sha256').update(orphanSession).digest('hex');
 
     const manifest = validManifest({
-      counts: { timetables: 0, sessions: 1, settings: 0, teacher_names: 0, room_labels: 0 },
+      counts: { timetables: 0, sessions: 1, settings: 0, teacher_names: 0, room_labels: 0, known_rooms: 0 },
       sha256: {
         'data/timetables.ndjson': emptyHash,
         'data/sessions.ndjson': sHash,
         'data/settings.ndjson': emptyHash,
         'data/teacher_names.ndjson': emptyHash,
         'data/room_labels.ndjson': emptyHash,
+        'data/known_rooms.ndjson': emptyHash,
       },
     });
 
@@ -260,6 +268,7 @@ describe('Hostile archive hardening & validation suite', () => {
       'data/settings.ndjson': '',
       'data/teacher_names.ndjson': '',
       'data/room_labels.ndjson': '',
+      'data/known_rooms.ndjson': '',
     });
 
     await expect(BackupInspector.inspectArchive(zip)).rejects.toThrow(
@@ -297,13 +306,14 @@ describe('Hostile archive hardening & validation suite', () => {
     const sHash = createHash('sha256').update(sessionsData).digest('hex');
 
     const manifest = validManifest({
-      counts: { timetables: 1, sessions: 1, settings: 0, teacher_names: 0, room_labels: 0 },
+      counts: { timetables: 1, sessions: 1, settings: 0, teacher_names: 0, room_labels: 0, known_rooms: 0 },
       sha256: {
         'data/timetables.ndjson': tHash,
         'data/sessions.ndjson': sHash,
         'data/settings.ndjson': emptyHash,
         'data/teacher_names.ndjson': emptyHash,
         'data/room_labels.ndjson': emptyHash,
+        'data/known_rooms.ndjson': emptyHash,
       },
     });
 
@@ -314,6 +324,7 @@ describe('Hostile archive hardening & validation suite', () => {
       'data/settings.ndjson': '',
       'data/teacher_names.ndjson': '',
       'data/room_labels.ndjson': '',
+      'data/known_rooms.ndjson': '',
     });
 
     const inspected = await BackupInspector.inspectArchive(zip);
