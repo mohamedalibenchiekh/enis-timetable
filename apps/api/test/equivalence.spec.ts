@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { CsvImporter } from '../src/importers/csv/csv-importer.js';
 import { HtmlImporter } from '../src/importers/html/html-importer.js';
+import { detectSubColumns, TextItem } from '../src/importers/pdf/pdf-geometry.js';
 import { parseHtml } from '../src/parser/html-parser.js';
 
 describe('Equivalence and Cross-View Parity Suite', () => {
@@ -100,5 +101,24 @@ describe('Equivalence and Cross-View Parity Suite', () => {
     // All original test invariants hold unchanged
     expect(directParsed.owners).toEqual(['A01', 'B01', 'B02', 'Amphi', 'A03']);
     expect(directParsed.sessions.length).toBe(7);
+  });
+
+  it('detects sub-columns across adjacent items even when Y baselines span > 3pt', () => {
+    // Two parallel activities side by side in a cell of width 100 (left 0, right 100)
+    // Left activity has 2 fragments on the first line: (x=10, y=100) and (x=28, y=98)
+    // Right activity has 2 fragments on the same visual line: (x=60, y=96.5) and (x=78, y=96)
+    // Notice y spans from 100 down to 96 (> 3pt difference from the first item),
+    // but adjacent items are close and there is a >12pt gap between x=28+10=38 and x=60.
+    const items: TextItem[] = [
+      { str: 'Grp-A', x: 10, y: 100, w: 15, h: 8 },
+      { str: '(TD)', x: 28, y: 98, w: 10, h: 8 },
+      { str: 'Grp-B', x: 60, y: 96.5, w: 15, h: 8 },
+      { str: '(TP)', x: 78, y: 96, w: 10, h: 8 },
+    ];
+
+    const subCols = detectSubColumns(items, 0, 100);
+    expect(subCols).toHaveLength(2);
+    expect(subCols[0].map((i) => i.str)).toEqual(['Grp-A', '(TD)']);
+    expect(subCols[1].map((i) => i.str)).toEqual(['Grp-B', '(TP)']);
   });
 });

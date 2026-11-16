@@ -377,7 +377,7 @@ function parseCellContent(
  * Identifies sub-columns by clustering horizontal gaps between items on the same line.
  * Handles 1, 2, 3 or more parallel activity sub-columns.
  */
-function detectSubColumns(
+export function detectSubColumns(
   items: TextItem[],
   cellLeft: number,
   cellRight: number,
@@ -385,25 +385,35 @@ function detectSubColumns(
   const cellWidth = cellRight - cellLeft;
   if (items.length <= 1 || cellWidth <= 20) return [items];
 
-  // Group items into lines by Y coordinate (within 3pt) and check gaps only between adjacent items
-  const lines: TextItem[][] = [];
+  // Group items into lines maintaining representative Y and checking proximity to existing items
+  interface VisualLine {
+    items: TextItem[];
+    avgY: number;
+  }
+  const lines: VisualLine[] = [];
   const sortedByY = [...items].sort((a, b) => b.y - a.y || a.x - b.x);
 
   for (const item of sortedByY) {
-    const matchingLine = lines.find((line) => Math.abs(line[0].y - item.y) <= 3);
+    // Match line if item is close to representative Y or close to any existing item in the line
+    const matchingLine = lines.find(
+      (line) =>
+        Math.abs(line.avgY - item.y) <= 4 || line.items.some((it) => Math.abs(it.y - item.y) <= 3),
+    );
     if (matchingLine) {
-      matchingLine.push(item);
+      matchingLine.items.push(item);
+      matchingLine.avgY =
+        matchingLine.items.reduce((sum, it) => sum + it.y, 0) / matchingLine.items.length;
     } else {
-      lines.push([item]);
+      lines.push({ items: [item], avgY: item.y });
     }
   }
 
   const gaps: number[] = [];
   for (const line of lines) {
-    line.sort((a, b) => a.x - b.x);
-    for (let i = 0; i < line.length - 1; i++) {
-      const leftItem = line[i];
-      const rightItem = line[i + 1];
+    line.items.sort((a, b) => a.x - b.x);
+    for (let i = 0; i < line.items.length - 1; i++) {
+      const leftItem = line.items[i];
+      const rightItem = line.items[i + 1];
       const gap = rightItem.x - (leftItem.x + leftItem.w);
       if (gap > 12) {
         gaps.push(leftItem.x + leftItem.w + gap / 2);
