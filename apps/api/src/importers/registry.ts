@@ -55,10 +55,16 @@ export class ImporterRegistry {
   async analyzeBatch(files: UploadedInputFile[], ctx: ImportContext = {}): Promise<ImportReport> {
     if (!files?.length) {
       return {
-        files: [],
+        canImport: false,
         canProceed: false,
+        hasErrors: true,
+        hasWarnings: false,
+        blockingMessage: 'Aucun fichier sélectionné pour l’importation.',
+        files: [],
         blockingErrors: ['Aucun fichier sélectionné pour l’importation.'],
         warnings: [],
+        dateMismatch: { isMismatch: false, dates: [], details: [] },
+        summary: { totalSessions: 0, distinctRooms: 0, distinctTeachers: 0, distinctGroups: 0, originKind: '' },
       };
     }
 
@@ -77,17 +83,32 @@ export class ImporterRegistry {
 
     if (blockingErrors.length > 0) {
       return {
-        files: fileResults.map((r) => r.report),
+        canImport: false,
         canProceed: false,
+        hasErrors: true,
+        hasWarnings: warnings.length > 0,
+        blockingMessage: blockingErrors.join('\n'),
+        files: fileResults.map((r) => r.report),
         blockingErrors,
         warnings,
+        dateMismatch: { isMismatch: false, dates: [], details: [] },
+        summary: { totalSessions: 0, distinctRooms: 0, distinctTeachers: 0, distinctGroups: 0, originKind: '' },
       };
     }
 
     // Check date mismatches across files
     const dateMismatch = checkDateMismatch(fileResults);
-    if (dateMismatch.isMismatch && !ctx.confirmDateMismatch) {
-      warnings.push(dateMismatch.message!);
+    if (dateMismatch.isMismatch) {
+      warnings.push(
+        dateMismatch.message ??
+          'Des dates de génération différentes ont été détectées entre les fichiers importés.',
+      );
+      if (!ctx.confirmDateMismatch) {
+        blockingErrors.push(
+          dateMismatch.message ??
+            'Des dates de génération différentes ont été détectées entre les fichiers importés.',
+        );
+      }
     }
 
     // Check batch rules & conflict detection
@@ -99,6 +120,25 @@ export class ImporterRegistry {
     if (hasHtml && (hasCsv || hasPdf)) {
       blockingErrors.push(
         'Mélange non autorisé : les fichiers HTML historiques ne peuvent pas être combinés avec des fichiers CSV ou PDF dans un même lot d’importation.',
+      );
+    }
+
+    // Reject duplicate HTML or PDF view kinds
+    const htmlKinds = fileResults
+      .filter((r) => r.report.origin === 'html')
+      .flatMap((r) => r.parsed.map((p) => p.kind));
+    if (new Set(htmlKinds).size !== htmlKinds.length) {
+      blockingErrors.push(
+        'Deux fichiers du même type (teachers/rooms/groups) ont été envoyés dans les fichiers HTML.',
+      );
+    }
+
+    const pdfKinds = fileResults
+      .filter((r) => r.report.origin === 'pdf')
+      .flatMap((r) => r.parsed.map((p) => p.kind));
+    if (new Set(pdfKinds).size !== pdfKinds.length) {
+      blockingErrors.push(
+        'Deux fichiers du même type (teachers/rooms/groups) ont été envoyés dans les fichiers PDF.',
       );
     }
 
@@ -135,13 +175,45 @@ export class ImporterRegistry {
       }
     }
 
+    const hasErrors = blockingErrors.length > 0;
+    const hasWarnings = warnings.length > 0;
+    const canImport = !hasErrors;
+
+    let totalSessions = 0;
+    if (hasCsv) {
+      totalSessions = csvFiles[0].report.sessionsCount;
+    } else {
+      totalSessions = fileResults
+        .filter((r) => r.report.kind === 'rooms')
+        .reduce((sum, r) => sum + r.report.sessionsCount, 0);
+      if (totalSessions === 0) {
+        totalSessions = fileResults.reduce((max, r) => Math.max(max, r.report.sessionsCount), 0);
+      }
+    }
+
+    let originKind = 'HTML';
+    if (hasCsv && hasPdf) originKind = 'CSV (séances) + PDF (catalogue)';
+    else if (hasCsv) originKind = 'CSV';
+    else if (hasPdf) originKind = 'PDF';
+
     return {
-      files: fileResults.map((r) => r.report),
-      canProceed: blockingErrors.length === 0,
+      canImport,
+      canProceed: canImport,
+      hasErrors,
+      hasWarnings,
+      blockingMessage: blockingErrors.length ? blockingErrors.join('\n') : undefined,
       blockingErrors,
       warnings,
+      files: fileResults.map((r) => r.report),
       dateMismatch,
       crossCheck: crossCheckSummary,
+      summary: {
+        totalSessions,
+        distinctRooms: roomsSet.size,
+        distinctTeachers: teachersSet.size,
+        distinctGroups: groupsSet.size,
+        originKind,
+      },
       catalogs: {
         rooms: Array.from(roomsSet).sort((a, b) =>
           a.localeCompare(b, 'fr', { numeric: true, sensitivity: 'base' }),
@@ -153,7 +225,8 @@ export class ImporterRegistry {
           a.localeCompare(b, 'fr', { numeric: true, sensitivity: 'base' }),
         ),
       },
-    };
+      _fileResults: fileResults,
+    } as ImportReport & { _fileResults: typeof fileResults };
   }
 
   async resolveBatch(files: UploadedInputFile[], ctx: ImportContext = {}): Promise<ResolvedBatch> {
@@ -162,8 +235,10 @@ export class ImporterRegistry {
       throw new Error(report.blockingErrors.join('\n'));
     }
 
-    // Parse all files
-    const parsedFiles = await Promise.all(files.map((f) => this.parseFile(f, ctx)));
+    // Reuse parsed files from analysis if available, otherwise parse
+    type ParsedFileEntry = { report: FileReport; parsed: ParsedFile[] };
+    const parsedFiles: ParsedFileEntry[] =
+      (report as any)._fileResults ?? (await Promise.all(files.map((f) => this.parseFile(f, ctx))));
 
     const origins = new Set(parsedFiles.map((p) => p.report.origin));
     const hasCsv = origins.has('csv');

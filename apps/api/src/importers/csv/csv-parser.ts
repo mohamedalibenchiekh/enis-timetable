@@ -66,6 +66,8 @@ export function parseCsv(input: string | Buffer, options: CsvParseOptions = {}):
   let currentRow: string[] = [];
   let currentField = '';
   let inQuotes = false;
+  let fieldQuoted = false;
+  let closedQuote = false;
   let i = 0;
   const len = text.length;
 
@@ -81,6 +83,7 @@ export function parseCsv(input: string | Buffer, options: CsvParseOptions = {}):
         } else {
           // Closing quote
           inQuotes = false;
+          closedQuote = true;
           i++;
         }
       } else {
@@ -88,12 +91,55 @@ export function parseCsv(input: string | Buffer, options: CsvParseOptions = {}):
         i++;
       }
     } else {
-      if (char === '"') {
-        inQuotes = true;
-        i++;
+      if (closedQuote) {
+        if (char === delimiter) {
+          currentRow.push(currentField);
+          currentField = '';
+          fieldQuoted = false;
+          closedQuote = false;
+          i++;
+        } else if (char === '\r') {
+          if (i + 1 < len && text[i + 1] === '\n') {
+            i += 2;
+          } else {
+            i++;
+          }
+          currentRow.push(currentField);
+          currentField = '';
+          fieldQuoted = false;
+          closedQuote = false;
+          rows.push(currentRow);
+          currentRow = [];
+          if (rows.length > maxRows) {
+            throw new Error(`Le fichier CSV dépasse le nombre maximal de ${maxRows} lignes.`);
+          }
+        } else if (char === '\n') {
+          currentRow.push(currentField);
+          currentField = '';
+          fieldQuoted = false;
+          closedQuote = false;
+          rows.push(currentRow);
+          currentRow = [];
+          i++;
+          if (rows.length > maxRows) {
+            throw new Error(`Le fichier CSV dépasse le nombre maximal de ${maxRows} lignes.`);
+          }
+        } else {
+          throw new Error('Caractère inattendu après la fermeture des guillemets (format RFC 4180 invalide).');
+        }
+      } else if (char === '"') {
+        if (currentField.length === 0) {
+          fieldQuoted = true;
+          inQuotes = true;
+          i++;
+        } else {
+          throw new Error('Guillemet non valide dans un champ non entre guillemets (format RFC 4180 invalide).');
+        }
       } else if (char === delimiter) {
         currentRow.push(currentField);
         currentField = '';
+        fieldQuoted = false;
+        closedQuote = false;
         i++;
       } else if (char === '\r') {
         if (i + 1 < len && text[i + 1] === '\n') {
@@ -103,6 +149,8 @@ export function parseCsv(input: string | Buffer, options: CsvParseOptions = {}):
         }
         currentRow.push(currentField);
         currentField = '';
+        fieldQuoted = false;
+        closedQuote = false;
         rows.push(currentRow);
         currentRow = [];
         if (rows.length > maxRows) {
@@ -111,6 +159,8 @@ export function parseCsv(input: string | Buffer, options: CsvParseOptions = {}):
       } else if (char === '\n') {
         currentRow.push(currentField);
         currentField = '';
+        fieldQuoted = false;
+        closedQuote = false;
         rows.push(currentRow);
         currentRow = [];
         i++;
@@ -132,6 +182,9 @@ export function parseCsv(input: string | Buffer, options: CsvParseOptions = {}):
   if (currentField.length > 0 || currentRow.length > 0) {
     currentRow.push(currentField);
     rows.push(currentRow);
+    if (rows.length > maxRows) {
+      throw new Error(`Le fichier CSV dépasse le nombre maximal de ${maxRows} lignes.`);
+    }
   }
 
   // Trim trailing empty rows

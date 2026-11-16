@@ -77,8 +77,36 @@ export function ImportPanel({
   };
 
   const submit = async () => {
-    setBusy(true);
     setError('');
+
+    // If report is not yet generated, run analysis first to prevent bypassing date/quality checks
+    let activeReport = report;
+    if (!activeReport) {
+      setAnalyzing(true);
+      try {
+        const rep = await api.analyze(files, {
+          previousTimetableId: !timetable && previousId ? previousId : undefined,
+        });
+        activeReport = rep;
+        setReport(rep);
+        // If date mismatch or errors, stop and let user review/confirm
+        if (!rep.canImport || rep.hasErrors || (rep.dateMismatch?.isMismatch && !confirmDateMismatch)) {
+          return;
+        }
+      } catch (e) {
+        setError((e as Error).message);
+        return;
+      } finally {
+        setAnalyzing(false);
+      }
+    }
+
+    if (activeReport.dateMismatch?.isMismatch && !confirmDateMismatch) {
+      setError('Veuillez confirmer que les fichiers correspondent à la même version avant d’importer.');
+      return;
+    }
+
+    setBusy(true);
     try {
       const t = await api.upload(files, {
         name: name || undefined,
@@ -104,7 +132,7 @@ export function ImportPanel({
     !busy &&
     !analyzing &&
     (timetable !== undefined || versions !== null) &&
-    (!report || (report.canImport && (!report.dateMismatch.isMismatch || confirmDateMismatch)));
+    (!report || (report.canImport && (!report.dateMismatch?.isMismatch || confirmDateMismatch)));
 
   return (
     <div className="card">
@@ -274,7 +302,7 @@ export function ImportPanel({
                     checked={confirmDateMismatch}
                     onChange={(e) => setConfirmDateMismatch(e.target.checked)}
                   />
-                  <span>Ils correspondent à la même version (confirmer l&apos;import groupé)</span>
+                  <span>Ils correspondent à la même version (confirmer l’import groupé)</span>
                 </label>
               </div>
             </div>

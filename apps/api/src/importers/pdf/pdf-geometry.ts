@@ -1,6 +1,7 @@
 import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs';
 import { clean, parseSlotLabel, splitSubject } from '../../parser/html-parser.js';
 import { ParsedSession, SlotLabel, SourceKind } from '../../parser/types.js';
+import { CellIssue } from '../types.js';
 
 export interface VectorLine {
   x1: number;
@@ -123,28 +124,48 @@ export function buildPageGrid(
 
   // 1. Footer line (Planning généré avec FET...)
   let generatedAt = '';
-  const footerItem = sortedItems.find((it) => /Planning généré avec FET/i.test(it.str));
+  const footerItem = sortedItems.find((it) => /Planning généré avec/i.test(it.str));
   if (footerItem) {
-    const m = footerItem.str.match(/Planning généré avec\s*(?:FET\s*[^\s]+\s*)?(?:le\s*)?([^\n\r]+)/i);
+    const m = footerItem.str.match(/Planning généré avec\s*(.+)/i);
     if (m) generatedAt = clean(m[1]);
   }
 
   // 2. Top header lines: institution and table owner (room, group or teacher)
-  const topItems = sortedItems.filter((it) => it.y > 540 && it.str.trim().length > 0);
+  const isDayOrSlotOrFooter = (s: string) => {
+    const c = clean(s);
+    return (
+      DEFAULT_DAYS.some((d) => d.toLowerCase() === c.toLowerCase()) ||
+      /\d{1,2}:\d{2}/.test(c) ||
+      /Planning généré/i.test(c) ||
+      c === '---'
+    );
+  };
+
+  const topItems = sortedItems.filter(
+    (it) => it.y > 530 && it.str.trim().length > 0 && !isDayOrSlotOrFooter(it.str),
+  );
   let institution = '';
   let owner = '';
 
-  if (topItems.length >= 1) {
-    // Institution is the first line at the top
+  const instItem = topItems.find((it) =>
+    /ecole|institut|universit|enis|facult|college/i.test(it.str),
+  );
+  if (instItem) {
+    institution = clean(instItem.str);
+  } else if (topItems.length > 1) {
     institution = clean(topItems[0].str);
   }
-  if (topItems.length >= 2) {
-    owner = clean(topItems[1].str);
-  } else if (sortedItems.length >= 2) {
-    owner = clean(sortedItems[1].str);
+
+  const ownerCandidates = topItems.filter((it) => clean(it.str) !== institution);
+  if (ownerCandidates.length > 0) {
+    // Pick candidate closest to table top (lowest Y among top items)
+    const sortedByY = [...ownerCandidates].sort((a, b) => a.y - b.y);
+    owner = clean(sortedByY[0].str);
+  } else if (topItems.length > 0) {
+    owner = clean(topItems[0].str);
   }
 
-  // 3. Vertical column boundaries (columns 0..6)
+  // 3. Vertical column boundaries (columns 0..6: 7 columns => 8 boundaries required)
   // Cluster vertical lines by X coordinate (tolerance 4pt)
   const vClusters: { x: number; totalLen: number; lines: VectorLine[] }[] = [];
   for (const l of [...vLines].sort((a, b) => a.x1 - b.x1)) {
@@ -163,8 +184,8 @@ export function buildPageGrid(
     .map((c) => c.x)
     .sort((a, b) => a - b);
 
-  // Fallback if vector borders missing: determine columns from day headers
-  if (colBounds.length < 7) {
+  // Fallback if vector borders missing or incomplete (require all 8 boundaries for 7 columns)
+  if (colBounds.length < 8) {
     const dayHeaders = DEFAULT_DAYS.map((d) => sortedItems.find((it) => it.str.trim() === d)).filter(
       Boolean,
     ) as TextItem[];
@@ -225,6 +246,13 @@ export function buildPageGrid(
   };
 }
 
+export interface GridExtractionResult {
+  sessions: ParsedSession[];
+  unparseableCells: number;
+  totalNonEmptyCells: number;
+  issues: CellIssue[];
+}
+
 /**
  * Assigns text items into cells and extracts sessions.
  * Handles multi-slot spanning cells and sub-column split cells.
@@ -234,8 +262,11 @@ export function extractSessionsFromGrid(
   textItems: TextItem[],
   hLines: VectorLine[],
   kind: SourceKind,
-): ParsedSession[] {
+): GridExtractionResult {
   const sessions: ParsedSession[] = [];
+  const issues: CellIssue[] = [];
+  let unparseableCells = 0;
+  let totalNonEmptyCells = 0;
   const { colBounds, rowBounds, owner } = grid;
 
   // We have 6 days (cols 1..6) and 6 time slots (rows 0..5)
@@ -283,11 +314,24 @@ export function extractSessionsFromGrid(
       );
 
       if (cellItems.length > 0) {
+        totalNonEmptyCells++;
         const parsedList = parseCellContent(cellItems, xLeft, xRight, kind, owner, day);
-        for (const s of parsedList) {
-          // Replicate across all covered slots (exact FET rowspan semantics)
-          for (let sIdx = slot; sIdx <= spanEndSlot; sIdx++) {
-            sessions.push({ ...s, slot: sIdx });
+        if (parsedList.length === 0) {
+          unparseableCells++;
+          issues.push({
+            day,
+            slot,
+            owner,
+            text: cellItems.map((c) => c.str).join(' ').slice(0, 100),
+            reason: 'Impossible d’extraire une séance valide de cette cellule non vide',
+            level: 'warning',
+          });
+        } else {
+          for (const s of parsedList) {
+            // Replicate across all covered slots (exact FET rowspan semantics)
+            for (let sIdx = slot; sIdx <= spanEndSlot; sIdx++) {
+              sessions.push({ ...s, slot: sIdx });
+            }
           }
         }
       }
@@ -296,7 +340,12 @@ export function extractSessionsFromGrid(
     }
   }
 
-  return sessions;
+  return {
+    sessions,
+    unparseableCells,
+    totalNonEmptyCells,
+    issues,
+  };
 }
 
 /**
@@ -311,30 +360,7 @@ function parseCellContent(
   owner: string,
   day: number,
 ): ParsedSession[] {
-  // Detect if there are parallel sub-columns inside this cell
-  // Sub-columns occur when items have distinct horizontal groupings
-  const cellWidth = cellRight - cellLeft;
-  const subCols: TextItem[][] = [];
-
-  // Check if items cluster horizontally
-  // E.g. 2 sub-columns: items centered around left third and right third
-  const midX = cellLeft + cellWidth / 2;
-  const leftItems = items.filter((it) => it.x < midX);
-  const rightItems = items.filter((it) => it.x >= midX);
-
-  const hasTwoColumns =
-    leftItems.length > 0 &&
-    rightItems.length > 0 &&
-    (leftItems.some((l) => rightItems.some((r) => Math.abs(l.y - r.y) < 5)) ||
-      (leftItems.some((l) => /[A-Z]{2,}-\d/i.test(l.str)) &&
-        rightItems.some((r) => /[A-Z]{2,}-\d/i.test(r.str))));
-
-  if (hasTwoColumns) {
-    subCols.push(leftItems, rightItems);
-  } else {
-    subCols.push(items);
-  }
-
+  const subCols = detectSubColumns(items, cellLeft, cellRight);
   const results: ParsedSession[] = [];
 
   for (const colItems of subCols) {
@@ -345,6 +371,76 @@ function parseCellContent(
   }
 
   return results;
+}
+
+/**
+ * Identifies sub-columns by clustering horizontal gaps between items on the same line.
+ * Handles 1, 2, 3 or more parallel activity sub-columns.
+ */
+function detectSubColumns(
+  items: TextItem[],
+  cellLeft: number,
+  cellRight: number,
+): TextItem[][] {
+  const cellWidth = cellRight - cellLeft;
+  if (items.length <= 1 || cellWidth <= 20) return [items];
+
+  // Look for items on the same Y level with a gap > 12pt
+  const sorted = [...items].sort((a, b) => b.y - a.y || a.x - b.x);
+  const gaps: number[] = [];
+
+  for (let i = 0; i < sorted.length; i++) {
+    for (let j = i + 1; j < sorted.length; j++) {
+      const a = sorted[i];
+      const b = sorted[j];
+      if (Math.abs(a.y - b.y) <= 3) {
+        const leftItem = a.x < b.x ? a : b;
+        const rightItem = a.x < b.x ? b : a;
+        const gap = rightItem.x - (leftItem.x + leftItem.w);
+        if (gap > 12) {
+          gaps.push(leftItem.x + leftItem.w + gap / 2);
+        }
+      }
+    }
+  }
+
+  if (gaps.length === 0) {
+    return [items];
+  }
+
+  // Cluster gap midpoints (tolerance 10pt)
+  const gapClusters: { x: number; count: number }[] = [];
+  for (const g of gaps) {
+    const existing = gapClusters.find((c) => Math.abs(c.x - g) <= 10);
+    if (existing) {
+      existing.x = (existing.x * existing.count + g) / (existing.count + 1);
+      existing.count++;
+    } else {
+      gapClusters.push({ x: g, count: 1 });
+    }
+  }
+
+  const splitPoints = gapClusters
+    .filter((c) => c.x > cellLeft + 15 && c.x < cellRight - 15)
+    .map((c) => c.x)
+    .sort((a, b) => a - b);
+
+  if (splitPoints.length === 0) {
+    return [items];
+  }
+
+  const subCols: TextItem[][] = Array.from({ length: splitPoints.length + 1 }, () => []);
+  for (const it of items) {
+    const mid = it.x + it.w / 2;
+    let colIdx = 0;
+    while (colIdx < splitPoints.length && mid > splitPoints[colIdx]) {
+      colIdx++;
+    }
+    subCols[colIdx].push(it);
+  }
+
+  const activeCols = subCols.filter((col) => col.length > 0);
+  return activeCols.length > 1 ? activeCols : [items];
 }
 
 /**

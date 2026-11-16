@@ -93,6 +93,10 @@ export class TimetablesService {
     });
 
     const kinds = views.map((p) => p.kind);
+    if (new Set(kinds).size !== kinds.length) {
+      throw new BadRequestException('Deux fichiers du même type (teachers/rooms/groups) ont été envoyés');
+    }
+
     // Fail before saving when the two versions share no comparable view.
     if (
       previous &&
@@ -111,26 +115,39 @@ export class TimetablesService {
         });
       } else {
         const ref = views.find((p) => p.kind === 'rooms') ?? views[0];
+        const csvFile = report.files.find((f) => f.origin === 'csv');
+        const roomsFile = report.files.find((f) => f.kind === 'rooms');
+        const defaultFile = csvFile ?? roomsFile ?? report.files[0];
+        const defaultName = defaultFile
+          ? path.parse(defaultFile.fileName).name
+          : path.parse(files[0].originalname).name;
+
         t = em.create(Timetable, {
-          name: opts.name?.trim() || ref.comment || path.parse(files[0].originalname).name,
+          name: opts.name?.trim() || ref.comment || defaultName,
           files: [],
           previousTimetableId: opts.previousTimetableId ?? null,
         });
       }
       t = await em.save(Timetable, t);
 
+      const csvReport = report.files.find((f) => f.origin === 'csv');
+      const isFromCsv = !!csvReport && report.summary.originKind.includes('CSV');
+
       for (const data of views) {
         await em.delete(SessionEntity, { timetableId: t.id, source: data.kind });
         const rows = data.sessions.map((s) => em.create(SessionEntity, { ...s, timetableId: t.id, source: data.kind }));
         for (let i = 0; i < rows.length; i += 500) await em.insert(SessionEntity, rows.slice(i, i + 500));
 
-        const fileReport = report.files.find((f) => f.kind === data.kind) ?? report.files[0];
+        const fileReport = isFromCsv
+          ? csvReport
+          : (report.files.find((f) => f.kind === data.kind) ?? report.files[0]);
+
         const info: SourceFileInfo = {
           kind: data.kind,
           fileName: fileReport ? fileReport.fileName : files[0].originalname,
           owners: data.owners.length,
           sessions: data.sessions.length,
-          origin: fileReport ? fileReport.origin : 'html',
+          origin: isFromCsv ? 'csv' : (fileReport ? fileReport.origin : 'html'),
         };
         t.files = [...(t.files ?? []).filter((x) => x.kind !== data.kind), info];
         t.institution = data.institution || t.institution;

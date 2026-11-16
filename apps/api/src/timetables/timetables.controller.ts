@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body, Controller, Delete, Get, Param, ParseIntPipe, ParseUUIDPipe, Post, Query, Res, StreamableFile, UploadedFiles, UseInterceptors,
 } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
@@ -31,7 +32,10 @@ export class TimetablesController {
     @UploadedFiles() files: { originalname: string; buffer: Buffer }[],
     @Body('previousTimetableId') previousTimetableId?: string,
   ) {
-    const fixed = (files ?? []).map((f) => ({
+    if (!files || !files.length) {
+      throw new BadRequestException('Aucun fichier sélectionné pour l’importation');
+    }
+    const fixed = files.map((f) => ({
       originalname: Buffer.from(f.originalname, 'latin1').toString('utf8'),
       buffer: f.buffer,
     }));
@@ -49,6 +53,9 @@ export class TimetablesController {
     @Body('previousTimetableId') previousTimetableId?: string,
     @Body('confirmDateMismatch') confirmDateMismatch?: string,
   ) {
+    if (!files || !files.length) {
+      throw new BadRequestException('Aucun fichier sélectionné pour l’importation');
+    }
     // browsers send file names as latin1 in multipart: restore UTF-8
     const fixed = (files ?? []).map((f) => ({
       originalname: Buffer.from(f.originalname, 'latin1').toString('utf8'),

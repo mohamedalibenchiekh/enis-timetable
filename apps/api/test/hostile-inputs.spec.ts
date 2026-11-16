@@ -31,7 +31,7 @@ xref
 0000000115 00000 n 
 trailer << /Size 4 /Root 1 0 R >>
 startxref
-208
+202
 %%EOF`);
 
     await expect(
@@ -53,7 +53,7 @@ startxref
   });
 
   it('rejects CSV with unclosed quotes', async () => {
-    const badCsv = '"Activity Id","Day","Hour","Students Sets","Subject","Teachers","Room"\n"1","Lundi,"08:30"';
+    const badCsv = '"Activity Id","Day","Hour","Students Sets","Subject","Teachers","Room"\n"1","Lundi","08:30';
     await expect(
       csvImporter.parse({
         originalname: 'unclosed.csv',

@@ -7,8 +7,8 @@
 3. Choisissez un jour, puis sélectionnez **[Télécharger le document du jour]** ou **[Tous les jours (.zip)]**.
 4. Dans l’application de bureau, utilisez **[Enregistrer dans un dossier…]** pour choisir un dossier.
 5. Résultat attendu : un document Word par jour, ou une archive ZIP avec les documents disponibles.
-6. Vous pouvez importer seulement le fichier HTML des salles.
-7. Les fichiers des enseignants et des groupes complètent les informations disponibles.
+6. Vous pouvez importer un seul fichier (ex. le fichier CSV global ou le fichier des salles en HTML ou PDF).
+7. Les fichiers d’autres vues (enseignants, groupes) complètent les informations disponibles.
 8. Les options du document Word s’appliquent aux prochains téléchargements.
 9. Les corrections dans **[Noms]** s’appliquent à tous les emplois du temps de cette base.
 10. Ouvrez **[Aide]** dans l’application pour retrouver ce guide hors connexion.
@@ -66,7 +66,7 @@ FET peut produire des exports sous plusieurs formats pris en charge par l’appl
 2. Déposez les fichiers dans la zone **[Glissez les fichiers ici (HTML, CSV ou PDF) ou cliquez pour les choisir]**, ou cliquez sur cette zone et sélectionnez les fichiers.
 3. Vérifiez les étiquettes de format et de type affichées devant chaque nom de fichier. **[Type ?]** signifie que l’application ne reconnaît pas le type dans le nom.
 4. Vous pouvez utiliser le bouton **[Analyser les fichiers]** pour obtenir un rapport détaillé des séances détectées, de la qualité d’extraction et de la cohérence des dates avant importation.
-5. Si des avertissements non bloquants apparaissent, vous pouvez confirmer via **[Importer avec avertissements]**, ou revenir aux fichiers avec **[Modifier les fichiers]**.
+5. Si des avertissements non bloquants apparaissent, vous pouvez confirmer via **[Importer avec avertissements]**, ou revenir aux fichiers avec **[Modifier les fichiers]**. En cas d’incohérence entre les dates de génération des fichiers, vous devez d'abord cocher la case **[Ils correspondent à la même version (confirmer l’import groupé)]** pour débloquer l’importation.
 6. Si vous créez un nouvel emploi du temps, vous pouvez saisir un nom dans **[Nom (facultatif) — ex. S1 2026-2027]**.
 7. Sélectionnez **[Importer]**.
 
@@ -289,14 +289,15 @@ Avant chaque mise à jour, l’application tente de copier la base de données d
 - « Type de fichier inconnu » ou « Type de fichier HTML inconnu : « … » (attendu : teachers, rooms ou groups dans le nom ou la table des matières » : le nom ou la table des matières du fichier HTML ne contient pas `rooms`, `teachers`, `groups`, `salle`, `enseignant` ou `group`. Vérifiez le fichier exporté.
 - « « … » ne contient aucun tableau d'emploi du temps valide » ou « ne contient aucun tableau d'emploi du temps » : le fichier ne contient pas de tableau FET valide ou reconnu.
 - « Deux fichiers du même type (teachers/rooms/groups) ont été envoyés » : sélectionnez un seul fichier par type. Vous pouvez ajouter ou remplacer un fichier ensuite.
-- « Aucun fichier reçu » ou « Aucun fichier HTML reçu » : sélectionnez au moins un fichier avant de lancer l’import.
-- « Format de fichier non reconnu pour « … » (seuls les formats HTML FET, CSV FET et PDF FET sont acceptés » : le format n'est pas supporté (seuls `.html`, `.csv` et `.pdf` sont acceptés).
+- « Aucun fichier reçu » ou « Aucun fichier sélectionné pour l’importation » : sélectionnez au moins un fichier avant de lancer l’import.
+- « Format de fichier non reconnu pour « … » (seuls les formats HTML FET, CSV FET et PDF FET sont acceptés » : le format n'est pas supporté (seuls `.html`, `.htm`, `.csv` et `.pdf` sont acceptés).
 - « Le fichier CSV « … » est vide » : le fichier CSV sélectionné ne contient aucune donnée.
 - « Colonnes obligatoires manquantes dans » : le fichier CSV doit contenir toutes les colonnes standard attendues de FET.
 - « Import CSV rejeté : trop d'erreurs détectées ( … / … lignes invalides, soit … % > limite 5 » : plus de 5% des lignes du CSV comportent des données incohérentes ou erronées.
 - « Le fichier CSV dépasse la taille maximale autorisée de … Mo » : la taille du fichier CSV dépasse la limite de 5 Mo.
 - « Le fichier CSV dépasse le nombre maximal de … lignes » : le nombre de lignes dépasse la limite de 50 000 lignes.
 - « Guillemet non fermé à la fin du fichier CSV (format RFC 4180 invalide » : le fichier CSV présente une syntaxe RFC 4180 invalide ou des guillemets non refermés.
+- « Caractère inattendu après la fermeture des guillemets (format RFC 4180 invalide » ou « Guillemet non valide dans un champ non entre guillemets (format RFC 4180 invalide » : le fichier CSV comporte des guillemets non conformes aux spécifications RFC 4180.
 - « Délai d'attente dépassé ( … s) lors de l'analyse du fichier PDF » : l'extraction géométrique du document PDF a pris plus de 120 secondes.
 - « Importation PDF annulée par l’utilisateur » : l'analyse du PDF a été annulée.
 - « Le processus d'analyse PDF s'est arrêté de façon inattendue (code » : le sous-processus d'analyse géométrique du PDF s'est interrompu.
@@ -318,6 +319,7 @@ Avant chaque mise à jour, l’application tente de copier la base de données d
 ### Sauvegarde ou restauration refusée
 
 - « Fichier de sauvegarde vide ou manquant » : fournissez un fichier non vide.
+- « L’archive contient un nom de salle en doublon dans « known_rooms » (ligne …) » ou « Nom de salle en doublon détecté dans « known_rooms » » : l’archive contient plusieurs entrées normalisées identiques pour une même salle.
 - « L’archive de sauvegarde dépasse la taille maximale autorisée (200 Mo) » : l’archive dépasse la limite maximale fixée pour des raisons de sécurité.
 - « Le fichier sélectionné n’est pas une archive ZIP valide » : le fichier n’est pas un ZIP ou est endommagé.
 - « L’archive de sauvegarde est vide » : l’archive ne contient aucun fichier.

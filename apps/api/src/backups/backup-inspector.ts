@@ -241,6 +241,19 @@ export class BackupInspector {
       }
     }
 
+    // Check for duplicate room names in known_rooms
+    const knownRoomNames = new Set<string>();
+    for (let i = 0; i < data.known_rooms.length; i++) {
+      const room = data.known_rooms[i];
+      const normName = room.name.trim().toLowerCase();
+      if (knownRoomNames.has(normName)) {
+        throw new BadRequestException(
+          `L’archive contient un nom de salle en doublon dans « known_rooms » (ligne ${i + 1} : « ${room.name} »).`,
+        );
+      }
+      knownRoomNames.add(normName);
+    }
+
     // 5. Build summary
     const timetableSummaries: TimetableSummary[] = data.timetables.map((t: any) => ({
       id: t.id,

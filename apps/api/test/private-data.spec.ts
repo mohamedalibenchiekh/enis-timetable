@@ -55,7 +55,7 @@ describe.skipIf(!hasPrivateData)('Private real files test suite (ENIS_PRIVATE_DA
       expect(res.parsed.length).toBe(1);
       const parsed = res.parsed[0];
       expect(parsed.owners.length).toBeGreaterThan(0);
-      expect(parsed.sessions.length).toBeGreaterThanOrEqual(0);
+      expect(parsed.sessions.length).toBeGreaterThan(0);
       expect(parsed.slots.length).toBe(6);
     }
   });

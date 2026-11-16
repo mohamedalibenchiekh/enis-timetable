@@ -25,19 +25,35 @@ describe('ImporterRegistry and Batch Resolution Suite', () => {
     const pdfBuf = readFixture('FET_rooms_test.pdf');
     const pdfDet = registry.detectFile({ originalname: 'arbitrary_file.bin', buffer: pdfBuf });
     expect(pdfDet.detection.origin).toBe('pdf');
+
+    // 4. Filename fallback when content is unrecognized
+    const fallbackCsv = registry.detectFile({
+      originalname: 'export.csv',
+      buffer: Buffer.from('unrecognized content that is neither html nor pdf nor standard csv header'),
+    });
+    expect(fallbackCsv.detection.origin).toBe('csv');
   });
 
   it('rejects forbidden mixed batches (HTML + CSV or HTML + PDF)', async () => {
     const htmlBuf = readFixture('FET_rooms_test.html');
     const csvBuf = readFixture('synthetic_timetable.csv');
+    const pdfBuf = readFixture('FET_rooms_test.pdf');
 
-    const report = await registry.analyzeBatch([
+    const reportHtmlCsv = await registry.analyzeBatch([
       { originalname: 'FET_rooms.html', buffer: htmlBuf },
       { originalname: 'timetable.csv', buffer: csvBuf },
     ]);
 
-    expect(report.canProceed).toBe(false);
-    expect(report.blockingErrors.some((e) => e.includes('Mélange non autorisé'))).toBe(true);
+    expect(reportHtmlCsv.canProceed).toBe(false);
+    expect(reportHtmlCsv.blockingErrors.some((e) => e.includes('Mélange non autorisé'))).toBe(true);
+
+    const reportHtmlPdf = await registry.analyzeBatch([
+      { originalname: 'FET_rooms.html', buffer: htmlBuf },
+      { originalname: 'FET_rooms_test.pdf', buffer: pdfBuf },
+    ]);
+
+    expect(reportHtmlPdf.canProceed).toBe(false);
+    expect(reportHtmlPdf.blockingErrors.some((e) => e.includes('Mélange non autorisé'))).toBe(true);
   });
 
   it('rejects batch with multiple CSV files', async () => {
@@ -56,10 +72,13 @@ describe('ImporterRegistry and Batch Resolution Suite', () => {
     const csvBuf = readFixture('synthetic_timetable.csv');
     const pdfBuf = readFixture('FET_rooms_test.pdf');
 
-    const batch = await registry.resolveBatch([
-      { originalname: 'EmploiS1-09-11-2026-1_timetable.csv', buffer: csvBuf },
-      { originalname: 'emplois_16-11-2026-salles.pdf', buffer: pdfBuf },
-    ]);
+    const batch = await registry.resolveBatch(
+      [
+        { originalname: 'EmploiS1-09-11-2026-1_timetable.csv', buffer: csvBuf },
+        { originalname: 'emplois_16-11-2026-salles.pdf', buffer: pdfBuf },
+      ],
+      { confirmDateMismatch: true },
+    );
 
     expect(batch.views.length).toBe(3);
     const roomsView = batch.views.find((v) => v.kind === 'rooms');

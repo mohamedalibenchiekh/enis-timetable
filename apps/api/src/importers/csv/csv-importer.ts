@@ -159,11 +159,14 @@ export class CsvImporter implements Importer {
 
       const rawDay = clean(row[colIdx.day]);
       const dayIndex = CANONICAL_DAYS[rawDay.toLowerCase()];
-      if (dayIndex === undefined) {
+      if (dayIndex === undefined || dayIndex >= DAY_NAMES.length) {
         failedRowCount++;
         issues.push({
           row: rowNum,
-          reason: `Jour inconnu ou invalide : « ${rawDay} »`,
+          reason:
+            dayIndex === 6
+              ? `Jour « ${rawDay} » non supporté (l'établissement opère du Lundi au Samedi)`
+              : `Jour inconnu ou invalide : « ${rawDay} »`,
           level: 'error',
         });
         continue;
@@ -232,7 +235,7 @@ export class CsvImporter implements Importer {
       roomsOwnersSet.add(r.room);
       const teachersStr = formatTeachers(r.teachersList);
       const groupsStr = formatGroups(r.groupsList);
-      const key = [r.day, r.slot, groupsStr, teachersStr, r.subjectCode, r.room, r.room].join('|');
+      const key = [r.day, r.slot, groupsStr, teachersStr, r.subjectCode, r.room, r.frequency, r.room].join('|');
       if (roomsSeen.has(key)) continue;
       roomsSeen.add(key);
 
@@ -259,7 +262,7 @@ export class CsvImporter implements Importer {
         teachersOwnersSet.add(t);
         const teachersStr = formatTeachers(r.teachersList);
         const groupsStr = formatGroups(r.groupsList);
-        const key = [r.day, r.slot, groupsStr, teachersStr, r.subjectCode, r.room, t].join('|');
+        const key = [r.day, r.slot, groupsStr, teachersStr, r.subjectCode, r.room, r.frequency, t].join('|');
         if (teachersSeen.has(key)) continue;
         teachersSeen.add(key);
 
@@ -288,7 +291,7 @@ export class CsvImporter implements Importer {
         const teachersStr = formatTeachers(r.teachersList);
         const groupsStr = formatGroups(r.groupsList);
         // Note: in groups view, owner matches the specific group
-        const key = [r.day, r.slot, groupsStr, teachersStr, r.subjectCode, r.room, g].join('|');
+        const key = [r.day, r.slot, groupsStr, teachersStr, r.subjectCode, r.room, r.frequency, g].join('|');
         if (groupsSeen.has(key)) continue;
         groupsSeen.add(key);
 
@@ -341,6 +344,10 @@ export class CsvImporter implements Importer {
       owners: naturalSort(Array.from(groupsOwnersSet)),
       sessions: groupsSessions,
     };
+
+    if (failedRowCount > 0) {
+      errors.push(`${failedRowCount} ligne(s) invalide(s) ignorée(s) dans le fichier CSV.`);
+    }
 
     const report: FileReport = {
       fileName: file.originalname,

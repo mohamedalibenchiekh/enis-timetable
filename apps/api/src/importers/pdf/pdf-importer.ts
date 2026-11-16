@@ -93,6 +93,12 @@ export class PdfImporter implements Importer {
         return;
       }
 
+      if (ctx.signal?.aborted) {
+        worker?.terminate();
+        reject(new Error('Importation PDF annulée par l’utilisateur.'));
+        return;
+      }
+
       timer = setTimeout(() => {
         worker?.terminate();
         reject(

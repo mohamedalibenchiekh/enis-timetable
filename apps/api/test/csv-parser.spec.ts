@@ -66,4 +66,17 @@ describe('RFC 4180 CSV parser suite', () => {
     const manyRows = 'a\n'.repeat(50);
     expect(() => parseCsv(manyRows, { maxRows: 20 })).toThrow(/dépasse le nombre maximal/);
   });
+
+  it('rejects row count exceeding limit when final row has no newline', () => {
+    const rowsNoTrailingNewline = 'a\n'.repeat(19) + 'a';
+    expect(() => parseCsv(rowsNoTrailingNewline, { maxRows: 19 })).toThrow(/dépasse le nombre maximal/);
+  });
+
+  it('rejects character after closing quote', () => {
+    expect(() => parseCsv('"a"x,b')).toThrow(/Caractère inattendu après la fermeture des guillemets/);
+  });
+
+  it('rejects quote inside unquoted field', () => {
+    expect(() => parseCsv('a"b,c')).toThrow(/Guillemet non valide dans un champ non entre guillemets/);
+  });
 });

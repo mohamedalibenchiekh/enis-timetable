@@ -44,6 +44,7 @@ Procédure obligatoire :
       settings: [],
       teacher_names: [],
       room_labels: [],
+      known_rooms: [],
     };
 
     // If target is same as fromVersion, returns input unchanged

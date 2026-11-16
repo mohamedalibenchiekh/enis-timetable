@@ -14,7 +14,7 @@ export function detectKind(fileName: string, html?: string): SourceKind | null {
   if (n.includes('room') || n.includes('salle')) return 'rooms';
   if (n.includes('group') || n.includes('groupe')) return 'groups';
   if (html) {
-    const tm = html.match(/<title>([^<]+)<\/title>/i);
+    const tm = html.match(/<title[^>]*>([^<]+)<\/title>/i);
     if (tm) {
       const t = tm[1].toLowerCase();
       if (t.includes('teacher') || t.includes('enseignant')) return 'teachers';

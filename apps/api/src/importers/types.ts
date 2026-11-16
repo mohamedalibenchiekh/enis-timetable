@@ -40,31 +40,37 @@ export interface FileReport {
 }
 
 export interface DateMismatchInfo {
-  detectedDates: { fileName: string; date: string; origin: ImportOrigin }[];
   isMismatch: boolean;
+  dates: string[];
+  details: string[];
+  detectedDates?: { fileName: string; date: string; origin: ImportOrigin }[];
   message?: string;
 }
 
 export interface CrossCheckSummary {
   matchedSessions: number;
-  discrepancies: {
-    type: 'missing_in_pdf' | 'missing_in_csv' | 'field_difference';
-    detail: string;
-    day?: number;
-    slot?: number;
-    room?: string;
-    teacher?: string;
-  }[];
+  discrepancies: string[];
   isParityOk: boolean;
 }
 
 export interface ImportReport {
-  files: FileReport[];
+  canImport: boolean;
   canProceed: boolean;
+  hasErrors: boolean;
+  hasWarnings: boolean;
+  blockingMessage?: string;
   blockingErrors: string[];
   warnings: string[];
-  dateMismatch?: DateMismatchInfo;
+  files: FileReport[];
+  dateMismatch: DateMismatchInfo;
   crossCheck?: CrossCheckSummary;
+  summary: {
+    totalSessions: number;
+    distinctRooms: number;
+    distinctTeachers: number;
+    distinctGroups: number;
+    originKind: string;
+  };
   catalogs?: {
     rooms: string[];
     teachers: string[];

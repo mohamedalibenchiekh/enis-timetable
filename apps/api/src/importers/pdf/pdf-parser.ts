@@ -21,8 +21,9 @@ const DEFAULT_MAX_PAGES = 2000;
 const DEFAULT_MAX_SIZE_BYTES = 50 * 1024 * 1024; // 50 MB
 
 export function detectPdfKind(fileName: string, sampleOwners: string[]): SourceKind | null {
-  // Filename detection
+  // Filename detection first
   const fnKind = detectKind(fileName);
+  if (fnKind) return fnKind;
 
   // Content inspection on first few owners
   let roomScore = 0;
@@ -30,11 +31,16 @@ export function detectPdfKind(fileName: string, sampleOwners: string[]): SourceK
   let groupScore = 0;
 
   for (const o of sampleOwners.slice(0, 10)) {
-    if (/^(?:A|B|M|R|E)\s*\d/i.test(o) || /amphi|labo/i.test(o)) {
+    const trimmed = o.trim();
+    if (!trimmed) continue;
+    if (/^(?:A|B|M|R|E)\s*\d/i.test(trimmed) || /amphi|labo|salle/i.test(trimmed)) {
       roomScore++;
-    } else if (/^[A-Z]{2,4}-\d/i.test(o)) {
+    } else if (
+      /^(?:Grp|Groupe|Section|Classe|Année|\d+\.\d+)/i.test(trimmed) ||
+      /^[A-Z0-9]+-[A-Z0-9]+/i.test(trimmed)
+    ) {
       groupScore++;
-    } else if (/[A-Z][a-z]+|\b(?:BEN|ABDEL|EL|AL)\b/i.test(o)) {
+    } else if (/[A-Z][a-z]+|\b(?:BEN|ABDEL|EL|AL)\b/i.test(trimmed)) {
       teacherScore++;
     }
   }
@@ -43,7 +49,7 @@ export function detectPdfKind(fileName: string, sampleOwners: string[]): SourceK
   if (groupScore > roomScore && groupScore > teacherScore) return 'groups';
   if (teacherScore > roomScore && teacherScore > groupScore) return 'teachers';
 
-  return fnKind;
+  return null;
 }
 
 export async function parsePdfDocument(
@@ -110,14 +116,21 @@ export async function parsePdfDocument(
     );
   }
 
-  // Sample the first few page titles to confirm kind
-  const sampleTitles: string[] = [p1Strings[1] ?? ''];
+  // Sample the first few page titles using buildPageGrid to confirm kind
+  const sampleTitles: string[] = [];
   const sampleCheckPages = Math.min(5, numPages);
-  for (let p = 2; p <= sampleCheckPages; p++) {
+  for (let p = 1; p <= sampleCheckPages; p++) {
     const page = await doc.getPage(p);
     const tc = await page.getTextContent({ includeMarkedContent: false });
-    const items = tc.items.map((it: any) => it.str.trim()).filter(Boolean);
-    if (items.length >= 2) sampleTitles.push(items[1]);
+    const items: TextItem[] = tc.items.map((it: any) => ({
+      str: it.str,
+      x: it.transform[4],
+      y: it.transform[5],
+      w: it.width,
+      h: it.height,
+    }));
+    const grid = buildPageGrid(items, [], []);
+    if (grid.owner) sampleTitles.push(grid.owner);
   }
 
   const detectedKind = options.expectedKind ?? detectPdfKind(fileName, sampleTitles);
@@ -173,10 +186,13 @@ export async function parsePdfDocument(
       dayNames = grid.dayNames;
     }
 
-    const pageSessions = extractSessionsFromGrid(grid, textItems, hLines, detectedKind);
-    allSessions.push(...pageSessions);
-
-    totalCellsScanned += 36; // 6 days * 6 slots per table page
+    const pageResult = extractSessionsFromGrid(grid, textItems, hLines, detectedKind);
+    allSessions.push(...pageResult.sessions);
+    unparseableCellsCount += pageResult.unparseableCells;
+    totalCellsScanned += pageResult.totalNonEmptyCells || 36;
+    for (const iss of pageResult.issues) {
+      issues.push({ ...iss, page: pageNum });
+    }
   }
 
   // Quality gate: ensure valid text layer was read

@@ -176,8 +176,14 @@ export class BackupRestorer {
 
         // Insert known_rooms
         if (data.known_rooms && data.known_rooms.length > 0) {
+          const seenRoomNames = new Set<string>();
           for (const chunk of this.chunkArray(data.known_rooms, 500)) {
             for (const kr of chunk) {
+              const normName = kr.name.trim().toLowerCase();
+              if (seenRoomNames.has(normName)) {
+                throw new BadRequestException(`Nom de salle en doublon détecté dans « known_rooms » (« ${kr.name} »).`);
+              }
+              seenRoomNames.add(normName);
               await em.query(
                 `INSERT INTO known_rooms (id, name, "createdAt", "lastSeenAt")
                  VALUES ($1, $2, $3, $4)`,

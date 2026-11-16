@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
 import { CsvImporter } from '../src/importers/csv/csv-importer.js';
+import { HtmlImporter } from '../src/importers/html/html-importer.js';
 import { parseHtml } from '../src/parser/html-parser.js';
 
 describe('Equivalence and Cross-View Parity Suite', () => {
@@ -61,27 +62,40 @@ describe('Equivalence and Cross-View Parity Suite', () => {
 
     const [rooms, teachers] = result.parsed;
 
-    // Cross-check every room session has matching teacher sessions
+    // Cross-check two-way parity: rooms keys equal teachers keys
+    const roomsKeys = new Set<string>();
     for (const rs of rooms.sessions) {
-      if (!rs.teachers) continue;
+      if (!rs.room || !rs.teachers) continue;
       const teacherNames = rs.teachers.split(',').map((t) => t.trim());
       for (const tName of teacherNames) {
-        const found = teachers.sessions.find(
-          (ts) =>
-            ts.owner === tName &&
-            ts.day === rs.day &&
-            ts.slot === rs.slot &&
-            ts.room === rs.room &&
-            ts.subjectCode === rs.subjectCode,
-        );
-        expect(found).toBeDefined();
+        roomsKeys.add(`${rs.day}|${rs.slot}|${rs.room}|${tName}|${rs.subjectCode ?? ''}`);
       }
     }
+
+    const teachersKeys = new Set<string>();
+    for (const ts of teachers.sessions) {
+      if (!ts.room || !ts.owner) continue;
+      teachersKeys.add(`${ts.day}|${ts.slot}|${ts.room}|${ts.owner}|${ts.subjectCode ?? ''}`);
+    }
+
+    expect(roomsKeys.size).toBeGreaterThan(0);
+    expect(roomsKeys).toEqual(teachersKeys);
   });
 
-  it('preserves byte-for-byte HTML parser output with HTML importer', () => {
+  it('preserves byte-for-byte HTML parser output with HTML importer', async () => {
     const htmlBuf = readFixture('FET_rooms_test.html');
     const directParsed = parseHtml(htmlBuf.toString('utf8'), 'rooms');
+
+    const htmlImporter = new HtmlImporter();
+    const result = await htmlImporter.parse({
+      originalname: 'FET_rooms_test.html',
+      buffer: htmlBuf,
+    });
+
+    expect(result.report.origin).toBe('html');
+    expect(result.report.errors).toEqual([]);
+    expect(result.parsed).toHaveLength(1);
+    expect(result.parsed[0]).toEqual(directParsed);
 
     // All original test invariants hold unchanged
     expect(directParsed.owners).toEqual(['A01', 'B01', 'B02', 'Amphi', 'A03']);

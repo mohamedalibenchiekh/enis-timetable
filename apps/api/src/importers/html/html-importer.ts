@@ -9,7 +9,7 @@ export class HtmlImporter implements Importer {
     const isHtmlContent =
       /<!DOCTYPE html/i.test(textPrefix) ||
       /<html/i.test(textPrefix) ||
-      /table_[a-z0-9]+/i.test(textPrefix) ||
+      /<table[^>]*id=["']table_[a-z0-9_]+["']/i.test(textPrefix) ||
       /Table des mati/i.test(textPrefix);
 
     const hasHtmlExt = /\.(html?)$/i.test(file.originalname);
@@ -42,7 +42,7 @@ export class HtmlImporter implements Importer {
     }
 
     const parsed = parseHtml(html, kind);
-    if (!parsed.owners.length) {
+    if (!parsed.owners.length || !parsed.days.length || !parsed.slots.length) {
       throw new Error(`« ${file.originalname} » ne contient aucun tableau d'emploi du temps valide.`);
     }
 
