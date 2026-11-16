@@ -14,6 +14,13 @@ export function detectKind(fileName: string, html?: string): SourceKind | null {
   if (n.includes('room') || n.includes('salle')) return 'rooms';
   if (n.includes('group') || n.includes('groupe')) return 'groups';
   if (html) {
+    const tm = html.match(/<title>([^<]+)<\/title>/i);
+    if (tm) {
+      const t = tm[1].toLowerCase();
+      if (t.includes('teacher') || t.includes('enseignant')) return 'teachers';
+      if (t.includes('room') || t.includes('salle')) return 'rooms';
+      if (t.includes('group') || t.includes('groupe')) return 'groups';
+    }
     if (/Table des mati/i.test(html)) {
       const hasGroupe = /<li><a href="#table_\d+">\s*(Ann[ée]e|Groupe)\s/i.test(html);
       if (hasGroupe) return 'groups';

@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import {
+  KnownRoom,
   RoomLabel,
   SessionEntity,
   Setting,
@@ -19,6 +20,7 @@ import { MaintenanceGuard, MaintenanceService } from './maintenance.guard.js';
       Setting,
       TeacherName,
       RoomLabel,
+      KnownRoom,
     ]),
   ],
   controllers: [BackupsController],

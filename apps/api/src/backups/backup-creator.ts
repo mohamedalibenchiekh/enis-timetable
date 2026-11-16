@@ -37,6 +37,7 @@ export class BackupCreator {
         settings: 0,
         teacher_names: 0,
         room_labels: 0,
+        known_rooms: 0,
       };
       const sha256: Record<string, string> = {};
       const dataFiles: Record<string, Buffer> = {};
@@ -126,6 +127,14 @@ export class BackupCreator {
           ...r,
           createdAt: r.createdAt instanceof Date ? r.createdAt.toISOString() : r.createdAt,
           updatedAt: r.updatedAt instanceof Date ? r.updatedAt.toISOString() : r.updatedAt,
+        }));
+      }
+      case 'known_rooms': {
+        const rows = await em.query('SELECT * FROM known_rooms ORDER BY id ASC');
+        return rows.map((r: any) => ({
+          ...r,
+          createdAt: r.createdAt instanceof Date ? r.createdAt.toISOString() : r.createdAt,
+          lastSeenAt: r.lastSeenAt instanceof Date ? r.lastSeenAt.toISOString() : r.lastSeenAt,
         }));
       }
       default: {

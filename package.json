@@ -18,6 +18,7 @@
     "test:visual": "npm run test:visual -w apps/api",
     "test:visual:update": "npm run test:visual:update -w apps/api --",
     "test:e2e": "npm run build && playwright test",
+    "fixtures:pdf": "node scripts/generate-pdf-fixtures.mjs",
     "icons": "node scripts/generate-icons.cjs"
   },
   "devDependencies": {

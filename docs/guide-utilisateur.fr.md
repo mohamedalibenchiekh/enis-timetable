@@ -2,7 +2,7 @@
 
 ## Démarrage rapide
 
-1. Ouvrez **[Importer]** et choisissez un ou plusieurs fichiers HTML exportés depuis FET.
+1. Ouvrez **[Importer]** et choisissez un ou plusieurs fichiers exportés depuis FET (HTML, CSV ou PDF).
 2. Vérifiez l’aperçu de l’emploi du temps et les fichiers reconnus.
 3. Choisissez un jour, puis sélectionnez **[Télécharger le document du jour]** ou **[Tous les jours (.zip)]**.
 4. Dans l’application de bureau, utilisez **[Enregistrer dans un dossier…]** pour choisir un dossier.
@@ -55,21 +55,22 @@ Si « Le guide PDF n’a pas pu être enregistré » apparaît, vérifiez que le
 
 ## Premier démarrage et import des fichiers
 
-### Importer les fichiers HTML
+### Importer les fichiers (HTML, CSV ou PDF)
 
-FET peut produire des fichiers dont le nom contient `rooms`, `teachers` ou `groups`. Dans l’application, ces types apparaissent comme **[Salles]**, **[Enseignants]** et **[Groupes]**. Le fichier des salles suffit pour créer les documents Word. Les deux autres fichiers apportent des informations complémentaires.
-
-Si « Type de fichier inconnu » apparaît, vérifiez que le nom du fichier contient l’un des types attendus : `rooms`, `teachers` ou `groups`. Le message précise « attendu : teachers, rooms ou groups dans le nom ».
-
-Les étapes exactes pour produire les trois fichiers dans FET et choisir l’affichage des jours à l’horizontale restent **à confirmer** par le responsable du projet.
+FET peut produire des exports sous plusieurs formats pris en charge par l’application :
+- **Fichiers HTML** : fichiers dont le nom contient `rooms`, `teachers` ou `groups`. Dans l’application, ces types apparaissent comme **[Salles]**, **[Enseignants]** et **[Groupes]**. Le fichier des salles suffit pour créer les documents Word ; les deux autres apportent des informations complémentaires.
+- **Fichier CSV** : export `timetable.csv` contenant l'ensemble des activités et séances de l'établissement. Il constitue la source de données autoritaire pour toutes les vues.
+- **Fichiers PDF** : documents A4 paysage générés par impression PDF de FET pour les salles, enseignants ou groupes.
 
 1. Ouvrez **[Importer]**.
-2. Déposez les fichiers HTML dans la zone **[Glissez les fichiers HTML ici ou cliquez pour les choisir]**, ou cliquez sur cette zone et sélectionnez les fichiers.
-3. Vérifiez l’étiquette de type affichée devant chaque nom de fichier. **[Type ?]** signifie que l’application ne reconnaît pas le type dans le nom.
-4. Si vous créez un nouvel emploi du temps, vous pouvez saisir un nom dans **[Nom (facultatif) — ex. S1 2026-2027]**.
-5. Sélectionnez **[Importer]**.
+2. Déposez les fichiers dans la zone **[Glissez les fichiers ici (HTML, CSV ou PDF) ou cliquez pour les choisir]**, ou cliquez sur cette zone et sélectionnez les fichiers.
+3. Vérifiez les étiquettes de format et de type affichées devant chaque nom de fichier. **[Type ?]** signifie que l’application ne reconnaît pas le type dans le nom.
+4. Vous pouvez utiliser le bouton **[Analyser les fichiers]** pour obtenir un rapport détaillé des séances détectées, de la qualité d’extraction et de la cohérence des dates avant importation.
+5. Si des avertissements non bloquants apparaissent, vous pouvez confirmer via **[Importer avec avertissements]**, ou revenir aux fichiers avec **[Modifier les fichiers]**.
+6. Si vous créez un nouvel emploi du temps, vous pouvez saisir un nom dans **[Nom (facultatif) — ex. S1 2026-2027]**.
+7. Sélectionnez **[Importer]**.
 
-**Résultat attendu :** l’emploi du temps apparaît dans la liste et son aperçu s’ouvre. Les types de fichiers reçus sont indiqués sous son nom.
+**Résultat attendu :** l’emploi du temps apparaît dans la liste et son aperçu s’ouvre. Les types et origines des fichiers reçus sont indiqués sous son nom.
 
 ### Ajouter ou remplacer un fichier
 
@@ -285,10 +286,27 @@ Avant chaque mise à jour, l’application tente de copier la base de données d
 
 ### Fichier non reconnu ou import refusé
 
-- « Type de fichier inconnu » : le nom du fichier ne contient pas `rooms`, `teachers`, `groups`, `salle`, `enseignant` ou `group`. Vérifiez que vous avez choisi un fichier HTML exporté depuis FET.
+- « Type de fichier inconnu » ou « Type de fichier HTML inconnu : « … » (attendu : teachers, rooms ou groups dans le nom ou la table des matières » : le nom ou la table des matières du fichier HTML ne contient pas `rooms`, `teachers`, `groups`, `salle`, `enseignant` ou `group`. Vérifiez le fichier exporté.
+- « « … » ne contient aucun tableau d'emploi du temps valide » ou « ne contient aucun tableau d'emploi du temps » : le fichier ne contient pas de tableau FET valide ou reconnu.
 - « Deux fichiers du même type (teachers/rooms/groups) ont été envoyés » : sélectionnez un seul fichier par type. Vous pouvez ajouter ou remplacer un fichier ensuite.
-- « Aucun fichier HTML reçu » : sélectionnez au moins un fichier avant de lancer l’import.
-- « ne contient aucun tableau d'emploi du temps » : le fichier ne contient pas de tableau reconnu. Vérifiez le fichier exporté.
+- « Aucun fichier reçu » ou « Aucun fichier HTML reçu » : sélectionnez au moins un fichier avant de lancer l’import.
+- « Format de fichier non reconnu pour « … » (seuls les formats HTML FET, CSV FET et PDF FET sont acceptés » : le format n'est pas supporté (seuls `.html`, `.csv` et `.pdf` sont acceptés).
+- « Le fichier CSV « … » est vide » : le fichier CSV sélectionné ne contient aucune donnée.
+- « Colonnes obligatoires manquantes dans » : le fichier CSV doit contenir toutes les colonnes standard attendues de FET.
+- « Import CSV rejeté : trop d'erreurs détectées ( … / … lignes invalides, soit … % > limite 5 » : plus de 5% des lignes du CSV comportent des données incohérentes ou erronées.
+- « Le fichier CSV dépasse la taille maximale autorisée de … Mo » : la taille du fichier CSV dépasse la limite de 5 Mo.
+- « Le fichier CSV dépasse le nombre maximal de … lignes » : le nombre de lignes dépasse la limite de 50 000 lignes.
+- « Guillemet non fermé à la fin du fichier CSV (format RFC 4180 invalide » : le fichier CSV présente une syntaxe RFC 4180 invalide ou des guillemets non refermés.
+- « Délai d'attente dépassé ( … s) lors de l'analyse du fichier PDF » : l'extraction géométrique du document PDF a pris plus de 120 secondes.
+- « Importation PDF annulée par l’utilisateur » : l'analyse du PDF a été annulée.
+- « Le processus d'analyse PDF s'est arrêté de façon inattendue (code » : le sous-processus d'analyse géométrique du PDF s'est interrompu.
+- « Le fichier PDF dépasse la taille maximale autorisée de … Mo » : le fichier PDF dépasse la limite de 50 Mo.
+- « Le fichier PDF « … » ne contient aucune page » : le document PDF est vide.
+- « Le fichier PDF « … » contient … pages, ce qui dépasse la limite maximale de … pages » : le document PDF dépasse la limite de 2 000 pages.
+- « Le fichier PDF « … » ne contient aucun texte vectoriel exploitable (document numérisé ou image sans couche texte » : le document ne comporte pas de couche de texte vectoriel (les scans et images numérisées ne sont pas acceptés).
+- « Impossible de déterminer le type d'export (salles, enseignants ou groupes) pour le fichier PDF » : le PDF ne correspond ni aux salles, ni aux enseignants, ni aux groupes.
+- « Couche texte insuffisante ou incomplète détectée dans « … » ( … éléments textuels pour … pages » : le texte extrait du PDF est trop fragmentaire pour reconstituer la grille.
+- « Qualité d'extraction insuffisante pour « … » : … % des cellules n'ont pas pu être décodées correctement (> seuil de 2 » : le taux de cellules non décodées dépasse le seuil de tolérance de 2%.
 - « Emploi du temps introuvable » : l’emploi du temps demandé n’est plus dans la base. Revenez à la liste et sélectionnez un emploi du temps existant.
 - « Cet emploi du temps ne contient aucune donnée » : aucun fichier importé ne fournit de séances. Importez un fichier HTML de salles.
 - « Jour invalide » : rechargez l’emploi du temps et choisissez l’un des jours affichés.

@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { RoomLabel, Setting, SessionEntity, TeacherName, Timetable } from './entities/timetable.entity.js';
+import { KnownRoom, RoomLabel, Setting, SessionEntity, TeacherName, Timetable } from './entities/timetable.entity.js';
 import { SettingsController } from './settings/settings.controller.js';
 import { SettingsService } from './settings/settings.service.js';
 import { TimetablesController } from './timetables/timetables.controller.js';
@@ -19,12 +19,12 @@ import { CompareService } from './compare/compare.service.js';
     TypeOrmModule.forRoot({
       type: 'postgres',
       url: process.env.DATABASE_URL ?? 'postgres://enis:enis@127.0.0.1:5432/enis_timetable',
-      entities: [Timetable, SessionEntity, Setting, TeacherName, RoomLabel],
+      entities: [Timetable, SessionEntity, Setting, TeacherName, RoomLabel, KnownRoom],
       synchronize: true, // desktop app with its own database: the schema follows the code
       retryAttempts: 2,
       retryDelay: 1000,
     }),
-    TypeOrmModule.forFeature([Timetable, SessionEntity, Setting, TeacherName, RoomLabel]),
+    TypeOrmModule.forFeature([Timetable, SessionEntity, Setting, TeacherName, RoomLabel, KnownRoom]),
     BackupsModule,
   ],
   controllers: [TimetablesController, SettingsController, HealthController, NamesController, CompareController],

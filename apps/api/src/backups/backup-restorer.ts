@@ -56,6 +56,7 @@ export class BackupRestorer {
         settings: 0,
         teacher_names: 0,
         room_labels: 0,
+        known_rooms: 0,
       };
 
       if (mode === 'replace') {
@@ -64,6 +65,7 @@ export class BackupRestorer {
         await em.query('DELETE FROM timetables');
         await em.query('DELETE FROM teacher_names');
         await em.query('DELETE FROM room_labels');
+        await em.query('DELETE FROM known_rooms');
         await em.query("DELETE FROM settings WHERE key != 'backup'");
 
         // Insert timetables
@@ -171,6 +173,20 @@ export class BackupRestorer {
           }
         }
         restoredCounts.room_labels = data.room_labels.length;
+
+        // Insert known_rooms
+        if (data.known_rooms && data.known_rooms.length > 0) {
+          for (const chunk of this.chunkArray(data.known_rooms, 500)) {
+            for (const kr of chunk) {
+              await em.query(
+                `INSERT INTO known_rooms (id, name, "createdAt", "lastSeenAt")
+                 VALUES ($1, $2, $3, $4)`,
+                [kr.id, kr.name, kr.createdAt, kr.lastSeenAt],
+              );
+            }
+          }
+        }
+        restoredCounts.known_rooms = data.known_rooms ? data.known_rooms.length : 0;
 
         // Reset sequences to max(id)
         await this.resetSequences(em);
@@ -284,6 +300,22 @@ export class BackupRestorer {
           }
         }
 
+        if (data.known_rooms && data.known_rooms.length > 0) {
+          const existingRooms: Set<string> = new Set(
+            (await em.query('SELECT name FROM known_rooms')).map((r: any) => r.name),
+          );
+          for (const kr of data.known_rooms) {
+            if (!existingRooms.has(kr.name)) {
+              await em.query(
+                `INSERT INTO known_rooms (name, "createdAt", "lastSeenAt")
+                 VALUES ($1, $2, $3)`,
+                [kr.name, kr.createdAt, kr.lastSeenAt],
+              );
+              restoredCounts.known_rooms = (restoredCounts.known_rooms ?? 0) + 1;
+            }
+          }
+        }
+
         await this.resetSequences(em);
       }
 
@@ -310,6 +342,7 @@ export class BackupRestorer {
       SELECT setval('sessions_id_seq', COALESCE((SELECT MAX(id) FROM sessions), 1), (SELECT MAX(id) FROM sessions) IS NOT NULL);
       SELECT setval('teacher_names_id_seq', COALESCE((SELECT MAX(id) FROM teacher_names), 1), (SELECT MAX(id) FROM teacher_names) IS NOT NULL);
       SELECT setval('room_labels_id_seq', COALESCE((SELECT MAX(id) FROM room_labels), 1), (SELECT MAX(id) FROM room_labels) IS NOT NULL);
+      SELECT setval('known_rooms_id_seq', COALESCE((SELECT MAX(id) FROM known_rooms), 1), (SELECT MAX(id) FROM known_rooms) IS NOT NULL);
     `);
   }
 

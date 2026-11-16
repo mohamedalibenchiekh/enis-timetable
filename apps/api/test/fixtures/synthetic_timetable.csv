@@ -1,0 +1,8 @@
+"Activity Id","Day","Hour","Students Sets","Subject","Teachers","Activity Tags","Room","Comments"
+"1","Lundi","8:00-9:30","Grp-A1","T101 | Analyse (1/15)","Prof Dupont","","A01",""
+"2","Lundi","9:45-11:15","Grp-C3","T301 | Physique","Prof Laurent","","A01",""
+"2","Lundi","11:30-13:00 (M/S: 12:00-13:30)","Grp-C3","T301 | Physique","Prof Laurent","","A01",""
+"3","Jeudi","8:00-9:30","Grp-B2","T201 | Algèbre","Prof Martin","","A01",""
+"4","Mardi","8:00-9:30","Grp-D1","T401 | Chimie","Prof Moreau+Prof Bernard","","B01",""
+"5","Mardi","8:00-9:30","Grp-D2","T501 | Électronique","Prof Bernard","","B02",""
+"6","Mercredi","8:00-9:30","Grp-E1","T700 | Projet","","","A03",""

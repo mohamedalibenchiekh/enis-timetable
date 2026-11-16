@@ -1,11 +1,63 @@
 export type SourceKind = 'rooms' | 'teachers' | 'groups';
+export type ImportOrigin = 'html' | 'csv' | 'pdf';
 
 export interface SlotLabel { raw: string; base: string; overrides: Record<number, string>; note: string }
-export interface SourceFileInfo { kind: SourceKind; fileName: string; owners: number; sessions: number }
+export interface SourceFileInfo { kind: SourceKind; fileName: string; owners: number; sessions: number; origin?: ImportOrigin }
 export interface Timetable {
   id: string; name: string; institution: string; comment: string; generatedAt: string;
   days: string[]; slots: SlotLabel[]; rooms: string[]; files: SourceFileInfo[]; createdAt: string;
   previousTimetableId?: string | null;
+}
+export interface CellIssue {
+  file: string;
+  page?: number;
+  row?: number;
+  day?: number;
+  slot?: number;
+  textSnippet: string;
+  reason: string;
+  severity: 'warning' | 'error';
+}
+export interface FileReport {
+  fileName: string;
+  origin: ImportOrigin;
+  detectedKind?: SourceKind;
+  confidence: number;
+  sessionsCount: number;
+  ownersCount: number;
+  warnings: string[];
+  errors: string[];
+  issues: CellIssue[];
+}
+export interface DateMismatchInfo {
+  isMismatch: boolean;
+  dates: string[];
+  details: string[];
+}
+export interface CrossCheckSummary {
+  hasRooms: boolean;
+  hasTeachers: boolean;
+  hasGroups: boolean;
+  roomsSessions: number;
+  teachersSessions: number;
+  groupsSessions: number;
+  discrepancies: string[];
+}
+export interface ImportReport {
+  canImport: boolean;
+  hasErrors: boolean;
+  hasWarnings: boolean;
+  files: FileReport[];
+  dateMismatch: DateMismatchInfo;
+  crossCheck?: CrossCheckSummary;
+  summary: {
+    totalSessions: number;
+    distinctRooms: number;
+    distinctTeachers: number;
+    distinctGroups: number;
+    originKind: string;
+  };
+  blockingMessage?: string;
 }
 export type ChangeType = 'added' | 'removed' | 'moved' | 'room_changed' | 'group_changed' | 'teachers_changed';
 export interface CompareActivity { teachers: string; groups: string; subjectCode: string; subject: string; frequency: string }
@@ -197,13 +249,20 @@ export const api = {
   list: () => req<Timetable[]>('/api/timetables'),
   get: (id: string) => req<Timetable>(`/api/timetables/${id}`),
   remove: (id: string) => req<{ ok: true }>(`/api/timetables/${id}`, { method: 'DELETE' }),
-  upload: (files: File[], opts: { name?: string; timetableId?: string; previousTimetableId?: string }) => {
+  upload: (files: File[], opts: { name?: string; timetableId?: string; previousTimetableId?: string; confirmDateMismatch?: boolean }) => {
     const fd = new FormData();
     if (opts.name) fd.append('name', opts.name);
     if (opts.timetableId) fd.append('timetableId', opts.timetableId);
     if (opts.previousTimetableId) fd.append('previousTimetableId', opts.previousTimetableId);
+    if (opts.confirmDateMismatch) fd.append('confirmDateMismatch', 'true');
     files.forEach((f) => fd.append('files', f));
     return req<UploadResult>('/api/timetables', { method: 'POST', body: fd });
+  },
+  analyze: (files: File[], opts?: { previousTimetableId?: string }) => {
+    const fd = new FormData();
+    if (opts?.previousTimetableId) fd.append('previousTimetableId', opts.previousTimetableId);
+    files.forEach((f) => fd.append('files', f));
+    return req<ImportReport>('/api/timetables/analyze', { method: 'POST', body: fd });
   },
   compare: (id: string, otherId: string, source?: string) =>
     req<CompareResult>(`/api/timetables/${id}/compare/${otherId}${source && source !== 'auto' ? `?source=${source}` : ''}`),
@@ -299,4 +358,13 @@ export function guessKind(name: string): SourceKind | null {
   return null;
 }
 
+export function guessOrigin(name: string): ImportOrigin | null {
+  const n = name.toLowerCase();
+  if (n.endsWith('.csv')) return 'csv';
+  if (n.endsWith('.pdf')) return 'pdf';
+  if (n.endsWith('.html') || n.endsWith('.htm')) return 'html';
+  return null;
+}
+
 export const KIND_LABEL: Record<SourceKind, string> = { rooms: 'Salles', teachers: 'Enseignants', groups: 'Groupes' };
+export const ORIGIN_LABEL: Record<ImportOrigin, string> = { html: 'HTML', csv: 'CSV', pdf: 'PDF' };

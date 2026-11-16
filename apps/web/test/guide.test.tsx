@@ -135,6 +135,8 @@ describe('guide drift protection', () => {
       'Chemin de fichier invalide': 'Internal IPC validation guard; the file path is supplied by the application after the native save dialog.',
       'Table non gérée': 'Internal exhaustive switch check for table serialization; cannot occur from user actions.',
       'Aucune fonction de migration (upgrader) enregistrée': 'Internal developer guard when upgrading older schema versions without a registered migration function.',
+      'pdf-worker must be run inside a Worker thread': 'Internal worker thread guard; executed only as a Node worker thread.',
+      'Aucun importateur enregistré pour le format': 'Internal registry fallback guard when no importer matches the detected format.',
     };
     const sources = ['apps/api/src', 'apps/desktop/src'].flatMap((directory) => {
       const walk = (current: string): string[] => fs.readdirSync(path.join(root, current), { withFileTypes: true })
