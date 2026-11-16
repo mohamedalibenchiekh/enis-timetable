@@ -36,13 +36,13 @@
     "@types/node": "^26.6.6",
     "@types/pixelmatch": "^5.2.6",
     "@types/pngjs": "^6.0.5",
-    "@types/supertest": "^6.0.3",
-    "@vitest/coverage-v8": "^3.2.4",
+    "@types/supertest": "^7.2.1",
+    "@vitest/coverage-v8": "^5.1.0",
     "pixelmatch": "^8.0.0",
     "pngjs": "^7.0.0",
     "supertest": "^7.1.4",
     "ts-node": "^10.9.2",
     "typescript": "^6.0.0",
-    "vitest": "^3.2.4"
+    "vitest": "^5.1.0"
   }
 }
