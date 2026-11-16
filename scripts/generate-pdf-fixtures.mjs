@@ -26,7 +26,7 @@ async function generateFixtures() {
   try {
     browser = await chromium.launch();
   } catch (err) {
-    if (err?.message?.includes("Executable doesn't exist") || err?.message?.includes('browserType.launch')) {
+    if (err?.message?.includes("Executable doesn't exist")) {
       console.error(
         'Playwright Chromium is required to generate PDF fixtures. Please install it first with: npx playwright install chromium',
       );

@@ -385,21 +385,28 @@ function detectSubColumns(
   const cellWidth = cellRight - cellLeft;
   if (items.length <= 1 || cellWidth <= 20) return [items];
 
-  // Look for items on the same Y level with a gap > 12pt
-  const sorted = [...items].sort((a, b) => b.y - a.y || a.x - b.x);
-  const gaps: number[] = [];
+  // Group items into lines by Y coordinate (within 3pt) and check gaps only between adjacent items
+  const lines: TextItem[][] = [];
+  const sortedByY = [...items].sort((a, b) => b.y - a.y || a.x - b.x);
 
-  for (let i = 0; i < sorted.length; i++) {
-    for (let j = i + 1; j < sorted.length; j++) {
-      const a = sorted[i];
-      const b = sorted[j];
-      if (Math.abs(a.y - b.y) <= 3) {
-        const leftItem = a.x < b.x ? a : b;
-        const rightItem = a.x < b.x ? b : a;
-        const gap = rightItem.x - (leftItem.x + leftItem.w);
-        if (gap > 12) {
-          gaps.push(leftItem.x + leftItem.w + gap / 2);
-        }
+  for (const item of sortedByY) {
+    const matchingLine = lines.find((line) => Math.abs(line[0].y - item.y) <= 3);
+    if (matchingLine) {
+      matchingLine.push(item);
+    } else {
+      lines.push([item]);
+    }
+  }
+
+  const gaps: number[] = [];
+  for (const line of lines) {
+    line.sort((a, b) => a.x - b.x);
+    for (let i = 0; i < line.length - 1; i++) {
+      const leftItem = line[i];
+      const rightItem = line[i + 1];
+      const gap = rightItem.x - (leftItem.x + leftItem.w);
+      if (gap > 12) {
+        gaps.push(leftItem.x + leftItem.w + gap / 2);
       }
     }
   }

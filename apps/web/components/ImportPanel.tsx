@@ -47,6 +47,7 @@ export function ImportPanel({
   }, [timetable]);
 
   const add = (list: FileList | File[]) => {
+    if (busy || analyzing) return;
     const valid = Array.from(list).filter((f) => /\.(html?|csv|pdf)$/i.test(f.name));
     setFiles((prev) => [...prev.filter((p) => !valid.some((v) => v.name === p.name)), ...valid]);
     setReport(null);
@@ -55,7 +56,8 @@ export function ImportPanel({
   };
 
   const removeFile = (fileToRemove: File) => {
-    setFiles(files.filter((x) => x !== fileToRemove));
+    if (busy || analyzing) return;
+    setFiles((prev) => prev.filter((x) => x !== fileToRemove));
     setReport(null);
     setConfirmDateMismatch(false);
   };
@@ -135,17 +137,19 @@ export function ImportPanel({
       {!report && (
         <>
           <div
-            className={`drop ${over ? 'over' : ''}`}
-            onClick={() => input.current?.click()}
+            className={`drop ${over ? 'over' : ''} ${busy || analyzing ? 'disabled' : ''}`}
+            onClick={() => {
+              if (!busy && !analyzing) input.current?.click();
+            }}
             onDragOver={(e) => {
               e.preventDefault();
-              setOver(true);
+              if (!busy && !analyzing) setOver(true);
             }}
             onDragLeave={() => setOver(false)}
             onDrop={(e) => {
               e.preventDefault();
               setOver(false);
-              add(e.dataTransfer.files);
+              if (!busy && !analyzing) add(e.dataTransfer.files);
             }}
           >
             Glissez les fichiers ici (HTML, CSV ou PDF) ou cliquez pour les choisir
@@ -155,6 +159,7 @@ export function ImportPanel({
               accept=".html,.htm,.csv,.pdf"
               multiple
               hidden
+              disabled={busy || analyzing}
               onChange={(e) => e.target.files && add(e.target.files)}
             />
           </div>
@@ -171,7 +176,7 @@ export function ImportPanel({
                       {kOrig === 'csv' ? 'Toutes vues' : kKind ? KIND_LABEL[kKind] : 'Type ?'}
                     </span>
                     <span className="fname">{f.name}</span>
-                    <button className="link" onClick={() => removeFile(f)}>
+                    <button className="link" disabled={busy || analyzing} onClick={() => removeFile(f)}>
                       retirer
                     </button>
                   </li>
