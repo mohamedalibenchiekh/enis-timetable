@@ -70,7 +70,6 @@ export async function parsePdfDocument(
   const uint8Data = new Uint8Array(dataBuffer);
   const loadingTask = pdfjs.getDocument({
     data: uint8Data,
-    isEvalSupported: false,
     useSystemFonts: true,
   });
 
