@@ -30,8 +30,8 @@
     "typeorm": "^1.1.2"
   },
   "devDependencies": {
-    "@nestjs/cli": "^12.0.12",
-    "@nestjs/testing": "^12.4.0",
+    "@nestjs/cli": "^12.0.13",
+    "@nestjs/testing": "^12.5.0",
     "@types/express": "^5.0.0",
     "@types/node": "^26.6.6",
     "@types/pixelmatch": "^5.2.6",
