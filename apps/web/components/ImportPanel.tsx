@@ -77,36 +77,13 @@ export function ImportPanel({
   };
 
   const submit = async () => {
-    setError('');
-
-    // If report is not yet generated, run analysis first to prevent bypassing date/quality checks
-    let activeReport = report;
-    if (!activeReport) {
-      setAnalyzing(true);
-      try {
-        const rep = await api.analyze(files, {
-          previousTimetableId: !timetable && previousId ? previousId : undefined,
-        });
-        activeReport = rep;
-        setReport(rep);
-        // If date mismatch or errors, stop and let user review/confirm
-        if (!rep.canImport || rep.hasErrors || (rep.dateMismatch?.isMismatch && !confirmDateMismatch)) {
-          return;
-        }
-      } catch (e) {
-        setError((e as Error).message);
-        return;
-      } finally {
-        setAnalyzing(false);
-      }
-    }
-
-    if (activeReport.dateMismatch?.isMismatch && !confirmDateMismatch) {
+    if (report?.dateMismatch?.isMismatch && !confirmDateMismatch) {
       setError('Veuillez confirmer que les fichiers correspondent à la même version avant d’importer.');
       return;
     }
 
     setBusy(true);
+    setError('');
     try {
       const t = await api.upload(files, {
         name: name || undefined,
