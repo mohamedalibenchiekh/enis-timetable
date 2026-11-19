@@ -15,7 +15,7 @@ apiRequire('../dist/entities/timetable.entity.js');
 // 1. Increment BACKUP_SCHEMA_VERSION in apps/api/src/backups/backup-schema.ts
 // 2. Register an upgrader function in SCHEMA_UPGRADERS in apps/api/src/backups/backup-schema.ts
 // 3. Update COMMITTED_SCHEMA_FINGERPRINT below to the new hash.
-export const COMMITTED_SCHEMA_FINGERPRINT = '5cbe6eb81d6161da4a6c1a07ec69c0200ca0722e6f0e0fcb045841a2eacdd4e4';
+export const COMMITTED_SCHEMA_FINGERPRINT = 'b5b428ae6eaadbd7216f2f205403f6c3a8d02906ecf95e1b63e5d600435a258d';
 
 describe('Backup schema safety and fingerprint guard', () => {
   it('schema fingerprint matches committed entity definitions', () => {
