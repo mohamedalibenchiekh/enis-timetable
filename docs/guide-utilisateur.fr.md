@@ -195,7 +195,7 @@ Les programmes sont stockés séparément des imports FET. L’année universita
 - **Aucun tableau trouvé dans le document Word** ou **Impossible de repérer le tableau de l’emploi du temps (ligne des jours introuvable)** : vérifiez que le fichier contient le tableau des jours et créneaux.
 - **PDF illisible ou chiffré**, **Le PDF est chiffré et ne peut pas être analysé**, ou **Un PDF de mastère doit contenir une seule page (pages détectées : …)** : déverrouillez le PDF et exportez l’emploi du temps sur une seule page.
 - **Le PDF ne contient pas de couche texte exploitable (les documents numérisés ne sont pas acceptés)** : les PDF numérisés ne sont pas pris en charge; fournissez un PDF avec texte sélectionnable ou un DOCX.
-- **Ligne des jours introuvable dans le PDF du mastère** : vérifiez que les six jours figurent dans l’en-tête du tableau.
+- **Ligne des jours introuvable dans le PDF du mastère** : vérifiez qu’au moins cinq jours reconnus figurent dans l’en-tête du tableau.
 
 ## Mises à jour
 

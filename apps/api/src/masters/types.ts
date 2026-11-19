@@ -1,4 +1,5 @@
 export interface ProgramSlot {
+  id?: number;
   index: number;
   label: string;
   rawLabel: string;

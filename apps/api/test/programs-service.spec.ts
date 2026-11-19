@@ -34,8 +34,13 @@ describe('ProgramsService save modes', () => {
     const slotRepo = {
       create: (value: Partial<ProgramSlotEntity>) => value as ProgramSlotEntity,
       save: async (values: ProgramSlotEntity[]) => {
-        const saved = values.map((value) => ({ ...value, id: value.id ?? ++sequence } as ProgramSlotEntity));
-        slots.push(...saved);
+        const saved = values.map((value) => {
+          const existing = value.id === undefined ? undefined : slots.find((slot) => slot.id === value.id);
+          if (existing) { Object.assign(existing, value); return existing; }
+          const created = { ...value, id: ++sequence } as ProgramSlotEntity;
+          slots.push(created);
+          return created;
+        });
         return saved;
       },
       delete: async (criteria: Partial<ProgramSlotEntity>) => {
@@ -76,22 +81,30 @@ describe('ProgramsService save modes', () => {
     };
 
     const first = await service.save({ program: analysis, mode: 'new-version' });
-    const firstProgram = first as Program & { sessions: ProgramSessionEntity[] };
+    const firstProgram = first as Program & { sessions: ProgramSessionEntity[]; slots: ProgramSlotEntity[] };
     const firstSessionId = firstProgram.sessions[0].id;
+    const firstSlotId = firstProgram.slots[0].id;
     expect(firstProgram).toMatchObject({ revision: 1, version: 'v1.10', isCurrent: true });
 
-    await service.save({ program: { ...analysis, title: 'Édition', id: first.id, sessions: firstProgram.sessions }, mode: 'new-version' });
+    const second = await service.save({ program: { ...analysis, title: 'Édition', id: first.id, sessions: firstProgram.sessions, slots: firstProgram.slots }, mode: 'new-version' });
     expect(programs.map((row) => row.isCurrent)).toEqual([false, true]);
     expect(sessions.find((session) => session.id === firstSessionId)?.programId).toBe(first.id);
     expect(sessions).toHaveLength(2);
+    expect(slots.filter((slot) => slot.programId === first.id)).toHaveLength(6);
+    expect(slots.find((slot) => slot.id === firstSlotId)?.programId).toBe(first.id);
+    const secondProgram = second as Program & { sessions: ProgramSessionEntity[]; slots: ProgramSlotEntity[] };
+    expect(secondProgram.slots[0].id).not.toBe(firstSlotId);
 
     const current = programs[1];
     const currentSession = sessions.find((session) => session.programId === current.id)!;
-    const replaced = await service.save({ program: { ...analysis, title: 'Remplacé', id: current.id, sessions: [currentSession] }, mode: 'replace' });
+    const currentSlots = secondProgram.slots;
+    const replaced = await service.save({ program: { ...analysis, title: 'Remplacé', id: current.id, sessions: [currentSession], slots: currentSlots }, mode: 'replace' });
     expect(programs).toHaveLength(2);
     expect(replaced).toMatchObject({ id: current.id, revision: 2, title: 'Remplacé', isCurrent: true });
     expect(sessions.find((session) => session.programId === first.id)?.id).toBe(firstSessionId);
     expect(sessions.filter((session) => session.programId === current.id)).toHaveLength(1);
     expect(sessions.find((session) => session.programId === current.id)?.id).not.toBe(currentSession.id);
+    expect(slots.filter((slot) => slot.programId === current.id)).toHaveLength(6);
+    expect(slots.find((slot) => slot.programId === current.id)?.id).not.toBe(currentSlots[0].id);
   });
 });

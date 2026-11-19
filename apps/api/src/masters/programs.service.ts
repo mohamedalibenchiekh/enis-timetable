@@ -109,7 +109,11 @@ export class ProgramsService implements OnModuleInit {
         await slots.delete({ programId: program.id });
         await sessions.delete({ programId: program.id });
       }
-      await slots.save(analysis.slots.map((slot) => slots.create({ ...slot, programId: program.id })));
+      await slots.save(analysis.slots.map((slot) => {
+        const slotData = { ...slot };
+        delete slotData.id;
+        return slots.create({ ...slotData, programId: program.id });
+      }));
       if (analysis.sessions.length) await sessions.save(analysis.sessions.map((session) => {
         const newSession = { ...session, programId: program.id, room: session.roomUnassigned ? null : session.room };
         delete newSession.id;

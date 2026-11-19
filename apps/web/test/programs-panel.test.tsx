@@ -51,7 +51,10 @@ describe('ProgramsPanel', () => {
     const zone = screen.getByRole('button', { name: /Glissez les emplois du temps ici/ });
     const file = new File(['docx'], 'master.docx');
     fireEvent.drop(zone, { dataTransfer: { files: [file] } });
-    expect(await screen.findByText('master.docx')).not.toBeNull();
+    fireEvent.drop(zone, { dataTransfer: { files: [new File(['docx'], 'master.docx')] } });
+    expect((await screen.findAllByText('master.docx'))).toHaveLength(2);
+    fireEvent.click(screen.getAllByRole('button', { name: 'retirer' })[0]);
+    expect(screen.getAllByText('master.docx')).toHaveLength(1);
 
     const fileInput = container.querySelector<HTMLInputElement>('input[type="file"]');
     expect(fileInput).not.toBeNull();
@@ -71,15 +74,17 @@ describe('ProgramsPanel', () => {
     expect(document.querySelectorAll('datalist#teachers-0')).toHaveLength(1);
     expect(document.querySelectorAll('datalist#rooms-0')).toHaveLength(1);
 
-    fireEvent.change(teachers[0], { target: { value: 'Prof Benali, ' } });
-    expect((teachers[0] as HTMLInputElement).value).toBe('Prof Benali, ');
+    fireEvent.change(teachers[0], { target: { value: 'Jean-Pierre O’Neil, ' } });
+    expect((teachers[0] as HTMLInputElement).value).toBe('Jean-Pierre O’Neil, ');
+    fireEvent.blur(teachers[0]);
     fireEvent.change(screen.getAllByLabelText('Salle')[0], { target: { value: 'A02' } });
     expect(screen.getByText('Les conflits doivent être vérifiés à nouveau après modification des enseignants ou salles.')).not.toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Enregistrer le programme' }));
 
     await waitFor(() => expect(getSavedPayload()).toBeDefined());
     const payload = getSavedPayload()!;
-    expect(payload.program.sessions[0].teachers).toEqual(['Prof Benali']);
+    expect(payload.program.sessions[0].teachers).toEqual(['Jean-Pierre O’Neil']);
+    expect(payload.program.sessions[0].teacherKeys).toEqual(['jean neil o pierre']);
     expect(payload.program.sessions[0].room).toBe('A02');
     expect(payload.program.warnings).toContain('Les conflits doivent être vérifiés à nouveau après modification des enseignants ou salles.');
     expect(payload.program.warnings).not.toContain('Conflit de salle : A01 · Matière 0 · 1/1');

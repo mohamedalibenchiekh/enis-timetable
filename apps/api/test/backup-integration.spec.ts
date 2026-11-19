@@ -310,6 +310,7 @@ describe('Backup and Restore Integration (PostgreSQL Round-Trip & Safety)', () =
     );
     const { buffer } = await backupsService.createBackup(true);
     const inspected = await backupsService.inspectBackup({ fileBuffer: buffer });
+    await dataSource.query(`UPDATE programs SET "isCurrent" = FALSE WHERE id = $1`, [archivedId]);
     await backupsService.restoreBackup({ uploadToken: inspected.uploadToken, mode: 'merge' });
 
     const newProgram = await dataSource.query(

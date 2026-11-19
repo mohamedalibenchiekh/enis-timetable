@@ -6,6 +6,8 @@ const DAYS = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
 const CONFLICTS_STALE_WARNING = 'Les conflits doivent être vérifiés à nouveau après modification des enseignants ou salles.';
 const listDraftKey = (program: number, session: number, field: 'teachers' | 'tags') => `${program}:${session}:${field}`;
 const parseList = (value: string) => value.split(',').map((part) => part.trim()).filter(Boolean);
+// Keep in sync with the API parser's setKey: normalized unique words, sorted for order-independent matching.
+const teacherKey = (name: string) => [...new Set(name.normalize('NFD').replace(/\p{M}/gu, '').toLocaleLowerCase('fr').replace(/[^\p{L}\p{N}]+/gu, ' ').trim().split(/\s+/u).filter(Boolean))].sort().join(' ');
 function invalidateConflicts(program: ProgramAnalysis): ProgramAnalysis {
   if (!Object.hasOwn(program.rawSnapshot, 'conflicts')) return program;
   const rawSnapshot = { ...program.rawSnapshot };
@@ -69,7 +71,7 @@ export function ProgramsPanel() {
           const tags = listDrafts[listDraftKey(selected, index, 'tags')];
           return {
             ...session,
-            ...(teachers === undefined ? {} : { teachers: parseList(teachers), teacherKeys: parseList(teachers).map((name) => name.toLocaleLowerCase('fr')) }),
+            ...(teachers === undefined ? {} : { teachers: parseList(teachers), teacherKeys: parseList(teachers).map(teacherKey) }),
             ...(tags === undefined ? {} : { tags: parseList(tags) }),
           };
         }),
@@ -94,7 +96,7 @@ export function ProgramsPanel() {
     setAnalyses((old) => old.map((item, index) => {
       if (index !== selected) return item;
       return updateSession(item, sessionIndex, field === 'teachers'
-        ? { teachers: values, teacherKeys: values.map((name) => name.toLocaleLowerCase('fr')) }
+        ? { teachers: values, teacherKeys: values.map(teacherKey) }
         : { tags: values });
     }));
     setListDrafts((old) => { const next = { ...old }; delete next[key]; return next; });
@@ -125,12 +127,12 @@ export function ProgramsPanel() {
     </div>
     {step === 'analyse' && <>
       <p className="muted">Sélectionnez des fichiers DOCX ou PDF. Les PDF numérisés et les fichiers de plus de 20 Mo sont refusés.</p>
-      <div className="drop" role="button" tabIndex={0} onClick={(event) => { if (event.target === event.currentTarget) input.current?.click(); }} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); input.current?.click(); } }} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); const dropped = Array.from(event.dataTransfer.files).filter((file) => /\.(?:docx|pdf)$/iu.test(file.name)); if (dropped.length) setFiles((old) => [...old, ...dropped.filter((file) => !old.some((item) => item.name === file.name && item.size === file.size))]); }}>
+      <div className="drop" role="button" tabIndex={0} onClick={(event) => { if (event.target === event.currentTarget) input.current?.click(); }} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); input.current?.click(); } }} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); const dropped = Array.from(event.dataTransfer.files).filter((file) => /\.(?:docx|pdf)$/iu.test(file.name)); if (dropped.length) setFiles((old) => [...old, ...dropped]); }}>
         Glissez les emplois du temps ici ou cliquez pour les choisir
         <input ref={input} type="file" accept=".docx,.pdf" multiple hidden onChange={(event) => setFiles(Array.from(event.target.files ?? []))} />
       </div>
       <label className="field"><span>Référence des créneaux</span><select className="text" value={referenceId} onChange={(event) => setReferenceId(event.target.value)}><option value="">Valeurs intégrées (Vendredi 14:00-15:30)</option>{timetables.filter((item) => item.slots.length === 6).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
-      {files.length > 0 && <ul className="files">{files.map((file) => <li key={file.name}><span>{file.name}</span><button className="link" onClick={() => setFiles((old) => old.filter((item) => item !== file))}>retirer</button></li>)}</ul>}
+      {files.length > 0 && <ul className="files">{files.map((file, index) => <li key={`${index}:${file.name}:${file.size}`}><span>{file.name}</span><button className="link" onClick={() => setFiles((old) => old.filter((_, current) => current !== index))}>retirer</button></li>)}</ul>}
       <button className="primary" disabled={!files.length || busy} onClick={analyze}>{busy ? 'Analyse en cours…' : 'Analyser les fichiers'}</button>
     </>}
     {step === 'review' && current && <>

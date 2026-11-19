@@ -145,6 +145,7 @@ describe('NamesPanel', () => {
       fireEvent.click(add);
       await waitFor(() => expect(screen.getByRole('alert').textContent).toBe('Alias save failed'));
       fireEvent.click(add);
+      await waitFor(() => expect(saves).toBe(2));
       await waitFor(() => expect(screen.queryByRole('alert')).toBeNull());
       expect(screen.getByRole('button', { name: 'Supprimer l’alias Prof Benali' })).not.toBeNull();
     } finally {
