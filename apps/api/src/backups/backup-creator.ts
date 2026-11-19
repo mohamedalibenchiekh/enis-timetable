@@ -38,6 +38,7 @@ export class BackupCreator {
         teacher_names: 0,
         room_labels: 0,
         known_rooms: 0,
+        programs: 0, program_slots: 0, program_sessions: 0, teacher_aliases: 0, room_aliases: 0,
       };
       const sha256: Record<string, string> = {};
       const dataFiles: Record<string, Buffer> = {};
@@ -137,6 +138,11 @@ export class BackupCreator {
           lastSeenAt: r.lastSeenAt instanceof Date ? r.lastSeenAt.toISOString() : r.lastSeenAt,
         }));
       }
+      case 'programs': return em.query('SELECT * FROM programs ORDER BY code ASC, revision ASC');
+      case 'program_slots': return em.query('SELECT * FROM program_slots ORDER BY "programId" ASC, "index" ASC');
+      case 'program_sessions': return em.query('SELECT * FROM program_sessions ORDER BY "programId" ASC, day ASC, slot ASC');
+      case 'teacher_aliases': return em.query('SELECT * FROM teacher_aliases ORDER BY id ASC');
+      case 'room_aliases': return em.query('SELECT * FROM room_aliases ORDER BY id ASC');
       default: {
         const exhaustive: never = table;
         throw new Error(`Table non gérée : ${exhaustive}`);

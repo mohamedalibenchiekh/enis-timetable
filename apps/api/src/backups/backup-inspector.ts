@@ -132,7 +132,7 @@ export class BackupInspector {
     }
 
     const tablesInBackup = BACKUP_TABLES.filter(
-      (t) => !(manifest.schemaVersion < 3 && t === 'known_rooms'),
+      (t) => !(manifest.schemaVersion < 3 && t === 'known_rooms') && !(manifest.schemaVersion < 4 && ['programs', 'program_slots', 'program_sessions', 'teacher_aliases', 'room_aliases'].includes(t)),
     );
 
     for (const table of tablesInBackup) {
@@ -150,6 +150,7 @@ export class BackupInspector {
       teacher_names: [],
       room_labels: [],
       known_rooms: [],
+      programs: [], program_slots: [], program_sessions: [], teacher_aliases: [], room_aliases: [],
     };
 
     for (const table of tablesInBackup) {

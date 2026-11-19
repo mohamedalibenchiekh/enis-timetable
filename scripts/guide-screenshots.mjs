@@ -75,7 +75,10 @@ async function capture(page, file, selector) {
 }
 
 function runTool(command, args) {
-  const result = spawnSync(command, args, { encoding: 'utf8' });
+  const npmCli = process.platform === 'win32' && command === 'npm' ? process.env.npm_execpath : undefined;
+  const result = npmCli
+    ? spawnSync(process.execPath, [npmCli, ...args], { encoding: 'utf8' })
+    : spawnSync(command, args, { encoding: 'utf8' });
   if (result.status !== 0) throw new Error(`${command} a échoué : ${result.stderr || result.stdout}`);
 }
 

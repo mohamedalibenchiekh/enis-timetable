@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { getMetadataArgsStorage } from 'typeorm';
 import { BackupCounts, BackupManifest } from './backup-types.js';
 
-export const BACKUP_SCHEMA_VERSION = 3;
+export const BACKUP_SCHEMA_VERSION = 4;
 export const BACKUP_FORMAT_VERSION = 1;
 
 export const BACKUP_TABLES = [
@@ -12,6 +12,11 @@ export const BACKUP_TABLES = [
   'teacher_names',
   'room_labels',
   'known_rooms',
+  'programs',
+  'program_slots',
+  'program_sessions',
+  'teacher_aliases',
+  'room_aliases',
 ] as const;
 
 export type BackupTableName = (typeof BACKUP_TABLES)[number];
@@ -26,6 +31,11 @@ export interface BackupData {
   teacher_names: any[];
   room_labels: any[];
   known_rooms: any[];
+  programs: any[];
+  program_slots: any[];
+  program_sessions: any[];
+  teacher_aliases: any[];
+  room_aliases: any[];
 }
 
 export type SchemaUpgrader = (data: BackupData) => BackupData;
@@ -42,6 +52,14 @@ export const SCHEMA_UPGRADERS: Record<number, SchemaUpgrader> = {
   2: (data) => ({
     ...data,
     known_rooms: data.known_rooms ?? [],
+  }),
+  3: (data) => ({
+    ...data,
+    programs: data.programs ?? [],
+    program_slots: data.program_slots ?? [],
+    program_sessions: data.program_sessions ?? [],
+    teacher_aliases: data.teacher_aliases ?? [],
+    room_aliases: data.room_aliases ?? [],
   }),
 };
 
@@ -220,6 +238,24 @@ export function validateRow(table: BackupTableName, row: unknown, index: number)
         lastSeenAt: r.lastSeenAt ? new Date(r.lastSeenAt) : new Date(),
       };
     }
+
+    case 'programs': {
+      if (typeof r.id !== 'string' || !UUID_REGEX.test(r.id) || typeof r.code !== 'string' || !r.code.trim() || typeof r.title !== 'string' || !r.title.trim()) throw new ValidationError(`Ligne ${index + 1} de « programs » invalide.`);
+      if (r.academicYear !== '2026-2027' || !Number.isInteger(r.revision) || r.revision < 1) throw new ValidationError(`Ligne ${index + 1} de « programs » invalide.`);
+      return { ...r, code: r.code.trim(), title: r.title.trim(), createdAt: r.createdAt ? new Date(r.createdAt) : new Date(), updatedAt: r.updatedAt ? new Date(r.updatedAt) : new Date() };
+    }
+    case 'program_slots':
+      if (typeof r.id !== 'number' || !Number.isInteger(r.id) || typeof r.programId !== 'string' || !UUID_REGEX.test(r.programId) || !Number.isInteger(r.index) || r.index < 0 || r.index > 5 || typeof r.rawLabel !== 'string' || typeof r.label !== 'string') throw new ValidationError(`Ligne ${index + 1} de « program_slots » invalide.`);
+      return r;
+    case 'program_sessions':
+      if (typeof r.id !== 'string' || !UUID_REGEX.test(r.id) || typeof r.programId !== 'string' || !UUID_REGEX.test(r.programId) || !Number.isInteger(r.day) || r.day < 0 || r.day > 5 || !Number.isInteger(r.slot) || r.slot < 0 || r.slot > 5) throw new ValidationError(`Ligne ${index + 1} de « program_sessions » invalide.`);
+      return r;
+    case 'teacher_aliases':
+      if (typeof r.id !== 'number' || !Number.isInteger(r.id) || typeof r.aliasKey !== 'string' || typeof r.canonicalKey !== 'string' || typeof r.aliasName !== 'string' || typeof r.canonicalName !== 'string') throw new ValidationError(`Ligne ${index + 1} de « teacher_aliases » invalide.`);
+      return r;
+    case 'room_aliases':
+      if (typeof r.id !== 'number' || !Number.isInteger(r.id) || typeof r.aliasKey !== 'string' || typeof r.canonicalName !== 'string' || typeof r.aliasName !== 'string') throw new ValidationError(`Ligne ${index + 1} de « room_aliases » invalide.`);
+      return r;
 
     default: {
       const exhaustive: never = table;

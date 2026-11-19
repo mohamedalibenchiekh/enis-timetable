@@ -8,6 +8,7 @@ import { UpdateBanner } from '@/components/UpdateBanner';
 import { NamesPanel } from '@/components/NamesPanel';
 import { ComparePanel } from '@/components/ComparePanel';
 import type { UpdateStatus } from '@/lib/api';
+import { ProgramsPanel } from '@/components/ProgramsPanel';
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -17,7 +18,7 @@ export default function Home() {
   const [items, setItems] = useState<Timetable[] | null>(null);
   const [selId, setSelId] = useState<string | null>(null);
   const [day, setDay] = useState(0);
-  const [activeTab, setActiveTab] = useState<'schedule' | 'names' | 'changes'>('schedule');
+  const [activeTab, setActiveTab] = useState<'schedule' | 'names' | 'changes' | 'masters'>('schedule');
   const [highlightCells, setHighlightCells] = useState<Set<string> | null>(null);
   const [highlightSource, setHighlightSource] = useState<SourceKind | null>(null);
   const [showHighlight, setShowHighlight] = useState(false);
@@ -109,6 +110,7 @@ export default function Home() {
       <aside className="side">
         <h1>Emplois du temps</h1>
         <button className="primary wide" onClick={() => { setImportMode('new'); setActiveTab('schedule'); }}>+ Importer</button>
+        <button className="secondary wide" onClick={() => { setImportMode(null); setActiveTab('masters'); }}>Mastères</button>
         <ul className="tlist">
           {items?.map((t) => (
             <li key={t.id} className={t.id === selId ? 'active' : ''} onClick={() => { setSelId(t.id); setImportMode(null); setStatus(''); setActiveTab('schedule'); }}>
@@ -137,7 +139,8 @@ export default function Home() {
       <main className="main">
         {isDesktop && <UpdateBanner status={updateStatus} onInstall={installUpdate} />}
         {error && <p className="error">{error}</p>}
-        {items && (importMode || !sel) && (
+        {activeTab === 'masters' && <ProgramsPanel />}
+        {activeTab !== 'masters' && items && (importMode || !sel) && (
           <ImportPanel
             timetable={importMode === 'add' ? sel ?? undefined : undefined}
             onDone={(t) => {
@@ -150,7 +153,7 @@ export default function Home() {
           />
         )}
 
-        {sel && !importMode && (
+        {sel && !importMode && activeTab !== 'masters' && (
           <>
             <div className="titlebar">
               <div>

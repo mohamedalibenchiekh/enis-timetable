@@ -3,7 +3,7 @@ import * as path from 'node:path';
 
 export default defineConfig({
   root: __dirname,
-  esbuild: { jsx: 'automatic' },
+  oxc: { jsx: { runtime: 'automatic' } },
   resolve: { alias: { '@': path.resolve(__dirname) } },
   test: {
     environment: 'jsdom',

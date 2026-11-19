@@ -178,6 +178,15 @@ Les corrections s’appliquent à tous les emplois du temps de cette base. Elles
 
 **Résultat attendu :** le navigateur télécharge `noms-enis.json` à l’export, ou affiche le bilan de l’import.
 
+## Importer un emploi du temps de mastère
+
+1. Dans la barre latérale, ouvrez **[Mastères]**. Sélectionnez un ou plusieurs fichiers `.docx` ou `.pdf`, puis choisissez éventuellement un emploi FET comme référence des horaires.
+2. Sélectionnez **[Analyser les fichiers]**. L’écran **[1. Analyse]** présente le programme détecté, l’année retenue, les avertissements de créneaux et la confiance moyenne. Un PDF numérisé sans couche texte est refusé.
+3. Dans **[2. Vérification]**, comparez le texte source et les champs extraits dans la grille par jour et créneau. Corrigez les champs, puis sélectionnez **[Confirmer ce nom]** pour mémoriser un alias. Une salle non affectée est indiquée par le badge **[Salle à rechercher]**.
+4. Si le code existe déjà, choisissez de remplacer la version courante (l’ancienne reste dans l’historique) ou d’enregistrer une nouvelle version. Sélectionnez **[Enregistrer le programme]** après vérification.
+
+Les programmes sont stockés séparément des imports FET. L’année universitaire enregistrée est toujours **2026-2027**. Les créneaux suivent l’emploi FET choisi ou les horaires intégrés; les écarts reconnus sont signalés pour vérification. Les données extraites restent modifiables après import.
+
 ## Mises à jour
 
 ### Vérifier et installer une mise à jour

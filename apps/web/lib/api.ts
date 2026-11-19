@@ -8,6 +8,19 @@ export interface Timetable {
   days: string[]; slots: SlotLabel[]; rooms: string[]; files: SourceFileInfo[]; createdAt: string;
   previousTimetableId?: string | null;
 }
+export interface ProgramSlot { index: number; label: string; rawLabel: string; base: string; dayOverrides: Record<number, string>; note: string; }
+export interface ProgramSession {
+  id?: string; day: number; slot: number; slotSpan: number; daySpan: number; title: string; code: string; teachers: string[]; teacherKeys: string[];
+  room: string | null; roomUnassigned: boolean; locationNote: string; frequency: string; tags: string[]; customTime: string | null; color: string | null;
+  note: string; rawText: string; confidence: number; reasons: string[]; source: 'docx' | 'pdf' | 'manual';
+}
+export interface ProgramAnalysis {
+  id?: string; code: string; title: string; kind: string; academicYear: string; semester: string; coordinator: string; formRef: string; effectiveFrom: string;
+  footerText: string; version: string; slots: ProgramSlot[]; sessions: ProgramSession[]; warnings: string[]; confidence: number;
+  rawSnapshot: Record<string, unknown>; source: 'docx' | 'pdf';
+}
+export interface SavedProgram extends ProgramAnalysis { revision: number; isCurrent: boolean; createdAt: string; updatedAt: string; }
+export interface ProgramAlias { id: number; aliasKey: string; aliasName: string; canonicalName: string; canonicalKey?: string; seeded: boolean; }
 export interface CellIssue {
   file: string;
   page?: number;
@@ -246,6 +259,23 @@ async function req<T>(url: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  analyzePrograms: (files: File[], referenceSlots?: string[], referenceTimetableId?: string, referenceOverrides?: Record<number, Record<number, string>>) => {
+    const fd = new FormData();
+    files.forEach((file) => fd.append('files', file));
+    if (referenceSlots) fd.append('referenceSlots', JSON.stringify(referenceSlots));
+    if (referenceTimetableId) fd.append('referenceTimetableId', referenceTimetableId);
+    if (referenceOverrides) fd.append('referenceOverrides', JSON.stringify(referenceOverrides));
+    return req<ProgramAnalysis[]>('/api/programs/analyze', { method: 'POST', body: fd });
+  },
+  saveProgram: (program: ProgramAnalysis, mode: 'replace' | 'new-version') =>
+    req<SavedProgram>('/api/programs', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ program, mode }) }),
+  listPrograms: () => req<SavedProgram[]>('/api/programs'),
+  getProgram: (id: string) => req<SavedProgram>(`/api/programs/${id}`),
+  deleteProgram: (id: string) => req<{ ok: true }>(`/api/programs/${id}`, { method: 'DELETE' }),
+  saveProgramAlias: (alias: { kind: 'teacher' | 'room'; aliasName: string; canonicalName: string }) =>
+    req<unknown>('/api/programs/aliases', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(alias) }),
+  listProgramAliases: () => req<{ rooms: ProgramAlias[]; teachers: ProgramAlias[] }>('/api/programs/aliases'),
+  deleteProgramAlias: (kind: 'teacher' | 'room', id: number) => req<{ ok: true }>(`/api/programs/aliases/${kind}/${id}`, { method: 'DELETE' }),
   list: () => req<Timetable[]>('/api/timetables'),
   get: (id: string) => req<Timetable>(`/api/timetables/${id}`),
   remove: (id: string) => req<{ ok: true }>(`/api/timetables/${id}`, { method: 'DELETE' }),

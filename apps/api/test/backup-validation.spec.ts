@@ -7,7 +7,27 @@ import { BackupManifest } from '../src/backups/backup-types.js';
 
 async function makeArchive(files: Record<string, string | Buffer>): Promise<Buffer> {
   const zip = new JSZip();
-  for (const [name, content] of Object.entries(files)) {
+  const archiveFiles = { ...files };
+  const manifestContent = archiveFiles['manifest.json'];
+  if (typeof manifestContent === 'string') {
+    try {
+      const manifest = JSON.parse(manifestContent) as BackupManifest;
+      if (manifest.schemaVersion >= 4) {
+        const emptyHash = createHash('sha256').update(Buffer.alloc(0)).digest('hex');
+        const introducedTables = ['programs', 'program_slots', 'program_sessions', 'teacher_aliases', 'room_aliases'] as const;
+        for (const table of introducedTables) {
+          const filePath = `data/${table}.ndjson`;
+          archiveFiles[filePath] ??= '';
+          manifest.counts[table] ??= 0;
+          manifest.sha256[filePath] ??= emptyHash;
+        }
+        archiveFiles['manifest.json'] = JSON.stringify(manifest);
+      }
+    } catch {
+      // Preserve malformed manifests for validation tests.
+    }
+  }
+  for (const [name, content] of Object.entries(archiveFiles)) {
     zip.file(name, content);
   }
   return zip.generateAsync({ type: 'nodebuffer' });
@@ -26,6 +46,11 @@ function validManifest(overrides: Partial<BackupManifest> = {}): BackupManifest 
       teacher_names: 0,
       room_labels: 0,
       known_rooms: 0,
+      programs: 0,
+      program_slots: 0,
+      program_sessions: 0,
+      teacher_aliases: 0,
+      room_aliases: 0,
     },
     sha256: {},
     ...overrides,

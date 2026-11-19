@@ -82,3 +82,91 @@ export class KnownRoom {
   @CreateDateColumn() createdAt: Date;
   @UpdateDateColumn() lastSeenAt: Date;
 }
+
+@Entity('programs')
+@Index(['code', 'revision'], { unique: true })
+export class Program {
+  @PrimaryGeneratedColumn('uuid') id: string;
+  @Column({ length: 80 }) code: string;
+  @Column({ length: 255 }) title: string;
+  @Column({ length: 80, default: '' }) kind: string;
+  @Column({ length: 20, default: '2026-2027' }) academicYear: string;
+  @Column({ length: 40, default: '' }) semester: string;
+  @Column({ default: '' }) coordinator: string;
+  @Column({ default: '' }) formRef: string;
+  @Column({ default: '' }) effectiveFrom: string;
+  @Column('text', { default: '' }) footerText: string;
+  @Column({ default: 1 }) version: number;
+  @Column({ default: 1 }) revision: number;
+  @Column({ default: true }) isCurrent: boolean;
+  @Column('jsonb', { default: {} }) originalSnapshot: Record<string, unknown>;
+  @CreateDateColumn() createdAt: Date;
+  @UpdateDateColumn() updatedAt: Date;
+  @OneToMany(() => ProgramSlotEntity, (slot) => slot.program) slots: ProgramSlotEntity[];
+  @OneToMany(() => ProgramSessionEntity, (session) => session.program) sessions: ProgramSessionEntity[];
+}
+
+@Entity('program_slots')
+@Index(['programId', 'index'], { unique: true })
+export class ProgramSlotEntity {
+  @PrimaryGeneratedColumn() id: number;
+  @Column('uuid') programId: string;
+  @ManyToOne(() => Program, (program) => program.slots, { onDelete: 'CASCADE' }) @JoinColumn({ name: 'programId' }) program: Program;
+  @Column('smallint') index: number;
+  @Column() label: string;
+  @Column('text') rawLabel: string;
+  @Column() base: string;
+  @Column('jsonb', { default: {} }) dayOverrides: Record<number, string>;
+  @Column({ default: '' }) note: string;
+}
+
+@Entity('program_sessions')
+@Index(['programId', 'day', 'slot'])
+export class ProgramSessionEntity {
+  @PrimaryGeneratedColumn('uuid') id: string;
+  @Column('uuid') programId: string;
+  @ManyToOne(() => Program, (program) => program.sessions, { onDelete: 'CASCADE' }) @JoinColumn({ name: 'programId' }) program: Program;
+  @Column('smallint') day: number;
+  @Column('smallint') slot: number;
+  @Column('smallint', { default: 1 }) slotSpan: number;
+  @Column('smallint', { default: 1 }) daySpan: number;
+  @Column('text', { default: '' }) title: string;
+  @Column({ default: '' }) code: string;
+  @Column('jsonb', { default: [] }) teachers: string[];
+  @Column('jsonb', { default: [] }) teacherKeys: string[];
+  @Column('varchar', { length: 255, nullable: true }) room: string | null;
+  @Column({ default: false }) roomUnassigned: boolean;
+  @Column({ default: '' }) locationNote: string;
+  @Column({ default: '' }) frequency: string;
+  @Column('jsonb', { default: [] }) tags: string[];
+  @Column('varchar', { length: 80, nullable: true }) customTime: string | null;
+  @Column('varchar', { length: 6, nullable: true }) color: string | null;
+  @Column('text', { default: '' }) note: string;
+  @Column('text', { default: '' }) rawText: string;
+  @Column('real', { default: 1 }) confidence: number;
+  @Column('jsonb', { default: [] }) reasons: string[];
+  @Column({ default: 'manual' }) source: 'docx' | 'pdf' | 'manual';
+}
+
+@Entity('teacher_aliases')
+@Index(['aliasKey'], { unique: true })
+export class TeacherAlias {
+  @PrimaryGeneratedColumn() id: number;
+  @Column('text') aliasKey: string;
+  @Column('text') canonicalKey: string;
+  @Column() aliasName: string;
+  @Column() canonicalName: string;
+  @Column({ default: false }) seeded: boolean;
+  @CreateDateColumn() createdAt: Date;
+}
+
+@Entity('room_aliases')
+@Index(['aliasKey'], { unique: true })
+export class RoomAlias {
+  @PrimaryGeneratedColumn() id: number;
+  @Column('text') aliasKey: string;
+  @Column('text') canonicalName: string;
+  @Column() aliasName: string;
+  @Column({ default: false }) seeded: boolean;
+  @CreateDateColumn() createdAt: Date;
+}
