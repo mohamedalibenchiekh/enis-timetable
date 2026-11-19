@@ -139,7 +139,9 @@ export default function Home() {
       <main className="main">
         {isDesktop && <UpdateBanner status={updateStatus} onInstall={installUpdate} />}
         {error && <p className="error">{error}</p>}
-        {activeTab === 'masters' && <ProgramsPanel />}
+        <div hidden={activeTab !== 'masters'}>
+          <ProgramsPanel />
+        </div>
         {activeTab !== 'masters' && items && (importMode || !sel) && (
           <ImportPanel
             timetable={importMode === 'add' ? sel ?? undefined : undefined}

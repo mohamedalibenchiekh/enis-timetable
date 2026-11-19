@@ -4,6 +4,7 @@ import { DEFAULT_PROGRAM_REFERENCE, DEFAULT_PROGRAM_SLOTS, normalizeProgramSlots
 import { parseMastersDocx } from '../src/masters/docx-importer.js';
 import JSZip from 'jszip';
 import { detectProgramConflicts } from '../src/masters/conflicts.js';
+import { findPdfSlotRowY, pdfRowBounds } from '../src/masters/pdf-importer.js';
 
 describe('master timetable parsing', () => {
   it('normalizes day-scoped time labels and preserves Friday corrections', () => {
@@ -21,6 +22,12 @@ describe('master timetable parsing', () => {
     const unconfirmed = normalizeProgramSlots(['08:30-10:00', '10:15-11:45', '12:00-13:00', '13:00-14:30', '(V: 15:30-17:00)', '(V: 17:30-19:00)']);
     expect(unconfirmed.warnings).toContain('Libellé du vendredi à confirmer : 15:30-17:00');
     expect(unconfirmed.warnings).toContain('Libellé du vendredi à confirmer : 17:30-19:00');
+    const reference = [...DEFAULT_PROGRAM_SLOTS];
+    const customReference = normalizeProgramSlots(reference, reference, { 3: { 4: '14:00-15:30' } });
+    expect(customReference.slots[3].dayOverrides).toEqual({ 4: '14:00-15:30' });
+    const correctedGrid = normalizeProgramSlots(['08:30-10:00', '10:15-11:45', '12:15-13:15']);
+    expect(correctedGrid.slots[2].base).toBe(DEFAULT_PROGRAM_SLOTS[2]);
+    expect(correctedGrid.warnings).toContain('Libellé du créneau 3 corrigé : 12:15-13:15 → 12:00-13:00');
   });
 
   it('classifies markers, placeholder rooms, aliases, and reversed teacher names', () => {
@@ -34,6 +41,10 @@ describe('master timetable parsing', () => {
     const teacher = parseProgramCell('Architecture\nAMMAR Noeman', [], { teachers: ['Noeman Ammar'] });
     expect(teacher.teachers).toEqual(['Noeman Ammar']);
     expect(teacher.teacherCandidates).toEqual([]);
+    const punctuationName = parseProgramCell('Embedded subject Jean-Pierre O’Neil', [], { teachers: ['Jean-Pierre O’Neil'] });
+    expect(punctuationName).toMatchObject({ title: 'Embedded subject', teachers: ['Jean-Pierre O’Neil'] });
+    const courseLikeWord = parseProgramCell('Tutorat: Architecture');
+    expect(courseLikeWord).toMatchObject({ code: '', title: 'Tutorat: Architecture' });
   });
 
   it('classifies structured tokens, wrapped subjects, multiple teachers and uncertain matches', () => {
@@ -47,19 +58,30 @@ describe('master timetable parsing', () => {
     expect(glued.teachers).toEqual(['Nora Test']);
 
     const typo = parseProgramCell('Cours\nNora Tset', [], { teachers: ['Nora Test'] });
-    expect(typo.teachers).toEqual(['Nora Tset']);
+    expect(typo.teachers).toEqual([]);
+    expect(typo.title).toContain('Nora Tset');
     expect(typo.teacherCandidates[0]?.name).toBe('Nora Test');
     expect(typo.confidence).toBeLessThan(1);
 
     const ambiguous = parseProgramCell('Cours\nNora Tset', [], { teachers: ['Nora Test', 'Nora Tess'] });
-    expect(ambiguous.teachers).toEqual(['Nora Tset']);
+    expect(ambiguous.teachers).toEqual([]);
+    expect(ambiguous.title).toContain('Nora Tset');
     expect(ambiguous.teacherCandidates).toHaveLength(2);
   });
 
-  it('keeps spans as one session and projects occupied slots', () => {
+  it('projects the occupied slots of a multi-slot session', () => {
     expect(expandToSlots({ day: 2, slot: 1, daySpan: 2, slotSpan: 2 })).toEqual([
       { day: 2, slot: 1 }, { day: 2, slot: 2 }, { day: 3, slot: 1 }, { day: 3, slot: 2 },
     ]);
+  });
+
+  it('matches PDF row positions to the selected reference and bounds missing neighbors safely', () => {
+    expect(findPdfSlotRowY('09:00-10:30', [
+      { text: '08:30-10:00', y: 600 },
+      { text: '09:00-10:30', y: 540 },
+    ])).toBe(540);
+    expect(pdfRowBounds([600, Number.NaN, 500], 2, 500)).toEqual({ upper: 522, lower: 474 });
+    expect(pdfRowBounds([600, Number.NaN, 500], 0, 600)).toEqual({ upper: 622, lower: 574 });
   });
 
   it('detects room and teacher collisions by day and slot and skips unassigned rooms', () => {
@@ -73,11 +95,17 @@ describe('master timetable parsing', () => {
     expect(unassigned.some((item) => item.type === 'room')).toBe(false);
   });
 
-  it('reads a synthetic DOCX schedule table without persisting source content', async () => {
+  it('detects bold non-catalog teachers after removing a room line', () => {
+    const parsed = parseProgramCell('Course\nSalle R1\nUnlisted Teacher', [{}, {}, { bold: true }]);
+    expect(parsed.teachers).toEqual(['Unlisted Teacher']);
+    expect(parsed.title).toBe('Course');
+  });
+
+  it('parses a synthetic DOCX schedule table', async () => {
     const cell = (text: string) => `<w:tc><w:tcPr/><w:p><w:r><w:t>${text}</w:t></w:r></w:p></w:tc>`;
     const rows = [
       ['','Lundi','Mardi','Mercredi (M)','Jeudi','Vendredi (V)','Samedi'],
-      ...DEFAULT_PROGRAM_SLOTS.map((slot, index) => [slot, index === 0 ? 'Architecture & systèmes' : '', '', '', '', '', '']),
+      ...DEFAULT_PROGRAM_SLOTS.map((slot, index) => [slot, index === 0 ? 'Architecture &amp; systèmes' : '', '', '', '', '', '']),
     ].map((row) => `<w:tr>${row.map(cell).join('')}</w:tr>`).join('');
     const xml = `<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:tbl>${rows}</w:tbl></w:body></w:document>`;
     const zip = new JSZip(); zip.file('word/document.xml', xml);
@@ -85,5 +113,30 @@ describe('master timetable parsing', () => {
     expect(parsed.sessions).toHaveLength(1);
     expect(parsed.sessions[0]).toMatchObject({ day: 0, slot: 0, title: 'Architecture & systèmes', source: 'docx' });
     expect(parsed.academicYear).toBe('2026-2027');
+  });
+
+  it('preserves vertical and horizontal spans, cell fill, and ignores columns after Saturday', async () => {
+    const cell = (text: string, properties = '') => `<w:tc><w:tcPr>${properties}</w:tcPr><w:p><w:r><w:t>${text}</w:t></w:r></w:p></w:tc>`;
+    const header = [
+      cell(''), cell('Lundi', '<w:gridSpan w:val="2"/>'), cell('Mardi'), cell('Mercredi'),
+      cell('Jeudi'), cell('Vendredi'), cell('Samedi'), cell(''),
+    ].join('');
+    const first = [
+      cell(DEFAULT_PROGRAM_SLOTS[0]), cell('Architecture', '<w:vMerge w:val="restart"/><w:shd w:fill="FFEEDD"/>'),
+      cell('Calcul'), cell(''), cell(''), cell(''), cell(''), cell(''), cell('Trailing column'),
+    ].join('');
+    const second = [
+      cell(DEFAULT_PROGRAM_SLOTS[1]), cell('', '<w:vMerge/>'), cell(''), cell(''), cell(''), cell(''), cell(''), cell(''), cell('Should be ignored'),
+    ].join('');
+    const remaining = DEFAULT_PROGRAM_SLOTS.slice(2).map((slot) => `<w:tr>${cell(slot)}${Array.from({ length: 8 }, () => cell('')).join('')}</w:tr>`).join('');
+    const xml = `<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>2030-2031</w:t></w:r></w:p><w:tbl><w:tr>${header}</w:tr><w:tr>${first}</w:tr><w:tr>${second}</w:tr>${remaining}</w:tbl></w:body></w:document>`;
+    const zip = new JSZip(); zip.file('word/document.xml', xml);
+    const parsed = await parseMastersDocx(await zip.generateAsync({ type: 'nodebuffer' }), 'FAKE-M1.docx');
+    expect(parsed.sessions).toEqual(expect.arrayContaining([
+      expect.objectContaining({ day: 0, slot: 0, slotSpan: 2, title: 'Architecture', color: 'FFEEDD' }),
+      expect.objectContaining({ day: 0, slot: 0, title: 'Calcul' }),
+    ]));
+    expect(parsed.sessions.some((session) => session.title.includes('Trailing') || session.title.includes('Should be ignored'))).toBe(false);
+    expect(parsed.warnings).toContain('année incohérente dans le titre du tableau, 2026-2027 retenue');
   });
 });

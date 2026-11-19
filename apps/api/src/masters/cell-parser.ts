@@ -1,4 +1,5 @@
 import { CellCatalogs, ProgramSession, StyleHints } from './types.js';
+import { normalizeName } from '../names/name-normalization.js';
 
 const normalize = (value: string) => value.normalize('NFD').replace(/\p{M}/gu, '').toLocaleLowerCase('fr').replace(/[^\p{L}\p{N}]+/gu, ' ').trim().replace(/\s+/gu, ' ');
 const words = (value: string) => normalize(value).split(' ').filter(Boolean);
@@ -29,7 +30,9 @@ export interface ParsedCell extends Omit<ProgramSession, 'day' | 'slot' | 'slotS
 
 export function parseProgramCell(rawText: string, styles: StyleHints[] = [], catalogs: CellCatalogs = {}): ParsedCell {
   const raw = rawText.trim();
-  const lines = raw.split(/\r?\n|\s*\/\/\s*/u).map((s) => s.trim()).filter(Boolean);
+  const inputLines = raw.split(/\r?\n|\s*\/\/\s*/u)
+    .map((text, index) => ({ text: text.trim(), style: styles[index] ?? {}, used: false }))
+    .filter((line) => Boolean(line.text));
   const base = { title: '', code: '', teachers: [] as string[], teacherKeys: [] as string[], room: null as string | null, roomUnassigned: false, locationNote: '', frequency: '', tags: [] as string[], customTime: null as string | null, color: styles.map((s) => s.fill).find(Boolean) ?? null, note: '', rawText, confidence: 1, reasons: [] as string[], teacherCandidates: [] as { name: string; score: number }[], roomCandidates: [] as { name: string; score: number }[], empty: !raw || /^(-X-|---)$/iu.test(raw) };
   if (base.empty) return base;
 
@@ -44,6 +47,12 @@ export function parseProgramCell(rawText: string, styles: StyleHints[] = [], cat
   for (const tag of periods) remaining = remaining.replace(tag, ' ');
 
   const rawLines = remaining.split(/\r?\n|\s*\/\/\s*/u).map((s) => s.trim()).filter(Boolean);
+  const rawLineStyles = rawLines.map((line) => {
+    const source = inputLines.find((candidate) => !candidate.used && candidate.text === line);
+    if (!source) return {};
+    source.used = true;
+    return source.style;
+  });
   const roomMap = new Map<string, string>();
   for (const room of catalogs.rooms ?? []) roomMap.set(normalize(room), room);
   for (const [alias, canonical] of Object.entries({ ...roomAliasDefaults, ...catalogs.roomAliases })) roomMap.set(normalize(alias), canonical);
@@ -58,13 +67,19 @@ export function parseProgramCell(rawText: string, styles: StyleHints[] = [], cat
       if (!roomMap.has(roomMatch.norm) && !(catalogs.rooms ?? []).some((r) => normalize(r) === roomMatch.norm)) base.reasons.push('Salle hors FET');
     }
     rawLines.splice(roomMatch.index, 1);
+    rawLineStyles.splice(roomMatch.index, 1);
   }
 
   for (const line of [...rawLines]) {
     const location = line.match(/^\(([^)]*(?:novation|site|campus|bâtiment|batiment)[^)]*)\)$/iu);
-    if (location) { base.locationNote = location[1]; rawLines.splice(rawLines.indexOf(line), 1); }
+    if (location) {
+      base.locationNote = location[1];
+      const index = rawLines.indexOf(line);
+      rawLines.splice(index, 1);
+      rawLineStyles.splice(index, 1);
+    }
   }
-  const codeMatch = remaining.match(/\b((?:TU|BM|TP)\s*[A-Z0-9.]+)\s*:/iu);
+  const codeMatch = remaining.match(/\b((?:TU|BM|TP)\s*[A-Z0-9.]+)\s*:/u);
   if (codeMatch) { base.code = codeMatch[1].replace(/\s+/gu, ' ').trim(); }
 
   const teacherCatalog = catalogs.teachers ?? [];
@@ -72,35 +87,39 @@ export function parseProgramCell(rawText: string, styles: StyleHints[] = [], cat
   const teacherLines: string[] = [];
   for (let i = rawLines.length - 1; i >= 0; i--) {
     const line = rawLines[i];
-    const style = styles[i] ?? {};
+    const style = rawLineStyles[i] ?? {};
     const tokens = line.split(/\s+/u).filter(Boolean);
     const gluedTeacher = teacherCatalog.find((name) => {
-      const count = words(name).length;
+      const count = name.trim().split(/\s+/u).filter(Boolean).length;
       return tokens.length > count && setKey(tokens.slice(-count).join(' ')) === setKey(name);
     });
     if (gluedTeacher) {
-      const prefix = tokens.slice(0, -words(gluedTeacher).length).join(' ').trim();
+      const count = gluedTeacher.trim().split(/\s+/u).filter(Boolean).length;
+      const prefix = tokens.slice(0, -count).join(' ').trim();
       teacherLines.unshift(gluedTeacher);
       if (prefix) rawLines[i] = prefix;
-      else rawLines.splice(i, 1);
+      else { rawLines.splice(i, 1); rawLineStyles.splice(i, 1); }
       continue;
     }
-    const alias = aliases[normalize(line)];
+    const alias = aliases[normalizeName(line)];
     const exact = teacherCatalog.find((name) => setKey(name) === setKey(line));
-    const fuzzyPossible = teacherCatalog.some((name) => {
-      const score = 1 - distance(normalize(name), normalize(line)) / Math.max(normalize(name).length, normalize(line).length, 1);
-      return score >= FUZZY_TEACHER_CONFIRMATION_THRESHOLD;
-    });
-    const teacherish = style.bold || Boolean(alias || exact || fuzzyPossible) || /^externes?\s*\+\s*internes?$/iu.test(line);
-    if (teacherish) { teacherLines.unshift(alias ?? exact ?? line); rawLines.splice(i, 1); continue; }
+    const fuzzySuggestions = teacherCatalog.map((name) => ({ name, score: 1 - distance(normalize(name), normalize(line)) / Math.max(normalize(name).length, normalize(line).length, 1) }))
+      .filter((item) => item.score >= FUZZY_TEACHER_CONFIRMATION_THRESHOLD).sort((a, b) => b.score - a.score).slice(0, 4);
+    const teacherish = style.bold || Boolean(alias || exact) || /^externes?\s*\+\s*internes?$/iu.test(line);
+    if (teacherish) { teacherLines.unshift(alias ?? exact ?? line); rawLines.splice(i, 1); rawLineStyles.splice(i, 1); continue; }
+    if (fuzzySuggestions.length) {
+      base.teacherCandidates.push(...fuzzySuggestions);
+      base.confidence = Math.min(base.confidence, 0.65);
+      base.reasons.push('Nom d’enseignant possible à confirmer');
+    }
     if (!teacherCatalog.length && i === rawLines.length - 1 && /^(?:\p{Lu}[\p{Ll}'’.-]+)\s+(?:\p{Lu}[\p{Ll}'’.-]+|\p{Lu}{2,})$/u.test(line)) {
-      teacherLines.unshift(line); rawLines.splice(i, 1);
+      teacherLines.unshift(line); rawLines.splice(i, 1); rawLineStyles.splice(i, 1);
     }
   }
   base.teachers = [...new Set(teacherLines)];
   base.teacherKeys = base.teachers.map((teacher) => setKey(teacher));
   for (const teacher of base.teachers) {
-    if (teacherCatalog.length && !teacherCatalog.some((candidate) => setKey(candidate) === setKey(teacher)) && !aliases[normalize(teacher)]) {
+    if (teacherCatalog.length && !teacherCatalog.some((candidate) => setKey(candidate) === setKey(teacher)) && !aliases[normalizeName(teacher)]) {
       const suggestions = teacherCatalog.map((name) => ({ name, score: 1 - distance(normalize(name), normalize(teacher)) / Math.max(normalize(name).length, normalize(teacher).length, 1) }))
         .filter((item) => item.score >= FUZZY_TEACHER_CONFIRMATION_THRESHOLD).sort((a, b) => b.score - a.score).slice(0, 4);
       base.teacherCandidates.push(...suggestions);
@@ -108,7 +127,7 @@ export function parseProgramCell(rawText: string, styles: StyleHints[] = [], cat
     }
   }
   const subject = rawLines.join(' ').replace(/\s+/gu, ' ').trim();
-  base.title = subject.replace(/\b((?:TU|BM|TP)\s*[A-Z0-9.]+)\s*:\s*/iu, '').trim();
+  base.title = subject.replace(/\b((?:TU|BM|TP)\s*[A-Z0-9.]+)\s*:\s*/u, '').trim();
   if (!base.title && !base.teachers.length && !base.room && !base.roomUnassigned) { base.title = remaining.trim(); base.confidence = 0.55; base.reasons.push('Contenu non classé'); }
   const fill = styles.map((s) => s.fill).find(Boolean);
   if (fill) base.color = fill.replace(/^#/u, '').toUpperCase();

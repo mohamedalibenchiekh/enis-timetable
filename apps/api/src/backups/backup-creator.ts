@@ -140,7 +140,7 @@ export class BackupCreator {
       }
       case 'programs': return em.query('SELECT * FROM programs ORDER BY code ASC, revision ASC');
       case 'program_slots': return em.query('SELECT * FROM program_slots ORDER BY "programId" ASC, "index" ASC');
-      case 'program_sessions': return em.query('SELECT * FROM program_sessions ORDER BY "programId" ASC, day ASC, slot ASC');
+      case 'program_sessions': return em.query('SELECT * FROM program_sessions ORDER BY "programId" ASC, day ASC, slot ASC, id ASC');
       case 'teacher_aliases': return em.query('SELECT * FROM teacher_aliases ORDER BY id ASC');
       case 'room_aliases': return em.query('SELECT * FROM room_aliases ORDER BY id ASC');
       default: {

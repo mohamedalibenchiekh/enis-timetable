@@ -9,7 +9,7 @@ const MAX_UNCOMPRESSED_BYTES = 40 * 1024 * 1024;
 const TIMEOUT_MS = 30_000;
 const DAY_RE = /^(?:lundi|mardi|mercredi|jeudi|vendredi|samedi)\b/iu;
 const dayIndex = (text: string) => ['lundi','mardi','mercredi','jeudi','vendredi','samedi'].findIndex((d) => text.toLocaleLowerCase('fr').startsWith(d));
-type GridCell = { text: string; style: StyleHints; styles: StyleHints[]; colSpan: number; rowSpan: number; continuation?: boolean; anchor?: boolean };
+type GridCell = { text: string; style: StyleHints; styles: StyleHints[]; colSpan: number; rowSpan: number; continuation?: boolean; restart?: boolean; anchor?: boolean };
 type LogicalTable = GridCell[][];
 
 function cellFromElement($: ReturnType<typeof load>, cell: any): GridCell {
@@ -40,11 +40,12 @@ function cellFromElement($: ReturnType<typeof load>, cell: any): GridCell {
   const props = $cell.children('w\\:tcPr');
   const colSpan = Math.max(1, Number(props.children('w\\:gridSpan').attr('w:val') ?? 1));
   const vMerge = props.children('w\\:vMerge');
-  const rowSpan = vMerge.length ? (vMerge.attr('w:val') === 'restart' ? 1 : 0) : 1;
+  const restart = vMerge.length > 0 && vMerge.attr('w:val') === 'restart';
+  const rowSpan = vMerge.length ? (restart ? 1 : 0) : 1;
   const shd = props.children('w\\:shd');
   const firstRun = $cell.find('w\\:rPr').first();
   return {
-    text, colSpan, rowSpan, continuation: rowSpan === 0, styles,
+    text, colSpan, rowSpan, continuation: rowSpan === 0, restart, styles,
     style: {
       bold: firstRun.children('w\\:b').length > 0,
       italic: firstRun.children('w\\:i').length > 0,
@@ -72,7 +73,7 @@ function logicalGrid($: ReturnType<typeof load>, table: any): LogicalTable {
         active.set(col, carried ?? cell);
       } else {
         active.delete(col);
-        if (cell.rowSpan > 1) active.set(col, cell);
+        if (cell.restart) active.set(col, cell);
       }
       for (let offset = 0; offset < cell.colSpan; offset++) cells[col + offset] = offset === 0 ? cell : { ...cell, anchor: false };
       col += cell.colSpan;
@@ -105,11 +106,18 @@ export async function parseMastersDocx(buffer: Buffer, filename: string, referen
   try { zip = await JSZip.loadAsync(buffer, { checkCRC32: false }); }
   catch { throw new Error('Archive DOCX corrompue ou non valide.'); }
   const entries = Object.values(zip.files);
-  const uncompressedTotal = entries.reduce((total, entry) => total + Number((entry as any)._data?.uncompressedSize ?? 0), 0);
-  if (entries.length > 2_000 || uncompressedTotal > MAX_UNCOMPRESSED_BYTES || entries.some((entry) => {
-    const data = (entry as any)._data;
-    return Number(data?.uncompressedSize ?? 0) > MAX_BYTES || (Number(data?.compressedSize) > 0 && Number(data?.uncompressedSize) / Number(data?.compressedSize) > 150);
-  })) throw new Error('Archive DOCX trop volumineuse ou suspecte.');
+  const sizes = entries.filter((entry) => !entry.dir).map((entry) => {
+    const data = (entry as unknown as { _data?: { uncompressedSize?: unknown; compressedSize?: unknown } })._data;
+    const uncompressedSize = Number(data?.uncompressedSize);
+    const compressedSize = Number(data?.compressedSize);
+    if (!data || !Number.isFinite(uncompressedSize) || !Number.isFinite(compressedSize) || uncompressedSize < 0 || compressedSize < 0) return null;
+    return { uncompressedSize, compressedSize };
+  });
+  if (entries.length > 2_000 || sizes.some((size) => size === null)
+    || sizes.reduce((total, size) => total + (size?.uncompressedSize ?? 0), 0) > MAX_UNCOMPRESSED_BYTES
+    || sizes.some((size) => size && (size.uncompressedSize > MAX_BYTES || (size.compressedSize > 0 && size.uncompressedSize / size.compressedSize > 150)))) {
+    throw new Error('Archive DOCX trop volumineuse ou suspecte.');
+  }
   const document = zip.file('word/document.xml');
   if (!document) throw new Error('Document Word sans fichier principal word/document.xml.');
   let timer: NodeJS.Timeout | undefined;
@@ -129,9 +137,11 @@ export async function parseMastersDocx(buffer: Buffer, filename: string, referen
   header.forEach((cell, col) => {
     if (cell.anchor === false) return;
     const day = dayIndex(cell.text);
-    if (day >= 0) for (let n = 0; n < cell.colSpan; n++) days[col + n] = day + n;
+    if (day >= 0) for (let n = 0; n < cell.colSpan; n++) days[col + n] = day;
   });
-  for (let col = 0; col < header.length; col++) if (days[col] === undefined && col > 0) days[col] = Math.min(5, (days[col - 1] ?? -1) + 1);
+  for (let col = 0; col < header.length; col++) {
+    if (days[col] === undefined && col > 0 && days[col - 1] !== undefined && days[col - 1] < 5) days[col] = days[col - 1] + 1;
+  }
   const timeRows = schedule.slice(headerIndex + 1).filter((row) => row.some((cell) => /\d{1,2}\s*[:.]\s*\d{2}\s*[-–]\s*\d{1,2}\s*[:.]\s*\d{2}/u.test(cell.text) || /pause/iu.test(cell.text)));
   const rawLabels = timeRows.map((row) => row[0]?.text || row.flat().find((c) => /\d{1,2}\s*[:.]\s*\d{2}\s*[-–]/u.test(c.text))?.text || '');
   const normalized = normalizeProgramSlots(rawLabels.length ? rawLabels : [...referenceSlots], referenceSlots, referenceOverrides);
@@ -147,7 +157,10 @@ export async function parseMastersDocx(buffer: Buffer, filename: string, referen
       const cellText = /\d{1,2}\s*[:.]\s*\d{2}\s*[-–]/u.test(cell.text) ? '' : cell.text;
       if (day !== undefined) cellsScanned++;
       if (day !== undefined && cellText.trim()) {
-        const parsed = parseProgramCell(cellText, cell.styles, catalogs);
+        const cellStyles = cell.styles.length
+          ? cell.styles.map((style, index) => index === 0 ? { ...style, fill: cell.style.fill } : style)
+          : [{ ...cell.style }];
+        const parsed = parseProgramCell(cellText, cellStyles, catalogs);
         if (parsed.confidence < 0.75 && !parsed.empty) lowConfidenceCells++;
         const daySpan = Math.max(1, cell.colSpan);
         if (!parsed.empty) sessions.push({ ...parsed, day, slot, slotSpan: Math.max(1, cell.rowSpan), daySpan, source: 'docx' });
@@ -157,9 +170,9 @@ export async function parseMastersDocx(buffer: Buffer, filename: string, referen
   });
   const meta = metadata(paragraphs.join('\n'), schedule.slice(0, headerIndex), filename);
   const warnings = [...normalized.warnings];
-  if (/20\d{2}\s*[-–/]\s*20\d{2}/u.test(paragraphs.join('\n') + schedule.flat().map((c) => c.text).join('\n')) && meta.academicYear !== '2026-2027') warnings.push('année incohérente dans le titre du tableau, 2026-2027 retenue');
   const allText = paragraphs.join('\n') + schedule.flat().map((c) => c.text).join('\n');
-  if (/2025\s*[-–/]\s*2026/u.test(allText)) warnings.push('année incohérente dans le titre du tableau, 2026-2027 retenue');
+  const detectedYear = allText.match(/20\d{2}\s*[-–/]\s*20\d{2}/u)?.[0].replace(/\s+/gu, '').replace(/[–/]/u, '-');
+  if (detectedYear && detectedYear !== meta.academicYear) warnings.push(`année incohérente dans le titre du tableau, ${meta.academicYear} retenue`);
   return { ...meta, slots: normalized.slots, sessions, warnings: [...new Set(warnings)], confidence: sessions.length ? sessions.reduce((sum, s) => sum + s.confidence, 0) / sessions.length : 0, rawSnapshot: { paragraphs, rowCount: schedule.length, columnCount: Math.max(...schedule.map((row) => row.length)), cellsScanned, lowConfidenceCells }, source: 'docx' };
 }
 

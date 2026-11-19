@@ -40,7 +40,7 @@ export function normalizeProgramSlots(rawLabels: string[], reference: readonly s
     let parsed: ParsedSlotLabel;
     try { parsed = parseSlotLabel(rawLabel); }
     catch { parsed = { base: reference[index] ?? '', overrides: {} }; warnings.push(`Créneau ${index + 1} illisible, valeur de référence appliquée.`); }
-    const dayOverrides: Record<number, string> = {};
+    const dayOverrides: Record<number, string> = { ...(referenceOverrides[index] ?? {}) };
     for (const [dayText, value] of Object.entries(parsed.overrides)) {
       const day = Number(dayText);
       const expected = referenceOverrides[index]?.[day] ?? (day === 4 && index === 3 && reference[index] === DEFAULT_PROGRAM_REFERENCE.slots[index]
@@ -60,9 +60,9 @@ export function normalizeProgramSlots(rawLabels: string[], reference: readonly s
         dayOverrides[day] = value;
       }
     }
-    if (!Object.keys(parsed.overrides).length && parsed.base && parsed.base !== reference[index]) {
-      if (index === 3 && reference[index] === '14:00-15:30') warnings.push(`Libellé du vendredi corrigé : ${parsed.base} → ${reference[index]}`);
-      parsed.base = reference[index] ?? parsed.base;
+    if (!Object.keys(parsed.overrides).length && parsed.base && reference[index] && parsed.base !== reference[index]) {
+      warnings.push(`Libellé du créneau ${index + 1} corrigé : ${parsed.base} → ${reference[index]}`);
+      parsed.base = reference[index];
     }
     const base = (Object.keys(parsed.overrides).length ? reference[index] : parsed.base) || reference[index] || '';
     return { index, label: base, rawLabel, base, dayOverrides, note: '' };

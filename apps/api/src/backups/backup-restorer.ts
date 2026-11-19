@@ -5,6 +5,7 @@ import { DataSource, EntityManager } from 'typeorm';
 import { BackupCreator } from './backup-creator.js';
 import { BackupData } from './backup-schema.js';
 import { BackupCounts, BackupManifest, BackupMode, RestoreResult } from './backup-types.js';
+import { SEEDED_ROOM_ALIASES } from '../masters/seeded-aliases.js';
 
 export interface ExecuteRestoreOptions {
   data: BackupData;
@@ -204,8 +205,8 @@ export class BackupRestorer {
           await this.insertRows(em, table, data[table]);
           restoredCounts[table] = data[table].length;
         }
-        for (const [aliasName, aliasKey] of [['Salle PAQ', 'salle paq'], ['PAQ', 'paq'], ['Salle DGSE', 'salle dgse'], ['DGSE', 'dgse']]) {
-          await em.query('INSERT INTO room_aliases ("aliasName", "aliasKey", "canonicalName", seeded) VALUES ($1, $2, $3, TRUE) ON CONFLICT ("aliasKey") DO NOTHING', [aliasName, aliasKey, 'PAQ/DGSE']);
+        for (const alias of SEEDED_ROOM_ALIASES) {
+          await em.query('INSERT INTO room_aliases ("aliasName", "aliasKey", "canonicalName", seeded) VALUES ($1, $2, $3, TRUE) ON CONFLICT ("aliasKey") DO NOTHING', [alias.aliasName, alias.aliasKey, alias.canonicalName]);
         }
 
         // Reset sequences to max(id)
@@ -340,16 +341,19 @@ export class BackupRestorer {
         for (const row of data.programs) {
           const id = randomUUID(); programIdMap.set(row.id, id);
           const newRevision = Number(await em.query('SELECT COALESCE(MAX(revision), 0) + 1 AS revision FROM programs WHERE code = $1', [row.code]).then((r: any[]) => r[0].revision));
-          await this.insertRows(em, 'programs', [{ ...row, id, revision: newRevision, isCurrent: false }]);
+          const hasCurrent = await em.query('SELECT 1 FROM programs WHERE code = $1 AND "isCurrent" = TRUE LIMIT 1', [row.code]);
+          await this.insertRows(em, 'programs', [{ ...row, id, revision: newRevision, isCurrent: row.isCurrent && hasCurrent.length === 0 }]);
           restoredCounts.programs = (restoredCounts.programs ?? 0) + 1;
         }
         for (const row of data.program_slots) {
-          const programId = programIdMap.get(row.programId); if (!programId) continue;
+          const programId = programIdMap.get(row.programId);
+          if (!programId) throw new BadRequestException(`Créneau orphelin : programme « ${row.programId} » introuvable dans la sauvegarde.`);
           const { id: _id, ...rest } = row; await this.insertRows(em, 'program_slots', [{ ...rest, programId }]);
           restoredCounts.program_slots = (restoredCounts.program_slots ?? 0) + 1;
         }
         for (const row of data.program_sessions) {
-          const programId = programIdMap.get(row.programId); if (!programId) continue;
+          const programId = programIdMap.get(row.programId);
+          if (!programId) throw new BadRequestException(`Séance orpheline : programme « ${row.programId} » introuvable dans la sauvegarde.`);
           await this.insertRows(em, 'program_sessions', [{ ...row, id: randomUUID(), programId }]);
           restoredCounts.program_sessions = (restoredCounts.program_sessions ?? 0) + 1;
         }

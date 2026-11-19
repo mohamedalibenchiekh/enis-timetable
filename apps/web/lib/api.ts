@@ -19,7 +19,9 @@ export interface ProgramAnalysis {
   footerText: string; version: string; slots: ProgramSlot[]; sessions: ProgramSession[]; warnings: string[]; confidence: number;
   rawSnapshot: Record<string, unknown>; source: 'docx' | 'pdf';
 }
-export interface SavedProgram extends ProgramAnalysis { revision: number; isCurrent: boolean; createdAt: string; updatedAt: string; }
+export interface SavedProgram extends Omit<ProgramAnalysis, 'id' | 'version'> {
+  id: string; version: string; revision: number; isCurrent: boolean; createdAt: string; updatedAt: string;
+}
 export interface ProgramAlias { id: number; aliasKey: string; aliasName: string; canonicalName: string; canonicalKey?: string; seeded: boolean; }
 export interface CellIssue {
   file: string;

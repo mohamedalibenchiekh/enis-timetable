@@ -242,6 +242,17 @@ export class BackupInspector {
       }
     }
 
+    const programIds = new Set(data.programs.map((program: any) => program.id));
+    for (const [table, rows] of [['program_slots', data.program_slots], ['program_sessions', data.program_sessions]] as const) {
+      for (let i = 0; i < rows.length; i++) {
+        if (!programIds.has(rows[i].programId)) {
+          throw new BadRequestException(
+            `L’archive contient une ligne orpheline dans « ${table} » (ligne ${i + 1}) faisant référence à un programme inexistant (« ${rows[i].programId} »).`,
+          );
+        }
+      }
+    }
+
     // Check for duplicate room names in known_rooms
     const knownRoomNames = new Set<string>();
     for (let i = 0; i < data.known_rooms.length; i++) {

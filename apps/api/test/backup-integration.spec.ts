@@ -299,6 +299,34 @@ describe('Backup and Restore Integration (PostgreSQL Round-Trip & Safety)', () =
     expect(mergedSessions.length).toBeGreaterThan(0);
   });
 
+  it('preserves the backup current program when merge has no destination current revision', async () => {
+    const archivedId = randomUUID();
+    const conflictId = randomUUID();
+    await dataSource.query(
+      `INSERT INTO programs (id, code, title, "academicYear", version, revision, "isCurrent", "originalSnapshot")
+       VALUES ($1, 'MERGE-NEW', 'New program', '2026-2027', 'v1.2', 1, TRUE, '{}'::jsonb),
+              ($2, 'MERGE-EXISTING', 'Existing program', '2026-2027', 'v1', 1, TRUE, '{}'::jsonb)`,
+      [archivedId, conflictId],
+    );
+    const { buffer } = await backupsService.createBackup(true);
+    const inspected = await backupsService.inspectBackup({ fileBuffer: buffer });
+    await backupsService.restoreBackup({ uploadToken: inspected.uploadToken, mode: 'merge' });
+
+    const newProgram = await dataSource.query(
+      `SELECT "isCurrent" FROM programs WHERE code = 'MERGE-NEW' AND id <> $1`,
+      [archivedId],
+    );
+    expect(newProgram).toHaveLength(1);
+    expect(newProgram[0].isCurrent).toBe(true);
+
+    const mergedConflict = await dataSource.query(
+      `SELECT "isCurrent" FROM programs WHERE code = 'MERGE-EXISTING' AND id <> $1`,
+      [conflictId],
+    );
+    expect(mergedConflict).toHaveLength(1);
+    expect(mergedConflict[0].isCurrent).toBe(false);
+  });
+
   it('triggers atomic rollback when an error occurs during restore: database remains unchanged and safety backup present', async () => {
     const timetablesBefore = await dataSource.query('SELECT * FROM timetables ORDER BY id');
     const sessionsBefore = await dataSource.query('SELECT * FROM sessions ORDER BY id');

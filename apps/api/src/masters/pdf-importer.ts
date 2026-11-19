@@ -6,19 +6,43 @@ import { parseProgramCell } from './cell-parser.js';
 const MAX_BYTES = 20 * 1024 * 1024;
 const DAY_NAMES = ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
 const TIMEOUT_MS = 120_000;
+export interface PdfTextCoordinate { text: string; y: number; }
 
-async function withTimeout<T>(promise: Promise<T>): Promise<T> {
+export function findPdfSlotRowY(slotLabel: string, timeColumnItems: PdfTextCoordinate[]): number {
+  const match = slotLabel.match(/(\d{1,2})\s*[:.]\s*(\d{2})/u);
+  const start = match ? `${match[1].padStart(2, '0')}:${match[2]}` : '';
+  const candidates = timeColumnItems.filter((item) => {
+    const time = item.text.match(/^\s*(\d{1,2})\s*[:.]\s*(\d{2})/u);
+    return Boolean(start && time && `${time[1].padStart(2, '0')}:${time[2]}` === start);
+  });
+  const preferred = candidates.filter((item) => !/[()]/u.test(item.text));
+  return (preferred.length ? preferred : candidates)
+    .sort((a, b) => Number(/\d{1,2}[:.]\d{2}\s*[-–]\s*\d{1,2}[:.]\d{2}/u.test(b.text)) - Number(/\d{1,2}[:.]\d{2}\s*[-–]\s*\d{1,2}[:.]\d{2}/u.test(a.text)))[0]?.y ?? Number.NaN;
+}
+
+async function withTimeout<T>(promise: Promise<T>, onTimeout?: () => void): Promise<T> {
   let timer: NodeJS.Timeout | undefined;
   try {
-    return await Promise.race([promise, new Promise<never>((_resolve, reject) => { timer = setTimeout(() => reject(new Error('Délai dépassé pendant l’analyse du PDF.')), TIMEOUT_MS); })]);
+    return await Promise.race([promise, new Promise<never>((_resolve, reject) => { timer = setTimeout(() => { onTimeout?.(); reject(new Error('Délai dépassé pendant l’analyse du PDF.')); }, TIMEOUT_MS); })]);
   } finally { if (timer) clearTimeout(timer); }
+}
+
+export function pdfRowBounds(rows: number[], slot: number, y: number): { upper: number; lower: number } {
+  const previous = rows[slot - 1];
+  const next = rows[slot + 1];
+  return {
+    upper: slot === 0 || !Number.isFinite(previous) ? y + 22 : (previous + y) / 2,
+    lower: slot === rows.length - 1 || !Number.isFinite(next) ? y - 26 : (y + next) / 2 - 4,
+  };
 }
 
 export async function parseMastersPdf(buffer: Buffer, filename: string, referenceSlots: readonly string[] = DEFAULT_PROGRAM_SLOTS, catalogs: CellCatalogs = {}, referenceOverrides?: Record<number, Record<number, string>>): Promise<ProgramAnalysis> {
   if (buffer.length > MAX_BYTES) throw new Error('Le fichier PDF dépasse la taille maximale de 20 Mo.');
   const task = pdfjs.getDocument({ data: new Uint8Array(buffer), isEvalSupported: false, useSystemFonts: true, disableFontFace: true, stopAtErrors: true, disableAutoFetch: true, disableStream: true, disableRange: true });
-  let doc: Awaited<typeof task.promise>;
-  try { doc = await withTimeout(task.promise); }
+  let doc: Awaited<typeof task.promise> | undefined;
+  let timedOut = false;
+  try {
+  try { doc = await withTimeout(task.promise, () => { timedOut = true; }); }
   catch (error) {
     const message = (error as Error).message;
     if (/password|encrypted/iu.test(message)) throw new Error('Le PDF est chiffré et ne peut pas être analysé.');
@@ -26,7 +50,7 @@ export async function parseMastersPdf(buffer: Buffer, filename: string, referenc
   }
   if (doc.numPages !== 1) throw new Error(`Un PDF de mastère doit contenir une seule page (pages détectées : ${doc.numPages}).`);
   const page = await doc.getPage(1);
-  const content = await withTimeout(page.getTextContent({ includeMarkedContent: false }));
+  const content = await withTimeout(page.getTextContent({ includeMarkedContent: false }), () => { timedOut = true; });
   const textItems = (content as { items: unknown[] }).items as Array<{ str?: string; transform?: number[]; width?: number; height?: number; fontName?: string }>;
   const items = textItems.filter((item): item is { str: string; transform: number[]; width: number; height: number; fontName: string } => typeof item.str === 'string' && Array.isArray(item.transform) && typeof item.width === 'number' && typeof item.height === 'number' && typeof item.fontName === 'string')
     .map((item) => ({ text: item.str.trim(), x: item.transform[4], y: item.transform[5], w: item.width, h: item.height, font: item.fontName }))
@@ -38,17 +62,10 @@ export async function parseMastersPdf(buffer: Buffer, filename: string, referenc
   const xCuts = [columns[0].x, ...columns.slice(1).map((item, i) => (columns[i].x + item.x) / 2), Infinity];
   const scheduleItems = items.filter((item) => item.y <= Math.max(...columns.map((col) => col.y)) && item.y > Math.min(...columns.map((col) => col.y)) - 420);
   const timeColumnItems = scheduleItems.filter((item) => item.x < columns[0].x);
-  const rows = DEFAULT_PROGRAM_SLOTS.map((slot) => {
-    const start = slot.slice(0, 5);
-    const candidates = timeColumnItems.filter((item) => item.text.replace(/\s+/gu, '').startsWith(start));
-    const preferred = candidates.filter((item) => !/[()]/u.test(item.text));
-    const selected = (preferred.length ? preferred : candidates).sort((a, b) => Number(/\d{1,2}[:.]\d{2}\s*[-–]\s*\d{1,2}[:.]\d{2}/u.test(b.text)) - Number(/\d{1,2}[:.]\d{2}\s*[-–]\s*\d{1,2}[:.]\d{2}/u.test(a.text)))[0];
-    return selected?.y ?? Number.NaN;
-  });
+  const rows = referenceSlots.slice(0, 6).map((slot) => findPdfSlotRowY(slot, timeColumnItems));
   const slotLabels = rows.map((y, slot) => {
     if (!Number.isFinite(y)) return referenceSlots[slot] ?? DEFAULT_PROGRAM_SLOTS[slot];
-    const upper = slot === 0 ? y + 22 : (rows[slot - 1] + y) / 2;
-    const lower = slot === rows.length - 1 ? y - 26 : (y + rows[slot + 1]) / 2 - 4;
+    const { upper, lower } = pdfRowBounds(rows, slot, y);
     const parts = timeColumnItems.filter((item) => item.y <= upper && item.y >= lower).sort((a, b) => b.y - a.y).map((item) => item.text);
     return parts.join(' ') || referenceSlots[slot] || DEFAULT_PROGRAM_SLOTS[slot];
   });
@@ -57,8 +74,7 @@ export async function parseMastersPdf(buffer: Buffer, filename: string, referenc
   let lowConfidenceCells = 0;
   rows.forEach((y, slot) => {
     if (!Number.isFinite(y)) return;
-    const upper = slot === 0 ? y + 22 : (rows[slot - 1] + y) / 2;
-    const lower = slot === rows.length - 1 ? y - 26 : (y + rows[slot + 1]) / 2 - 4;
+    const { upper, lower } = pdfRowBounds(rows, slot, y);
     for (let day = 0; day < columns.length; day++) {
       const left = xCuts[day]; const right = xCuts[day + 1];
       const cellItems = scheduleItems.filter((item) => item.y <= upper && item.y >= lower && item.x >= left && item.x < right);
@@ -83,5 +99,9 @@ export async function parseMastersPdf(buffer: Buffer, filename: string, referenc
     confidence: sessions.length ? sessions.reduce((sum, session) => sum + session.confidence, 0) / sessions.length : 0,
     rawSnapshot: { textItems: items.length, pageCount: 1, cellsScanned: rows.length * columns.length, lowConfidenceCells }, source: 'pdf',
   };
+  } finally {
+    if (doc) await doc.destroy().catch(() => undefined);
+    if (!doc || timedOut) await task.destroy().catch(() => undefined);
+  }
 }
 

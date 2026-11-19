@@ -54,6 +54,7 @@ export function NamesPanel({ id, onSaved }: { id: string; onSaved: () => void })
   useEffect(() => { void reloadAliases(); }, [reloadAliases]);
 
   const addAlias = async (kind: 'teacher' | 'room') => {
+    setError('');
     const aliasName = window.prompt('Nom tel qu’il apparaît dans le fichier :');
     if (!aliasName) return;
     const canonicalName = window.prompt('Nom canonique à utiliser :', aliasName);
@@ -63,6 +64,7 @@ export function NamesPanel({ id, onSaved }: { id: string; onSaved: () => void })
   };
 
   const editAlias = async (kind: 'teacher' | 'room', alias: ProgramAlias) => {
+    setError('');
     const canonicalName = window.prompt('Nom canonique à utiliser :', alias.canonicalName);
     if (!canonicalName) return;
     try { await api.saveProgramAlias({ kind, aliasName: alias.aliasName, canonicalName }); await reloadAliases(); setStatus('Alias actualisé'); }
@@ -70,6 +72,7 @@ export function NamesPanel({ id, onSaved }: { id: string; onSaved: () => void })
   };
 
   const removeAlias = async (kind: 'teacher' | 'room', alias: ProgramAlias) => {
+    setError('');
     try { await api.deleteProgramAlias(kind, alias.id); await reloadAliases(); setStatus('Alias supprimé'); }
     catch (e) { setError((e as Error).message); }
   };
@@ -251,8 +254,8 @@ export function NamesPanel({ id, onSaved }: { id: string; onSaved: () => void })
             <button className="secondary" disabled={busy} onClick={() => void addAlias(kind)}>Ajouter un alias</button>
             <ul className="files">{aliases[group].map((alias) => <li key={alias.id}>
               <span>{alias.aliasName} → {alias.canonicalName} {alias.seeded && <span className="tag">fourni avec l’application</span>}</span>
-              <button className="link" onClick={() => void editAlias(kind, alias)}>Modifier</button>
-              {!alias.seeded && <button className="link danger" onClick={() => void removeAlias(kind, alias)}>Supprimer</button>}
+              <button className="link" aria-label={`Modifier l’alias ${alias.aliasName}`} onClick={() => void editAlias(kind, alias)}>Modifier</button>
+              {!alias.seeded && <button className="link danger" aria-label={`Supprimer l’alias ${alias.aliasName}`} onClick={() => void removeAlias(kind, alias)}>Supprimer</button>}
             </li>)}</ul>
           </div>;
         })}

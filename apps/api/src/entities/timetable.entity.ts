@@ -96,7 +96,7 @@ export class Program {
   @Column({ default: '' }) formRef: string;
   @Column({ default: '' }) effectiveFrom: string;
   @Column('text', { default: '' }) footerText: string;
-  @Column({ default: 1 }) version: number;
+  @Column({ length: 40, default: '1' }) version: string;
   @Column({ default: 1 }) revision: number;
   @Column({ default: true }) isCurrent: boolean;
   @Column('jsonb', { default: {} }) originalSnapshot: Record<string, unknown>;
@@ -117,7 +117,7 @@ export class ProgramSlotEntity {
   @Column('text') rawLabel: string;
   @Column() base: string;
   @Column('jsonb', { default: {} }) dayOverrides: Record<number, string>;
-  @Column({ default: '' }) note: string;
+  @Column('text', { default: '' }) note: string;
 }
 
 @Entity('program_sessions')

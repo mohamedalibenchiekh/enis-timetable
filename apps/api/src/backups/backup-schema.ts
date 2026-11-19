@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { getMetadataArgsStorage } from 'typeorm';
 import { BackupCounts, BackupManifest } from './backup-types.js';
 
-export const BACKUP_SCHEMA_VERSION = 4;
+export const BACKUP_SCHEMA_VERSION = 5;
 export const BACKUP_FORMAT_VERSION = 1;
 
 export const BACKUP_TABLES = [
@@ -60,6 +60,13 @@ export const SCHEMA_UPGRADERS: Record<number, SchemaUpgrader> = {
     program_sessions: data.program_sessions ?? [],
     teacher_aliases: data.teacher_aliases ?? [],
     room_aliases: data.room_aliases ?? [],
+  }),
+  4: (data) => ({
+    ...data,
+    programs: data.programs.map((program) => ({
+      ...program,
+      version: String(program.version ?? '1'),
+    })),
   }),
 };
 
@@ -240,16 +247,59 @@ export function validateRow(table: BackupTableName, row: unknown, index: number)
     }
 
     case 'programs': {
-      if (typeof r.id !== 'string' || !UUID_REGEX.test(r.id) || typeof r.code !== 'string' || !r.code.trim() || typeof r.title !== 'string' || !r.title.trim()) throw new ValidationError(`Ligne ${index + 1} de « programs » invalide.`);
-      if (r.academicYear !== '2026-2027' || !Number.isInteger(r.revision) || r.revision < 1) throw new ValidationError(`Ligne ${index + 1} de « programs » invalide.`);
-      return { ...r, code: r.code.trim(), title: r.title.trim(), createdAt: r.createdAt ? new Date(r.createdAt) : new Date(), updatedAt: r.updatedAt ? new Date(r.updatedAt) : new Date() };
+      const invalid = () => new ValidationError(`Ligne ${index + 1} de « programs » invalide.`);
+      const stringField = (field: string, max: number, fallback = ''): string => {
+        const value = r[field] ?? fallback;
+        if (typeof value !== 'string' || value.length > max) throw invalid();
+        return value;
+      };
+      if (typeof r.id !== 'string' || !UUID_REGEX.test(r.id)) throw invalid();
+      const code = stringField('code', 80);
+      const title = stringField('title', 255);
+      const kind = stringField('kind', 80);
+      const academicYear = stringField('academicYear', 20);
+      const semester = stringField('semester', 40);
+      const coordinator = stringField('coordinator', 255);
+      const formRef = stringField('formRef', 80);
+      const effectiveFrom = stringField('effectiveFrom', 100);
+      const footerText = stringField('footerText', 2_000);
+      const version = typeof r.version === 'number' ? String(r.version) : stringField('version', 40, '1');
+      if (!code.trim() || !title.trim() || academicYear !== '2026-2027' || !Number.isInteger(r.revision) || r.revision < 1 || typeof r.isCurrent !== 'boolean') throw invalid();
+      const originalSnapshot = r.originalSnapshot ?? {};
+      if (typeof originalSnapshot !== 'object' || originalSnapshot === null || Array.isArray(originalSnapshot)) throw invalid();
+      for (const field of ['createdAt', 'updatedAt'] as const) {
+        if (r[field] !== undefined && (typeof r[field] !== 'string' || isNaN(Date.parse(r[field])))) throw invalid();
+      }
+      return {
+        id: r.id,
+        code: code.trim(),
+        title: title.trim(),
+        kind,
+        academicYear,
+        semester,
+        coordinator,
+        formRef,
+        effectiveFrom,
+        footerText,
+        version,
+        revision: r.revision,
+        isCurrent: r.isCurrent,
+        originalSnapshot,
+        createdAt: r.createdAt ? new Date(r.createdAt) : new Date(),
+        updatedAt: r.updatedAt ? new Date(r.updatedAt) : new Date(),
+      };
     }
-    case 'program_slots':
-      if (typeof r.id !== 'number' || !Number.isInteger(r.id) || typeof r.programId !== 'string' || !UUID_REGEX.test(r.programId) || !Number.isInteger(r.index) || r.index < 0 || r.index > 5 || typeof r.rawLabel !== 'string' || typeof r.label !== 'string') throw new ValidationError(`Ligne ${index + 1} de « program_slots » invalide.`);
-      return r;
-    case 'program_sessions':
+    case 'program_slots': {
+      if (typeof r.id !== 'number' || !Number.isInteger(r.id) || r.id <= 0 || typeof r.programId !== 'string' || !UUID_REGEX.test(r.programId) || !Number.isInteger(r.index) || r.index < 0 || r.index > 5 || typeof r.rawLabel !== 'string' || r.rawLabel.length > 500 || typeof r.label !== 'string' || !r.label.trim() || r.label.length > 80 || typeof r.base !== 'string' || r.base.length > 255 || typeof r.dayOverrides !== 'object' || r.dayOverrides === null || Array.isArray(r.dayOverrides) || Object.entries(r.dayOverrides).some(([day, label]) => !/^[0-5]$/u.test(day) || typeof label !== 'string' || label.length > 80) || (r.note !== undefined && typeof r.note !== 'string')) throw new ValidationError(`Ligne ${index + 1} de « program_slots » invalide.`);
+      return { id: r.id, programId: r.programId, index: r.index, label: r.label, rawLabel: r.rawLabel, base: r.base, dayOverrides: r.dayOverrides, note: r.note ?? '' };
+    }
+    case 'program_sessions': {
       if (typeof r.id !== 'string' || !UUID_REGEX.test(r.id) || typeof r.programId !== 'string' || !UUID_REGEX.test(r.programId) || !Number.isInteger(r.day) || r.day < 0 || r.day > 5 || !Number.isInteger(r.slot) || r.slot < 0 || r.slot > 5) throw new ValidationError(`Ligne ${index + 1} de « program_sessions » invalide.`);
-      return r;
+      const slotSpan = r.slotSpan ?? 1;
+      const daySpan = r.daySpan ?? 1;
+      if (!Number.isInteger(slotSpan) || slotSpan < 1 || r.slot + slotSpan > 6 || !Number.isInteger(daySpan) || daySpan < 1 || r.day + daySpan > 6) throw new ValidationError(`Ligne ${index + 1} de « program_sessions » : fusion de cellules invalide.`);
+      return { ...r, slotSpan, daySpan };
+    }
     case 'teacher_aliases':
       if (typeof r.id !== 'number' || !Number.isInteger(r.id) || typeof r.aliasKey !== 'string' || typeof r.canonicalKey !== 'string' || typeof r.aliasName !== 'string' || typeof r.canonicalName !== 'string') throw new ValidationError(`Ligne ${index + 1} de « teacher_aliases » invalide.`);
       return r;

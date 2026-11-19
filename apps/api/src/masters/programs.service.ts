@@ -8,14 +8,9 @@ import { ProgramAnalysis, ProgramSession } from './types.js';
 import { normalizeName } from '../names/name-normalization.js';
 import { BackupsService } from '../backups/backups.service.js';
 import { detectProgramConflicts } from './conflicts.js';
+import { SEEDED_ROOM_ALIASES } from './seeded-aliases.js';
 
 const MAX_FILE_BYTES = 20 * 1024 * 1024;
-const seededRooms = [
-  { aliasName: 'Salle PAQ', aliasKey: 'salle paq', canonicalName: 'PAQ/DGSE' },
-  { aliasName: 'PAQ', aliasKey: 'paq', canonicalName: 'PAQ/DGSE' },
-  { aliasName: 'Salle DGSE', aliasKey: 'salle dgse', canonicalName: 'PAQ/DGSE' },
-  { aliasName: 'DGSE', aliasKey: 'dgse', canonicalName: 'PAQ/DGSE' },
-];
 
 @Injectable()
 export class ProgramsService implements OnModuleInit {
@@ -32,7 +27,7 @@ export class ProgramsService implements OnModuleInit {
   ) {}
 
   async onModuleInit() {
-    for (const alias of seededRooms) {
+    for (const alias of SEEDED_ROOM_ALIASES) {
       const existing = await this.roomAliases.findOneBy({ aliasKey: alias.aliasKey });
       if (!existing) await this.roomAliases.save(this.roomAliases.create({ ...alias, seeded: true }));
     }
@@ -98,19 +93,28 @@ export class ProgramsService implements OnModuleInit {
       const programs = manager.getRepository(Program);
       const slots = manager.getRepository(ProgramSlotEntity);
       const sessions = manager.getRepository(ProgramSessionEntity);
-      await programs.update({ code, isCurrent: true }, { isCurrent: false });
+      const current = await programs.findOneBy({ code, isCurrent: true });
+      const replacingCurrent = mode === 'replace' ? current : null;
+      if (!replacingCurrent && current) await programs.update({ id: current.id }, { isCurrent: false });
       const [row] = await manager.query('SELECT COALESCE(MAX(revision), 0) AS revision FROM programs WHERE code = $1', [code]);
-      const revision = Number(row.revision ?? 0) + 1;
+      const revision = replacingCurrent ? replacingCurrent.revision : Number(row.revision ?? 0) + 1;
       const program = await programs.save(programs.create({
+        ...(replacingCurrent ? { id: replacingCurrent.id } : {}),
         code, title: analysis.title.trim(), kind: analysis.kind ?? '', academicYear: '2026-2027', semester: analysis.semester ?? '',
         coordinator: analysis.coordinator ?? '', formRef: analysis.formRef ?? '', effectiveFrom: analysis.effectiveFrom ?? '', footerText: analysis.footerText ?? '',
-        version: (Number.parseInt(analysis.version.replace(/\D/gu, ''), 10) || revision), revision, isCurrent: true,
+        version: analysis.version, revision, isCurrent: true,
         originalSnapshot: { ...(analysis.rawSnapshot ?? {}), saveMode: mode, source: analysis.source, confidence: analysis.confidence, warnings: analysis.warnings },
       }));
+      if (replacingCurrent) {
+        await slots.delete({ programId: program.id });
+        await sessions.delete({ programId: program.id });
+      }
       await slots.save(analysis.slots.map((slot) => slots.create({ ...slot, programId: program.id })));
-      if (analysis.sessions.length) await sessions.save(analysis.sessions.map((session) => sessions.create({
-        ...session, programId: program.id, room: session.roomUnassigned ? null : session.room,
-      })));
+      if (analysis.sessions.length) await sessions.save(analysis.sessions.map((session) => {
+        const newSession = { ...session, programId: program.id, room: session.roomUnassigned ? null : session.room };
+        delete newSession.id;
+        return sessions.create(newSession);
+      }));
       return program.id;
     });
     this.backups?.scheduler?.notifyDataChanged();
