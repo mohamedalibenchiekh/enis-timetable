@@ -5,6 +5,7 @@ import { DataSource, EntityManager } from 'typeorm';
 import { BackupCreator } from './backup-creator.js';
 import { BackupData } from './backup-schema.js';
 import { BackupCounts, BackupManifest, BackupMode, RestoreResult } from './backup-types.js';
+import { SEEDED_ROOM_ALIASES } from '../masters/seeded-aliases.js';
 
 export interface ExecuteRestoreOptions {
   data: BackupData;
@@ -57,6 +58,7 @@ export class BackupRestorer {
         teacher_names: 0,
         room_labels: 0,
         known_rooms: 0,
+        programs: 0, program_slots: 0, program_sessions: 0, teacher_aliases: 0, room_aliases: 0,
       };
 
       if (mode === 'replace') {
@@ -66,6 +68,11 @@ export class BackupRestorer {
         await em.query('DELETE FROM teacher_names');
         await em.query('DELETE FROM room_labels');
         await em.query('DELETE FROM known_rooms');
+        await em.query('DELETE FROM program_sessions');
+        await em.query('DELETE FROM program_slots');
+        await em.query('DELETE FROM programs');
+        await em.query('DELETE FROM teacher_aliases');
+        await em.query('DELETE FROM room_aliases');
         await em.query("DELETE FROM settings WHERE key != 'backup'");
 
         // Insert timetables
@@ -193,6 +200,14 @@ export class BackupRestorer {
           }
         }
         restoredCounts.known_rooms = data.known_rooms ? data.known_rooms.length : 0;
+
+        for (const table of ['programs', 'program_slots', 'program_sessions', 'teacher_aliases', 'room_aliases'] as const) {
+          await this.insertRows(em, table, data[table]);
+          restoredCounts[table] = data[table].length;
+        }
+        for (const alias of SEEDED_ROOM_ALIASES) {
+          await em.query('INSERT INTO room_aliases ("aliasName", "aliasKey", "canonicalName", seeded) VALUES ($1, $2, $3, TRUE) ON CONFLICT ("aliasKey") DO NOTHING', [alias.aliasName, alias.aliasKey, alias.canonicalName]);
+        }
 
         // Reset sequences to max(id)
         await this.resetSequences(em);
@@ -322,6 +337,33 @@ export class BackupRestorer {
           }
         }
 
+        const programIdMap = new Map<string, string>();
+        for (const row of data.programs) {
+          const id = randomUUID(); programIdMap.set(row.id, id);
+          const newRevision = Number(await em.query('SELECT COALESCE(MAX(revision), 0) + 1 AS revision FROM programs WHERE code = $1', [row.code]).then((r: any[]) => r[0].revision));
+          const hasCurrent = await em.query('SELECT 1 FROM programs WHERE code = $1 AND "isCurrent" = TRUE LIMIT 1', [row.code]);
+          await this.insertRows(em, 'programs', [{ ...row, id, revision: newRevision, isCurrent: row.isCurrent && hasCurrent.length === 0 }]);
+          restoredCounts.programs = (restoredCounts.programs ?? 0) + 1;
+        }
+        for (const row of data.program_slots) {
+          const programId = programIdMap.get(row.programId);
+          if (!programId) throw new BadRequestException(`Créneau orphelin : programme « ${row.programId} » introuvable dans la sauvegarde.`);
+          const { id: _id, ...rest } = row; await this.insertRows(em, 'program_slots', [{ ...rest, programId }]);
+          restoredCounts.program_slots = (restoredCounts.program_slots ?? 0) + 1;
+        }
+        for (const row of data.program_sessions) {
+          const programId = programIdMap.get(row.programId);
+          if (!programId) throw new BadRequestException(`Séance orpheline : programme « ${row.programId} » introuvable dans la sauvegarde.`);
+          await this.insertRows(em, 'program_sessions', [{ ...row, id: randomUUID(), programId }]);
+          restoredCounts.program_sessions = (restoredCounts.program_sessions ?? 0) + 1;
+        }
+        for (const table of ['teacher_aliases', 'room_aliases'] as const) {
+          for (const row of data[table]) {
+            const exists = await em.query(`SELECT 1 FROM ${table} WHERE "aliasKey" = $1`, [row.aliasKey]);
+            if (!exists.length) { const { id: _id, ...rest } = row; await this.insertRows(em, table, [rest]); restoredCounts[table] = (restoredCounts[table] ?? 0) + 1; }
+          }
+        }
+
         await this.resetSequences(em);
       }
 
@@ -349,7 +391,31 @@ export class BackupRestorer {
       SELECT setval('teacher_names_id_seq', COALESCE((SELECT MAX(id) FROM teacher_names), 1), (SELECT MAX(id) FROM teacher_names) IS NOT NULL);
       SELECT setval('room_labels_id_seq', COALESCE((SELECT MAX(id) FROM room_labels), 1), (SELECT MAX(id) FROM room_labels) IS NOT NULL);
       SELECT setval('known_rooms_id_seq', COALESCE((SELECT MAX(id) FROM known_rooms), 1), (SELECT MAX(id) FROM known_rooms) IS NOT NULL);
+      SELECT setval('program_slots_id_seq', COALESCE((SELECT MAX(id) FROM program_slots), 1), (SELECT MAX(id) FROM program_slots) IS NOT NULL);
+      SELECT setval('teacher_aliases_id_seq', COALESCE((SELECT MAX(id) FROM teacher_aliases), 1), (SELECT MAX(id) FROM teacher_aliases) IS NOT NULL);
+      SELECT setval('room_aliases_id_seq', COALESCE((SELECT MAX(id) FROM room_aliases), 1), (SELECT MAX(id) FROM room_aliases) IS NOT NULL);
     `);
+  }
+
+  private async insertRows(em: EntityManager, table: string, rows: Record<string, unknown>[]): Promise<void> {
+    const allowedColumns: Record<string, Set<string>> = {
+      programs: new Set(['id', 'code', 'title', 'kind', 'academicYear', 'semester', 'coordinator', 'formRef', 'effectiveFrom', 'footerText', 'version', 'revision', 'isCurrent', 'originalSnapshot', 'createdAt', 'updatedAt']),
+      program_slots: new Set(['id', 'programId', 'index', 'label', 'rawLabel', 'base', 'dayOverrides', 'note']),
+      program_sessions: new Set(['id', 'programId', 'day', 'slot', 'slotSpan', 'daySpan', 'title', 'code', 'teachers', 'teacherKeys', 'room', 'roomUnassigned', 'locationNote', 'frequency', 'tags', 'customTime', 'color', 'note', 'rawText', 'confidence', 'reasons', 'source']),
+      teacher_aliases: new Set(['id', 'aliasKey', 'canonicalKey', 'aliasName', 'canonicalName', 'seeded', 'createdAt']),
+      room_aliases: new Set(['id', 'aliasKey', 'canonicalName', 'aliasName', 'seeded', 'createdAt']),
+    };
+    const columnsForTable = allowedColumns[table];
+    if (!columnsForTable) throw new Error(`Table non gérée : ${table}`);
+    for (const row of rows) {
+      const keys = Object.keys(row);
+      if (!keys.length) continue;
+      if (keys.some((key) => !columnsForTable.has(key))) throw new BadRequestException(`Champ inconnu dans la table de restauration « ${table} ».`);
+      const columns = keys.map((key) => `"${key}"`).join(', ');
+      const placeholders = keys.map((_key, index) => `$${index + 1}`).join(', ');
+      const values = keys.map((key) => row[key] !== null && typeof row[key] === 'object' && !(row[key] instanceof Date) ? JSON.stringify(row[key]) : row[key]);
+      await em.query(`INSERT INTO "${table}" (${columns}) VALUES (${placeholders})`, values);
+    }
   }
 
   private chunkArray<T>(items: T[], size: number): T[][] {

@@ -10,7 +10,7 @@ test('imports a new version, compares changes, filters, highlights and exports',
     // --- import v1 -------------------------------------------------------------
     await page.goto('/');
     await page.getByRole('button', { name: '+ Importer' }).click();
-    await page.locator('input[type=file]').setInputFiles([
+    await page.locator('input[type=file][accept=".html,.htm,.csv,.pdf"]').setInputFiles([
       path.join(fixtureDir, 'FET_rooms_test.html'),
       path.join(fixtureDir, 'FET_teachers_test.html'),
       path.join(fixtureDir, 'FET_groups_test.html'),
@@ -23,7 +23,7 @@ test('imports a new version, compares changes, filters, highlights and exports',
 
     // --- import v2 as a new version of v1 --------------------------------------
     await page.getByRole('button', { name: '+ Importer' }).click();
-    await page.locator('input[type=file]').setInputFiles([
+    await page.locator('input[type=file][accept=".html,.htm,.csv,.pdf"]').setInputFiles([
       path.join(v2Dir, 'FET_rooms_v2.html'),
       path.join(v2Dir, 'FET_teachers_v2.html'),
       path.join(v2Dir, 'FET_groups_v2.html'),

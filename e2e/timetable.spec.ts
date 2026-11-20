@@ -20,7 +20,7 @@ test('imports fixtures, previews a day, downloads Word, and updates an export op
   try {
     await page.goto('/');
     await page.getByRole('button', { name: '+ Importer' }).click();
-    await page.locator('input[type=file]').setInputFiles([
+    await page.locator('input[type=file][accept=".html,.htm,.csv,.pdf"]').setInputFiles([
       path.join(fixtureDir, 'FET_rooms_test.html'),
       path.join(fixtureDir, 'FET_teachers_test.html'),
       path.join(fixtureDir, 'FET_groups_test.html'),

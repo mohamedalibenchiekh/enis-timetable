@@ -26,6 +26,8 @@
     "icons": "node scripts/generate-icons.cjs"
   },
   "devDependencies": {
+    "jsdom": "^31.0.1",
+    "typeorm": "^0.3.31",
     "@playwright/test": "^1.56.1",
     "markdown-it": "^15.0.3",
     "path-scurry": "^1.11.1",

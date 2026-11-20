@@ -178,6 +178,25 @@ Les corrections s’appliquent à tous les emplois du temps de cette base. Elles
 
 **Résultat attendu :** le navigateur télécharge `noms-enis.json` à l’export, ou affiche le bilan de l’import.
 
+## Importer un emploi du temps de mastère
+
+1. Dans la barre latérale, ouvrez **[Mastères]**. Sélectionnez un ou plusieurs fichiers `.docx` ou `.pdf`, puis choisissez éventuellement un emploi FET comme référence des horaires.
+2. Sélectionnez **[Analyser les fichiers]**. L’écran **[1. Analyse]** présente le programme détecté, l’année retenue, les avertissements de créneaux et la confiance moyenne. Un PDF numérisé sans couche texte est refusé.
+3. Dans **[2. Vérification]**, comparez le texte source et les champs extraits dans la grille par jour et créneau. Corrigez les champs, puis sélectionnez **[Confirmer ce nom]** pour ouvrir une invite et saisir le nom canonique de l’enseignant; le champ Enseignants de la grille doit être corrigé séparément si nécessaire. Pour une salle, sélectionnez **[Confirmer cette salle]** afin de saisir son nom canonique. Une salle non affectée est indiquée par le badge **[Salle à rechercher]**.
+4. Si le code existe déjà, choisissez de remplacer la version courante (l’ancienne reste dans l’historique) ou d’enregistrer une nouvelle version. Sélectionnez **[Enregistrer le programme]** après vérification.
+
+Les programmes sont stockés séparément des imports FET. L’année universitaire enregistrée est toujours **2026-2027**. Les créneaux suivent l’emploi FET choisi ou les horaires intégrés; les écarts reconnus sont signalés pour vérification. Les données extraites restent modifiables après import.
+
+**Erreurs possibles pendant l’analyse :**
+
+- **Le fichier DOCX dépasse la taille maximale de 20 Mo**, **Le fichier PDF dépasse la taille maximale de 20 Mo**, ou **Le fichier dépasse la limite de 20 Mo** : choisissez un fichier plus petit; la taille totale des fichiers sélectionnés doit aussi rester sous 20 Mo.
+- **Archive DOCX corrompue ou non valide**, **Archive DOCX trop volumineuse ou suspecte**, ou **Document Word sans fichier principal word/document.xml** : réenregistrez le fichier en `.docx` depuis Word ou LibreOffice, puis réessayez.
+- **Délai dépassé pendant l’analyse du document Word** ou **Délai dépassé pendant l’analyse du PDF** : simplifiez le document ou exportez-le de nouveau avant de relancer l’analyse.
+- **Aucun tableau trouvé dans le document Word** ou **Impossible de repérer le tableau de l’emploi du temps (ligne des jours introuvable)** : vérifiez que le fichier contient le tableau des jours et créneaux.
+- **PDF illisible ou chiffré**, **Le PDF est chiffré et ne peut pas être analysé**, ou **Un PDF de mastère doit contenir une seule page (pages détectées : …)** : déverrouillez le PDF et exportez l’emploi du temps sur une seule page.
+- **Le PDF ne contient pas de couche texte exploitable (les documents numérisés ne sont pas acceptés)** : les PDF numérisés ne sont pas pris en charge; fournissez un PDF avec texte sélectionnable ou un DOCX.
+- **Ligne des jours introuvable dans le PDF du mastère** : vérifiez qu’au moins cinq jours reconnus figurent dans l’en-tête du tableau.
+
 ## Mises à jour
 
 ### Vérifier et installer une mise à jour
@@ -336,6 +355,7 @@ Avant chaque mise à jour, l’application tente de copier la base de données d
 - « Somme de contrôle manquante dans le manifeste pour » ou « Somme de contrôle (SHA-256) invalide pour le fichier … . L’archive est corrompue ou a été modifiée » : l’intégrité des fichiers n’a pas pu être vérifiée.
 - « Nombre de lignes incohérent pour la table », « Ligne … invalide dans … : JSON malformé », « date de création invalide », « date de modification invalide », « format du créneau » ou « Clé de paramètre en doublon détectée dans l’archive » : les données de l’archive ne respectent pas le schéma attendu.
 - « L’archive contient une séance orpheline (ligne … ) faisant référence à un emploi du temps inexistant » ou « Séance orpheline détectée pour l’emploi du temps « … ». Restauration interrompue » : une séance fait référence à un emploi du temps absent.
+- « L’archive contient une ligne orpheline dans « … » (ligne …) faisant référence à un programme inexistant » : une séance ou un créneau de programme référence une révision absente; utilisez une sauvegarde complète et non modifiée.
 - « Mode de restauration non valide. Les modes autorisés sont « replace » ou « merge » » : choisissez un mode de restauration valide.
 - « Impossible de créer la sauvegarde de sécurité préalable. La restauration a été annulée et aucune donnée n’a été modifiée » : la création de la sauvegarde de sécurité a échoué.
 - « Incohérence détectée après restauration (emplois du temps: … , séances: … ). Annulation » : les données insérées ne correspondent pas au manifeste, la transaction a été annulée.

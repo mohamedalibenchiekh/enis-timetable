@@ -12,7 +12,7 @@ const root = path.resolve(__dirname, '../../..');
 const temporary: string[] = [];
 const sourceFiles = [
   'apps/web/app/page.tsx', 'apps/web/app/sauvegardes/page.tsx', 'apps/web/components/ImportPanel.tsx', 'apps/web/components/OptionsPanel.tsx',
-  'apps/web/components/NamesPanel.tsx', 'apps/web/components/UpdateBanner.tsx', 'apps/web/components/ComparePanel.tsx', 'apps/web/lib/api.ts', 'apps/desktop/src/main.ts', 'apps/desktop/src/menu.ts',
+  'apps/web/components/NamesPanel.tsx', 'apps/web/components/ProgramsPanel.tsx', 'apps/web/components/UpdateBanner.tsx', 'apps/web/components/ComparePanel.tsx', 'apps/web/lib/api.ts', 'apps/desktop/src/main.ts', 'apps/desktop/src/menu.ts',
   'apps/desktop/src/updater.ts',
 ];
 
@@ -137,6 +137,30 @@ describe('guide drift protection', () => {
       'Aucune fonction de migration (upgrader) enregistrée': 'Internal developer guard when upgrading older schema versions without a registered migration function.',
       'pdf-worker must be run inside a Worker thread': 'Internal worker thread guard; executed only as a Node worker thread.',
       'Aucun importateur enregistré pour le format': 'Internal registry fallback guard when no importer matches the detected format.',
+      'Champ inconnu dans la table de restauration': 'Backup restore rejects tables outside the supported schema; the user cannot choose an arbitrary table.',
+      'Créneaux de référence invalides': 'Invalid client reference data; select a valid timetable and retry.',
+      'Six créneaux de référence sont attendus': 'Invalid client reference data; a timetable must provide six slots.',
+      'Surcharges de créneaux de référence invalides': 'Invalid client reference data; reload the selected timetable.',
+      'Sélectionnez au moins un fichier Word ou PDF': 'Input validation; select a supported timetable file.',
+      'La taille totale des fichiers dépasse la limite de 20 Mo': 'Upload limit; select fewer or smaller files.',
+      'Emploi FET de référence invalide': 'Stale or malformed timetable selection; choose a reference timetable again.',
+      'Format non pris en charge': 'Input validation; only DOCX and PDF timetable files are accepted.',
+      'Données de programme invalides': 'Internal API payload validation; reopen the program and retry.',
+      'Le code et le titre du programme sont obligatoires': 'Required program metadata; enter both a code and a title.',
+      'L’année universitaire doit être 2026-2027': 'Program data validation; this importer accepts the 2026-2027 year.',
+      'Créneaux ou séances invalides': 'Program payload validation; reanalyze the source file and retry.',
+      'Créneau ': 'Program payload validation; reanalyze the source file and retry.',
+      'Champ programme invalide': 'Program payload validation; correct the metadata and retry.',
+      'Rapport d’analyse invalide': 'Program payload validation; reanalyze the source file and retry.',
+      'Choisissez « replace » ou « new-version': 'Program save mode validation; choose one of the available save options.',
+      'Programme introuvable': 'The saved program may have been deleted; refresh the program list.',
+      'Alias invalide': 'Alias validation; enter a source name and its canonical name.',
+      'Type d’alias invalide': 'Alias validation; choose a teacher or room alias.',
+      'Alias introuvable': 'The alias may have been deleted; refresh the alias list.',
+      'Les alias fournis avec l’application ne peuvent pas être supprimés': 'Built-in room aliases are fixed application defaults.',
+      'Séance ': 'Session payload validation; reanalyze the source file and correct the highlighted session.',
+      'Les noms de l’alias sont invalides': 'Alias validation; use nonempty names of at most 255 characters.',
+      'Libellé de créneau illisible': 'The parser exception is caught by normalizeProgramSlots; users see its French fallback warning with the affected slot number.',
     };
     const sources = ['apps/api/src', 'apps/desktop/src'].flatMap((directory) => {
       const walk = (current: string): string[] => fs.readdirSync(path.join(root, current), { withFileTypes: true })

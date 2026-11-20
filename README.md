@@ -66,6 +66,10 @@ Enter the wording you want to see in Word and save the changes. A saved teacher 
 
 Use **Exporter les noms (.json)** to keep a copy of the overrides or **Importer des noms…** to merge a previously exported file. Importing does not execute file contents; invalid files are rejected.
 
+## Mastères: import
+
+Open **Mastères** in the sidebar to analyze DOCX and one-page text PDFs, review detected metadata and schedule cells, correct uncertain values, and save an editable program. FET timetables are read-only inputs; program schedules are stored separately. “Salle XX” is stored as an unassigned room, while “Salle PAQ” and “Salle DGSE” share the canonical room “PAQ/DGSE”. The academic year is always saved as 2026-2027. PDF imports require a text layer; scanned pages are not processed.
+
 ## Comparer deux versions
 
 When a timetable is re-issued (new period, moved sessions, changed rooms), import the new HTML files and pick the previous version in the **Nouvelle version de…** field of the import screen. The new timetable stores a `previousTimetableId` link, and the **Changements** tab compares the two versions.

@@ -19,6 +19,10 @@ function installNamesApi() {
     const method = init?.method ?? 'GET';
     if (method === 'GET' && url.includes('/names/teachers?')) return response(state.teachers);
     if (method === 'GET' && url.includes('/names/rooms?')) return response(state.rooms);
+    if (method === 'GET' && url.endsWith('/programs/aliases')) return response({
+      teachers: [{ id: 1, aliasKey: 'prof benali', aliasName: 'Prof Benali', canonicalName: 'Benali', seeded: false }],
+      rooms: [],
+    });
     if (method === 'PUT') {
       const kind = url.endsWith('/teachers') ? 'teachers' : 'rooms';
       const body = JSON.parse(String(init?.body)) as { items: { sourceName: string; displayName: string }[] };
@@ -29,6 +33,7 @@ function installNamesApi() {
       return response({ ok: true, saved: body.items.length });
     }
     if (method === 'POST' && url.includes('/names/import')) return response({ added: 1, updated: 2, ignored: 0 });
+    if (method === 'POST' && url.endsWith('/programs/aliases')) return response({ ok: true });
     if (method === 'GET' && url.endsWith('/names/export')) return response({ version: 1, teachers: [], rooms: [] });
     throw new Error(`Unexpected request: ${method} ${url}`);
   });
@@ -116,6 +121,36 @@ describe('NamesPanel', () => {
     const file = new File(['{"version":1,"teachers":[],"rooms":[]}'], 'noms.json', { type: 'application/json' });
     fireEvent.change(screen.getByLabelText('Choisir un fichier de noms'), { target: { files: [file] } });
     await waitFor(() => expect(screen.getByText('Import terminé : 1 ajout, 2 actualisations, 0 ignorés')).not.toBeNull());
+  });
+
+  it('clears a previous alias error after a successful save and labels actions with the alias name', async () => {
+    const prompts = vi.spyOn(window, 'prompt').mockReturnValue('Prof Benali')
+      .mockReturnValueOnce('Prof Benali').mockReturnValueOnce('Benali canonique')
+      .mockReturnValueOnce('Prof Benali').mockReturnValueOnce('Benali canonique');
+    const { fetchMock: baseFetch } = installNamesApi();
+    let saves = 0;
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).endsWith('/programs/aliases') && init?.method === 'POST') {
+        saves += 1;
+        if (saves === 1) throw new Error('Alias save failed');
+        return response({ ok: true });
+      }
+      return baseFetch(input, init);
+    }));
+    try {
+      render(<NamesPanel id="fixture-id" onSaved={vi.fn()} />);
+      const modify = await screen.findByRole('button', { name: 'Modifier l’alias Prof Benali' });
+      expect(modify).not.toBeNull();
+      const add = screen.getAllByRole('button', { name: 'Ajouter un alias' })[0];
+      fireEvent.click(add);
+      await waitFor(() => expect(screen.getByRole('alert').textContent).toBe('Alias save failed'));
+      fireEvent.click(add);
+      await waitFor(() => expect(saves).toBe(2));
+      await waitFor(() => expect(screen.queryByRole('alert')).toBeNull());
+      expect(screen.getByRole('button', { name: 'Supprimer l’alias Prof Benali' })).not.toBeNull();
+    } finally {
+      prompts.mockRestore();
+    }
   });
 
   it('filters by pending display names and preserves drafts when rows are hidden', async () => {
