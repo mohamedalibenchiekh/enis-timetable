@@ -133,7 +133,7 @@ async function main() {
   await page.goto(`http://127.0.0.1:${webPort}`, { waitUntil: 'networkidle' });
   await capture(page, 'importer-fichiers.png', '.drop');
   const files = ['FET_rooms_test.html', 'FET_teachers_test.html', 'FET_groups_test.html'].map((name) => path.join(fixtureDir, name));
-  await page.locator('input[type=file]').setInputFiles(files);
+  await page.locator('input[type=file][accept=".html,.htm,.csv,.pdf"]').setInputFiles(files);
   await page.getByRole('button', { name: 'Importer', exact: true }).last().click();
   await page.getByRole('table').waitFor({ state: 'visible' });
   await capture(page, 'apercu-emploi-du-temps.png', 'table.grid');
