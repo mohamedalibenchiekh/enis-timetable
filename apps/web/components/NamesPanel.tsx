@@ -1,6 +1,6 @@
 'use client';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { api, NameCategory, NameEntry, NameList, NamesImportSummary } from '@/lib/api';
+import { api, NameCategory, NameEntry, NameList, NamesImportSummary, ProgramAlias } from '@/lib/api';
 
 type Drafts = Record<string, string>;
 
@@ -25,6 +25,7 @@ export function NamesPanel({ id, onSaved }: { id: string; onSaved: () => void })
   const [status, setStatus] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [aliases, setAliases] = useState<{ rooms: ProgramAlias[]; teachers: ProgramAlias[] } | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
 
   const reload = useCallback(async () => {
@@ -48,6 +49,33 @@ export function NamesPanel({ id, onSaved }: { id: string; onSaved: () => void })
       .catch((e: unknown) => active && setError((e as Error).message));
     return () => { active = false; };
   }, [id]);
+
+  const reloadAliases = useCallback(() => api.listProgramAliases().then(setAliases).catch((e: unknown) => setError((e as Error).message)), []);
+  useEffect(() => { void reloadAliases(); }, [reloadAliases]);
+
+  const addAlias = async (kind: 'teacher' | 'room') => {
+    setError('');
+    const aliasName = window.prompt('Nom tel qu’il apparaît dans le fichier :');
+    if (!aliasName) return;
+    const canonicalName = window.prompt('Nom canonique à utiliser :', aliasName);
+    if (!canonicalName) return;
+    try { await api.saveProgramAlias({ kind, aliasName, canonicalName }); await reloadAliases(); setStatus('Alias enregistré'); }
+    catch (e) { setError((e as Error).message); }
+  };
+
+  const editAlias = async (kind: 'teacher' | 'room', alias: ProgramAlias) => {
+    setError('');
+    const canonicalName = window.prompt('Nom canonique à utiliser :', alias.canonicalName);
+    if (!canonicalName) return;
+    try { await api.saveProgramAlias({ kind, aliasName: alias.aliasName, canonicalName }); await reloadAliases(); setStatus('Alias actualisé'); }
+    catch (e) { setError((e as Error).message); }
+  };
+
+  const removeAlias = async (kind: 'teacher' | 'room', alias: ProgramAlias) => {
+    setError('');
+    try { await api.deleteProgramAlias(kind, alias.id); await reloadAliases(); setStatus('Alias supprimé'); }
+    catch (e) { setError((e as Error).message); }
+  };
 
   const onDraft = useCallback((kind: NameCategory, entry: NameEntry, value: string) => {
     const key = draftKey(kind, entry.key);
@@ -214,6 +242,24 @@ export function NamesPanel({ id, onSaved }: { id: string; onSaved: () => void })
         onDraft={onDraft}
         onDeleteUnused={deleteUnused}
       />
+
+      <section className="names-section" aria-labelledby="master-aliases-heading">
+        <h3 id="master-aliases-heading">Alias des importations de mastères</h3>
+        <p className="muted">Les alias confirmés sont réutilisés lors des prochains imports. Les alias fournis avec l’application ne peuvent pas être supprimés.</p>
+        {!aliases ? <p className="muted">Chargement des alias…</p> : (['teachers', 'rooms'] as const).map((group) => {
+          const kind = group === 'teachers' ? 'teacher' : 'room';
+          const title = group === 'teachers' ? 'Enseignants' : 'Salles';
+          return <div key={group}>
+            <h4>{title}</h4>
+            <button className="secondary" disabled={busy} onClick={() => void addAlias(kind)}>Ajouter un alias</button>
+            <ul className="files">{aliases[group].map((alias) => <li key={alias.id}>
+              <span>{alias.aliasName} → {alias.canonicalName} {alias.seeded && <span className="tag">fourni avec l’application</span>}</span>
+              <button className="link" aria-label={`Modifier l’alias ${alias.aliasName}`} onClick={() => void editAlias(kind, alias)}>Modifier</button>
+              {!alias.seeded && <button className="link danger" aria-label={`Supprimer l’alias ${alias.aliasName}`} onClick={() => void removeAlias(kind, alias)}>Supprimer</button>}
+            </li>)}</ul>
+          </div>;
+        })}
+      </section>
       <NamesSection
         kind="rooms"
         title="Salles"

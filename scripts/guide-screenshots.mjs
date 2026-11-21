@@ -75,7 +75,10 @@ async function capture(page, file, selector) {
 }
 
 function runTool(command, args) {
-  const result = spawnSync(command, args, { encoding: 'utf8' });
+  const npmCli = process.platform === 'win32' && command === 'npm' ? process.env.npm_execpath : undefined;
+  const result = npmCli
+    ? spawnSync(process.execPath, [npmCli, ...args], { encoding: 'utf8' })
+    : spawnSync(command, args, { encoding: 'utf8' });
   if (result.status !== 0) throw new Error(`${command} a échoué : ${result.stderr || result.stdout}`);
 }
 
@@ -130,7 +133,7 @@ async function main() {
   await page.goto(`http://127.0.0.1:${webPort}`, { waitUntil: 'networkidle' });
   await capture(page, 'importer-fichiers.png', '.drop');
   const files = ['FET_rooms_test.html', 'FET_teachers_test.html', 'FET_groups_test.html'].map((name) => path.join(fixtureDir, name));
-  await page.locator('input[type=file]').setInputFiles(files);
+  await page.locator('input[type=file][accept=".html,.htm,.csv,.pdf"]').setInputFiles(files);
   await page.getByRole('button', { name: 'Importer', exact: true }).last().click();
   await page.getByRole('table').waitFor({ state: 'visible' });
   await capture(page, 'apercu-emploi-du-temps.png', 'table.grid');

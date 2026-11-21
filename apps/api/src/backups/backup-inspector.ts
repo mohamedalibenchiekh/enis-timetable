@@ -132,7 +132,7 @@ export class BackupInspector {
     }
 
     const tablesInBackup = BACKUP_TABLES.filter(
-      (t) => !(manifest.schemaVersion < 3 && t === 'known_rooms'),
+      (t) => !(manifest.schemaVersion < 3 && t === 'known_rooms') && !(manifest.schemaVersion < 4 && ['programs', 'program_slots', 'program_sessions', 'teacher_aliases', 'room_aliases'].includes(t)),
     );
 
     for (const table of tablesInBackup) {
@@ -150,6 +150,7 @@ export class BackupInspector {
       teacher_names: [],
       room_labels: [],
       known_rooms: [],
+      programs: [], program_slots: [], program_sessions: [], teacher_aliases: [], room_aliases: [],
     };
 
     for (const table of tablesInBackup) {
@@ -238,6 +239,17 @@ export class BackupInspector {
         throw new BadRequestException(
           `L’archive contient une séance orpheline (ligne ${i + 1}) faisant référence à un emploi du temps inexistant (« ${session.timetableId} »).`,
         );
+      }
+    }
+
+    const programIds = new Set(data.programs.map((program: any) => program.id));
+    for (const [table, rows] of [['program_slots', data.program_slots], ['program_sessions', data.program_sessions]] as const) {
+      for (let i = 0; i < rows.length; i++) {
+        if (!programIds.has(rows[i].programId)) {
+          throw new BadRequestException(
+            `L’archive contient une ligne orpheline dans « ${table} » (ligne ${i + 1}) faisant référence à un programme inexistant (« ${rows[i].programId} »).`,
+          );
+        }
       }
     }
 
