@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
+import { readFile } from 'node:fs/promises';
 import { expandToSlots, parseProgramCell } from '../src/masters/cell-parser.js';
 import { DEFAULT_PROGRAM_REFERENCE, DEFAULT_PROGRAM_SLOTS, normalizeProgramSlots, parseSlotLabel } from '../src/masters/slots.js';
 import { parseMastersDocx } from '../src/masters/docx-importer.js';
 import JSZip from 'jszip';
 import { detectProgramConflicts } from '../src/masters/conflicts.js';
-import { findPdfSlotRowY, pdfRowBounds } from '../src/masters/pdf-importer.js';
+import { findPdfSlotRowY, parseMastersPdf, pdfRowBounds } from '../src/masters/pdf-importer.js';
 
 describe('master timetable parsing', () => {
   it('normalizes day-scoped time labels and preserves Friday corrections', () => {
@@ -82,6 +83,11 @@ describe('master timetable parsing', () => {
     ])).toBe(540);
     expect(pdfRowBounds([600, Number.NaN, 500], 2, 500)).toEqual({ upper: 522, lower: 474 });
     expect(pdfRowBounds([600, Number.NaN, 500], 0, 600)).toEqual({ upper: 622, lower: 574 });
+  });
+
+  it('reports a multi-page master PDF instead of failing during PDF.js cleanup', async () => {
+    const pdf = await readFile(new URL('./fixtures/FET_rooms_test.pdf', import.meta.url));
+    await expect(parseMastersPdf(pdf, 'FET_rooms_test.pdf')).rejects.toThrow('Un PDF de mastère doit contenir une seule page');
   });
 
   it('detects room and teacher collisions by day and slot and skips unassigned rooms', () => {

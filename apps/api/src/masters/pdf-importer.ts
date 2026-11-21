@@ -40,9 +40,8 @@ export async function parseMastersPdf(buffer: Buffer, filename: string, referenc
   if (buffer.length > MAX_BYTES) throw new Error('Le fichier PDF dépasse la taille maximale de 20 Mo.');
   const task = pdfjs.getDocument({ data: new Uint8Array(buffer), isEvalSupported: false, useSystemFonts: true, disableFontFace: true, stopAtErrors: true, disableAutoFetch: true, disableStream: true, disableRange: true });
   let doc: Awaited<typeof task.promise> | undefined;
-  let timedOut = false;
   try {
-    try { doc = await withTimeout(task.promise, () => { timedOut = true; }); }
+    try { doc = await withTimeout(task.promise); }
     catch (error) {
       const message = (error as Error).message;
       if (/password|encrypted/iu.test(message)) throw new Error('Le PDF est chiffré et ne peut pas être analysé.');
@@ -50,7 +49,7 @@ export async function parseMastersPdf(buffer: Buffer, filename: string, referenc
     }
     if (doc.numPages !== 1) throw new Error(`Un PDF de mastère doit contenir une seule page (pages détectées : ${doc.numPages}).`);
     const page = await doc.getPage(1);
-    const content = await withTimeout(page.getTextContent({ includeMarkedContent: false }), () => { timedOut = true; });
+    const content = await withTimeout(page.getTextContent({ includeMarkedContent: false }));
     const textItems = (content as { items: unknown[] }).items as Array<{ str?: string; transform?: number[]; width?: number; height?: number; fontName?: string }>;
     const items = textItems.filter((item): item is { str: string; transform: number[]; width: number; height: number; fontName: string } => typeof item.str === 'string' && Array.isArray(item.transform) && typeof item.width === 'number' && typeof item.height === 'number' && typeof item.fontName === 'string')
       .map((item) => ({ text: item.str.trim(), x: item.transform[4], y: item.transform[5], w: item.width, h: item.height, font: item.fontName }))
@@ -100,8 +99,7 @@ export async function parseMastersPdf(buffer: Buffer, filename: string, referenc
       rawSnapshot: { textItems: items.length, pageCount: 1, cellsScanned: rows.length * columns.length, lowConfidenceCells }, source: 'pdf',
     };
   } finally {
-    if (doc) await doc.destroy().catch(() => undefined);
-    if (!doc || timedOut) await task.destroy().catch(() => undefined);
+    await task.destroy().catch(() => undefined);
   }
 }
 
