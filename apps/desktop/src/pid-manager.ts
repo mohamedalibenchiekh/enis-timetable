@@ -14,6 +14,17 @@ export class SystemProcessInspector implements ProcessInspector {
     if (pid <= 0) return false;
     try {
       process.kill(pid, 0);
+      // On Linux, a zombie process is already dead and cannot run or hold locks
+      if (process.platform === 'linux' && fs.existsSync(`/proc/${pid}/status`)) {
+        try {
+          const status = fs.readFileSync(`/proc/${pid}/status`, 'utf8');
+          if (/State:\s+Z/i.test(status)) {
+            return false;
+          }
+        } catch {
+          return false;
+        }
+      }
       return true;
     } catch (err: any) {
       return err?.code === 'EPERM';
@@ -46,11 +57,15 @@ export class SystemProcessInspector implements ProcessInspector {
         }
       }
     } else {
-      // Unix / macOS: check /proc/<pid>/cmdline or ps
+      // Unix / macOS: check /proc/<pid>/cmdline, /proc/<pid>/comm or ps
       try {
         if (fs.existsSync(`/proc/${pid}/cmdline`)) {
-          cmdLine = fs.readFileSync(`/proc/${pid}/cmdline`, 'utf8').replace(/\0/g, ' ');
-        } else {
+          cmdLine = fs.readFileSync(`/proc/${pid}/cmdline`, 'utf8').replace(/\0/g, ' ').trim();
+        }
+        if (!cmdLine && fs.existsSync(`/proc/${pid}/comm`)) {
+          cmdLine = fs.readFileSync(`/proc/${pid}/comm`, 'utf8').trim();
+        }
+        if (!cmdLine) {
           const res = spawnSync('ps', ['-p', String(pid), '-o', 'args='], {
             encoding: 'utf8',
             timeout: 3000,

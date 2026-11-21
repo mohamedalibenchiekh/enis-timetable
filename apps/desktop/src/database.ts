@@ -28,15 +28,14 @@ export function assertEmbeddedDatabaseVersion(dir: string): void {
   const versionFile = path.join(dir, 'pgdata', 'PG_VERSION');
   if (!fs.existsSync(versionFile)) return; // Fresh install or not yet initialized
   const content = fs.readFileSync(versionFile, 'utf8').trim();
-  if (!/^\d+$/.test(content)) {
+  if (!/^\d+(?:\.\d+)?$/.test(content)) {
     throw new DatabaseVersionFileCorruptError(
       `Le fichier de version PostgreSQL est vide ou corrompu (${content || 'vide'}). Les données n’ont pas été modifiées.`
     );
   }
-  const major = parseInt(content, 10);
-  if (major !== EMBEDDED_POSTGRES_VERSION) {
+  if (content !== String(EMBEDDED_POSTGRES_VERSION)) {
     throw new DatabaseVersionMismatchError(
-      `La base de données existante utilise PostgreSQL ${major}, incompatible avec PostgreSQL ${EMBEDDED_POSTGRES_VERSION} fourni avec cette version. ` +
+      `La base de données existante utilise PostgreSQL ${content}, incompatible avec PostgreSQL ${EMBEDDED_POSTGRES_VERSION} fourni avec cette version. ` +
       `Restaurez une sauvegarde compatible ou utilisez une version précédente de l'application.`
     );
   }

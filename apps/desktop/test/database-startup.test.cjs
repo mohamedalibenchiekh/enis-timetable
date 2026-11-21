@@ -201,9 +201,19 @@ test('assertEmbeddedDatabaseVersion validates exact major version without allowi
   fs.writeFileSync(path.join(pgdata, 'PG_VERSION'), '17garbage');
   assert.throws(() => assertEmbeddedDatabaseVersion(tmpDir), DatabaseVersionFileCorruptError);
 
-  // Incompatible version must fail with DatabaseVersionMismatchError
+  // Incompatible version must fail with DatabaseVersionMismatchError and preserve version string
   fs.writeFileSync(path.join(pgdata, 'PG_VERSION'), '16');
-  assert.throws(() => assertEmbeddedDatabaseVersion(tmpDir), DatabaseVersionMismatchError);
+  assert.throws(
+    () => assertEmbeddedDatabaseVersion(tmpDir),
+    (err) => err instanceof DatabaseVersionMismatchError && err.message.includes('PostgreSQL 16'),
+  );
+
+  // Pre-10 dotted version (e.g. 9.6) must fail with DatabaseVersionMismatchError and preserve '9.6'
+  fs.writeFileSync(path.join(pgdata, 'PG_VERSION'), '9.6\n');
+  assert.throws(
+    () => assertEmbeddedDatabaseVersion(tmpDir),
+    (err) => err instanceof DatabaseVersionMismatchError && err.message.includes('PostgreSQL 9.6'),
+  );
 
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });

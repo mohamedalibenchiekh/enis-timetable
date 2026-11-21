@@ -70,6 +70,17 @@ test('Integration: Embedded PostgreSQL lifecycle (3x start/stop, kill, data pers
       spawnSync('taskkill', ['/pid', String(pid), '/f', '/t'], { timeout: 5000 });
     } else {
       process.kill(pid, 'SIGKILL');
+      // Wait for process to fully terminate so postmaster.pid becomes stale
+      const t0 = Date.now();
+      while (Date.now() - t0 < 4000) {
+        try {
+          process.kill(pid, 0);
+          const buf = new Int32Array(new SharedArrayBuffer(4));
+          Atomics.wait(buf, 0, 0, 50);
+        } catch {
+          break;
+        }
+      }
     }
 
     // Ensure pid file or process is in unclean state, then relaunch
