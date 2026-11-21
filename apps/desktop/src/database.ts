@@ -1,6 +1,8 @@
 import { randomBytes } from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
+import { spawnSync } from 'child_process';
+import { inspectAndCleanPostmasterPid, ProcessInspector, SystemProcessInspector } from './pid-manager';
 
 // embedded-postgres is an ES module; keep a real dynamic import() in the CommonJS output.
 const importEsm = new Function('s', 'return import(s)') as (s: string) => Promise<any>;
@@ -40,10 +42,98 @@ export function assertEmbeddedDatabaseVersion(databaseDir: string): void {
 }
 
 /**
+ * Ensures the target database exists in an idempotent manner.
+ * Queries pg_database first, and catches SQLSTATE 42P04 (duplicate_database) gracefully.
+ */
+export async function ensureDatabaseExists(pg: any, dbName: string, log: (s: string) => void): Promise<void> {
+  let client: any = null;
+  try {
+    client = pg.getPgClient('postgres');
+    await client.connect();
+    const res = await client.query('SELECT 1 FROM pg_database WHERE datname = $1', [dbName]);
+    if (res.rows && res.rows.length > 0) {
+      log(`Base de données « ${dbName} » déjà existante.`);
+      return;
+    }
+  } catch (err) {
+    log(`Avertissement lors de la vérification de pg_database: ${String(err)}`);
+  } finally {
+    if (client) {
+      try {
+        await client.end();
+      } catch {
+        // ignore
+      }
+    }
+  }
+
+  try {
+    await pg.createDatabase(dbName);
+    log(`Base de données « ${dbName} » créée.`);
+  } catch (err: any) {
+    const code = err?.code;
+    const msg = String(err?.message ?? err);
+    if (code === '42P04' || /already exists/i.test(msg)) {
+      log(`Base de données « ${dbName} » déjà existante (tolérée par code SQLSTATE 42P04).`);
+      return;
+    }
+    throw err;
+  }
+}
+
+/**
+ * Stops PostgreSQL cleanly using pg_ctl stop -m fast, falling back to pg.stop().
+ */
+export async function stopEmbeddedPostgresCleanly(
+  pg: any,
+  dataDir: string,
+  log: (s: string) => void = () => {},
+): Promise<void> {
+  if (!pg || !pg.process) return;
+
+  // On Windows, taskkill /f causes abnormal termination unless stopped with pg_ctl
+  if (process.platform === 'win32') {
+    try {
+      const binModule = await importEsm('@embedded-postgres/windows-x64');
+      const pgCtl = binModule?.pg_ctl;
+      if (pgCtl && fs.existsSync(pgCtl)) {
+        log(`Arrêt propre de PostgreSQL via pg_ctl sur ${dataDir}...`);
+        const res = spawnSync(pgCtl, ['stop', '-m', 'fast', '-D', dataDir], {
+          encoding: 'utf8',
+          windowsHide: true,
+          timeout: 10000,
+        });
+        if (res.status === 0) {
+          log(`PostgreSQL arrêté proprement via pg_ctl.`);
+        }
+      }
+    } catch (ctlError) {
+      log(`Avertissement pg_ctl stop: ${String(ctlError)}`);
+    }
+  }
+
+  try {
+    await pg.stop();
+  } catch (stopErr) {
+    log(`Avertissement lors de pg.stop(): ${String(stopErr)}`);
+  }
+}
+
+export interface StartDatabaseOptions {
+  inspector?: ProcessInspector;
+  maxRetries?: number;
+}
+
+/**
  * Starts a private PostgreSQL server bundled with the app (no installation needed).
  * Data lives in <dir>/pgdata and survives updates; the server listens on 127.0.0.1 only, on a free port.
  */
-export async function startEmbeddedPostgres(dir: string, port: number, log: (s: string) => void): Promise<EmbeddedDb> {
+export async function startEmbeddedPostgres(
+  dir: string,
+  port: number,
+  log: (s: string) => void,
+  options: StartDatabaseOptions = {},
+): Promise<EmbeddedDb> {
   assertEmbeddedDatabaseVersion(dir);
   const { default: EmbeddedPostgres } = await importEsm('embedded-postgres');
   fs.mkdirSync(dir, { recursive: true });
@@ -58,6 +148,14 @@ export async function startEmbeddedPostgres(dir: string, port: number, log: (s: 
 
   const dataDir = path.join(dir, 'pgdata');
   const initialised = fs.existsSync(path.join(dataDir, 'PG_VERSION'));
+
+  // Clean stale lock or residual process if any
+  const inspector = options.inspector ?? new SystemProcessInspector();
+  const pidCheck = inspectAndCleanPostmasterPid(dataDir, inspector, log);
+  if (pidCheck.foreignProcessPid) {
+    throw new Error(`Un processus étranger (PID ${pidCheck.foreignProcessPid}) occupe le verrou postmaster.pid.`);
+  }
+
   const pg = new EmbeddedPostgres({
     databaseDir: dataDir,
     user: 'enis',
@@ -73,21 +171,23 @@ export async function startEmbeddedPostgres(dir: string, port: number, log: (s: 
   let started = false;
   try {
     if (!initialised) {
-      fs.rmSync(dataDir, { recursive: true, force: true }); // drop a half-initialised folder
+      // Never delete if PG_VERSION is present. If folder is completely fresh or half-init without PG_VERSION:
+      fs.rmSync(dataDir, { recursive: true, force: true });
       await pg.initialise();
     }
     await pg.start();
     started = true;
-    await pg.createDatabase('enis_timetable');
-  } catch (e) {
-    if (started && /already exists/i.test(String((e as Error)?.message ?? e))) {
+    await ensureDatabaseExists(pg, 'enis_timetable', log);
+  } catch (e: any) {
+    const isDup = started && (e?.code === '42P04' || /already exists/i.test(String(e?.message ?? e)));
+    if (isDup) {
       return {
         url: `postgres://enis:${meta.password}@127.0.0.1:${port}/enis_timetable`,
-        stop: () => pg.stop(),
+        stop: () => stopEmbeddedPostgresCleanly(pg, dataDir, log),
       };
     }
     try {
-      await pg.stop();
+      await stopEmbeddedPostgresCleanly(pg, dataDir, log);
     } catch (stopError) {
       log(`Impossible d’arrêter PostgreSQL après l’échec du démarrage: ${String(stopError)}`);
     }
@@ -96,6 +196,6 @@ export async function startEmbeddedPostgres(dir: string, port: number, log: (s: 
 
   return {
     url: `postgres://enis:${meta.password}@127.0.0.1:${port}/enis_timetable`,
-    stop: () => pg.stop(),
+    stop: () => stopEmbeddedPostgresCleanly(pg, dataDir, log),
   };
 }
