@@ -161,6 +161,7 @@ describe('guide drift protection', () => {
       'Séance ': 'Session payload validation; reanalyze the source file and correct the highlighted session.',
       'Les noms de l’alias sont invalides': 'Alias validation; use nonempty names of at most 255 characters.',
       'Libellé de créneau illisible': 'The parser exception is caught by normalizeProgramSlots; users see its French fallback warning with the affected slot number.',
+      'Un processus étranger (PID ': 'PostgreSQL stale lock recovery detects a live foreign process ID holding postmaster.pid.',
     };
     const sources = ['apps/api/src', 'apps/desktop/src'].flatMap((directory) => {
       const walk = (current: string): string[] => fs.readdirSync(path.join(root, current), { withFileTypes: true })
