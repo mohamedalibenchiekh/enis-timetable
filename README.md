@@ -316,6 +316,25 @@ Stop the local server after the test. The update artifacts must be from the same
 - Do not allow force pushes
 - Do not allow deletions
 
+## Dépannage
+
+### Emplacement des journaux
+
+Les journaux de démarrage de l’application et du serveur PostgreSQL intégré sont enregistrés dans le dossier utilisateur :
+- **Windows** : `%APPDATA%\Emplois du temps ENISo\logs\startup-*.log` (les 5 fichiers les plus récents sont conservés avec rotation automatique).
+- **Mises à jour** : `%APPDATA%\Emplois du temps ENISo\logs\update.log`.
+
+Le bouton **« Ouvrir le dossier des journaux »** de la boîte de dialogue d’erreur ouvre directement cet emplacement.
+
+### Signification des messages au démarrage
+
+- **« Un autre exemplaire de l’application est déjà ouvert ou en cours de fermeture »** : Une instance de l'application s'exécute déjà ou termine son arrêt. Fermez-la via la barre des tâches ou le Gestionnaire des tâches.
+- **« Le port réseau nécessaire est actuellement occupé par un autre processus »** : Un conflit de port local a été détecté. L'application choisit automatiquement un port libre à chaque démarrage ; si le problème persiste, un processus tiers bloque les ports locaux.
+- **« Le dossier de données est verrouillé ou inaccessible par le système »** : Un processus PostgreSQL résiduel ou un verrouillage de fichier (`postmaster.pid`) empêche l'accès. L'application nettoie automatiquement les verrous orphelins, mais un redémarrage de la machine peut être requis si un processus tiers verrouille les fichiers.
+- **« Espace disque insuffisant sur le volume pour démarrer la base de données »** : Libérez de l'espace sur votre disque dur.
+- **« Droits d’accès refusés pour accéder aux fichiers de données »** : L'application n'a pas les droits d'écriture dans le dossier `%APPDATA%`.
+- **« Le dossier de données ou l’un de ses fichiers semble corrompu ou illisible »** : Les fichiers de la base de données intégrée sont endommagés. Utilisez le bouton **« Ouvrir les sauvegardes »** pour restaurer une sauvegarde précédente (`.enisbackup`). L'application ne supprime jamais automatiquement vos données existantes.
+
 ## Documentation utilisateur
 
 Le guide français maintenu se trouve dans `docs/guide-utilisateur.fr.md`. Les mentions d’interface suivent la convention `**[Libellé exact]**`, vérifiée par un test qui compare les valeurs statiques entières des textes et libellés de l’interface.
