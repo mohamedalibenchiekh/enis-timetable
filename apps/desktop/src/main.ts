@@ -5,7 +5,7 @@ import * as fs from 'fs';
 import * as net from 'net';
 import * as path from 'path';
 import { backupBeforeUpgrade } from './backup';
-import { assertEmbeddedDatabaseVersion, DatabaseVersionMismatchError, EmbeddedDb, startEmbeddedPostgres } from './database';
+import { assertEmbeddedDatabaseVersion, DatabaseVersionMismatchError, DatabaseVersionFileCorruptError, EmbeddedDb, startEmbeddedPostgres } from './database';
 import { buildApplicationMenu } from './menu';
 import { createUpdater } from './updater';
 import { showMessageBoxWithOptionalParent } from './window-dialog';
@@ -109,6 +109,20 @@ async function waitForApi(port: number, timeoutMs = 60_000) {
   throw new Error('Le serveur ne répond pas.');
 }
 
+function isTransientDatabaseError(err: unknown): boolean {
+  if (!err) return false;
+  if (err instanceof DatabaseVersionMismatchError || err instanceof DatabaseVersionFileCorruptError) {
+    return false;
+  }
+  const msg = err instanceof Error ? err.message : String(err);
+  const code = (err as any)?.code;
+  if (code === 'EACCES' || code === 'ENOSPC') return false;
+  if (/processus étranger|incompatible|corrompu|vide ou corrompu|invalide ou corrompu/i.test(msg)) {
+    return false;
+  }
+  return true;
+}
+
 async function startApi(): Promise<number> {
   const logger = getLogger();
   const config = readConfig();
@@ -119,13 +133,22 @@ async function startApi(): Promise<number> {
     const databaseDirectory = path.join(app.getPath('userData'), 'database');
     assertEmbeddedDatabaseVersion(databaseDirectory);
 
-    // Startup with retry & backoff
+    // Startup with retry & backoff for transient issues
     let attempts = 0;
     const maxAttempts = 3;
     let lastError: unknown = null;
 
     while (attempts < maxAttempts) {
       attempts++;
+      if (db) {
+        try {
+          await db.stop();
+        } catch {
+          // ignore
+        }
+        db = null;
+      }
+
       const dbPort = await freePort();
       logger.log('DB_START', `Tentative ${attempts}/${maxAttempts} de démarrage de PostgreSQL`, {
         port: dbPort,
@@ -143,7 +166,14 @@ async function startApi(): Promise<number> {
         break;
       } catch (err) {
         lastError = err;
+        db = null;
         logger.log('DB_FAIL', `Échec de démarrage de PostgreSQL à la tentative ${attempts}: ${String(err)}`);
+
+        if (!isTransientDatabaseError(err)) {
+          logger.log('DB_FATAL', `Erreur non transitoire détectée, abandon des tentatives supplémentaires.`);
+          break;
+        }
+
         if (attempts < maxAttempts) {
           const delay = attempts * 1000;
           logger.log('DB_RETRY', `Nouvelle tentative dans ${delay}ms...`);
@@ -159,6 +189,16 @@ async function startApi(): Promise<number> {
 
   const be = resolveBackend();
   if (!fs.existsSync(be.main)) throw new Error(`Backend introuvable : ${be.main}\nLancez « npm run build » à la racine du projet.`);
+
+  // If an earlier API process is still running, terminate it before starting a new one
+  if (api && api.exitCode === null && api.signalCode === null) {
+    try {
+      api.kill('SIGKILL');
+    } catch {
+      // ignore
+    }
+    api = null;
+  }
 
   const port = await freePort();
   const backupsDirectory = path.join(app.getPath('userData'), 'backups');
@@ -334,10 +374,8 @@ if (!gotLock) {
   });
 }
 
-async function boot(): Promise<void> {
-  showSplash();
-  const userDataPath = app.getPath('userData');
-  backupWarning = backupBeforeUpgrade(userDataPath, app.getVersion(), logUpdate).warning;
+function initServicesOnce() {
+  if (updaterService) return;
   const platformCanUpdate = process.platform === 'win32' || (process.platform === 'linux' && Boolean(process.env.APPIMAGE));
   autoUpdater.logger = {
     info: (message?: unknown) => logUpdate(`INFO ${String(message ?? '')}`),
@@ -414,6 +452,13 @@ async function boot(): Promise<void> {
         });
     },
   })));
+}
+
+async function boot(): Promise<void> {
+  showSplash();
+  initServicesOnce();
+  const userDataPath = app.getPath('userData');
+  backupWarning = backupBeforeUpgrade(userDataPath, app.getVersion(), logUpdate).warning;
 
   try {
     const port = await startApi();
@@ -429,6 +474,13 @@ async function boot(): Promise<void> {
   } catch (e) {
     const decision = showStartupError(e instanceof Error ? e : new Error(String(e)));
     if (decision === 'retry') {
+      try {
+        await stopServices();
+      } catch (stopErr) {
+        getLogger().log('STOP_FAIL', `Échec du nettoyage avant réessai: ${String(stopErr)}`);
+      }
+      servicesStopped = false;
+      shutdownPromise = null;
       void boot();
     } else {
       app.quit();
@@ -568,4 +620,7 @@ process.on('uncaughtException', (error) => {
 
 process.on('unhandledRejection', (reason) => {
   getLogger().log('UNHANDLED_REJECTION', `Promesse rejetée non interceptée: ${String(reason)}`);
+  void stopServices().finally(() => {
+    app.exit(1);
+  });
 });

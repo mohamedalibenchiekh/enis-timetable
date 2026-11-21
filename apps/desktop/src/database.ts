@@ -4,85 +4,98 @@ import * as path from 'path';
 import { spawnSync } from 'child_process';
 import { inspectAndCleanPostmasterPid, ProcessInspector, SystemProcessInspector } from './pid-manager';
 
-// embedded-postgres is an ES module; keep a real dynamic import() in the CommonJS output.
-const importEsm = new Function('s', 'return import(s)') as (s: string) => Promise<any>;
-
-export interface EmbeddedDb {
-  url: string;
-  stop(): Promise<void>;
-}
-
-export const POSTGRES_MAJOR_VERSION = '17';
+export const EMBEDDED_POSTGRES_VERSION = 17;
 
 export class DatabaseVersionMismatchError extends Error {
-  constructor(actualVersion: string, expectedVersion = POSTGRES_MAJOR_VERSION) {
-    super(
-      `La base de données utilise PostgreSQL ${actualVersion}, mais cette version de l’application nécessite PostgreSQL ${expectedVersion}. ` +
-      'Les données n’ont pas été modifiées. Restaurez une sauvegarde compatible ou contactez le support.',
-    );
+  constructor(message: string) {
+    super(message);
     this.name = 'DatabaseVersionMismatchError';
   }
 }
 
 export class DatabaseVersionFileCorruptError extends Error {
-  constructor() {
-    super('Le fichier de version PostgreSQL est vide ou corrompu. Les données n’ont pas été modifiées.');
+  constructor(message: string) {
+    super(message);
     this.name = 'DatabaseVersionFileCorruptError';
   }
 }
 
-export function assertEmbeddedDatabaseVersion(databaseDir: string): void {
-  const versionPath = path.join(databaseDir, 'pgdata', 'PG_VERSION');
-  if (!fs.existsSync(versionPath)) return;
-  const actualVersion = fs.readFileSync(versionPath, 'utf8').trim();
-  if (!actualVersion) throw new DatabaseVersionFileCorruptError();
-  if (actualVersion !== POSTGRES_MAJOR_VERSION) {
-    throw new DatabaseVersionMismatchError(actualVersion);
-  }
-}
-
 /**
- * Ensures the target database exists in an idempotent manner.
- * Queries pg_database first, and catches SQLSTATE 42P04 (duplicate_database) gracefully.
+ * Asserts that the embedded PostgreSQL data directory is compatible with the bundled PostgreSQL version.
+ * Throws DatabaseVersionMismatchError if an incompatible PG_VERSION is detected.
  */
-export async function ensureDatabaseExists(pg: any, dbName: string, log: (s: string) => void): Promise<void> {
-  let client: any = null;
-  try {
-    client = pg.getPgClient('postgres');
-    await client.connect();
-    const res = await client.query('SELECT 1 FROM pg_database WHERE datname = $1', [dbName]);
-    if (res.rows && res.rows.length > 0) {
-      log(`Base de données « ${dbName} » déjà existante.`);
-      return;
-    }
-  } catch (err) {
-    log(`Avertissement lors de la vérification de pg_database: ${String(err)}`);
-  } finally {
-    if (client) {
-      try {
-        await client.end();
-      } catch {
-        // ignore
-      }
-    }
+export function assertEmbeddedDatabaseVersion(dir: string): void {
+  const versionFile = path.join(dir, 'pgdata', 'PG_VERSION');
+  if (!fs.existsSync(versionFile)) return; // Fresh install or not yet initialized
+  const content = fs.readFileSync(versionFile, 'utf8').trim();
+  const major = parseInt(content, 10);
+  if (isNaN(major) || major <= 0) {
+    throw new DatabaseVersionFileCorruptError(
+      `Le fichier de version PostgreSQL est vide ou corrompu (${content || 'vide'}). Les données n’ont pas été modifiées.`
+    );
   }
+  if (major !== EMBEDDED_POSTGRES_VERSION) {
+    throw new DatabaseVersionMismatchError(
+      `La base de données existante utilise PostgreSQL ${major}, incompatible avec PostgreSQL ${EMBEDDED_POSTGRES_VERSION} fourni avec cette version. ` +
+      `Restaurez une sauvegarde compatible ou utilisez une version précédente de l'application.`
+    );
+  }
+}
 
+export interface EmbeddedDb {
+  url: string;
+  stop: () => Promise<void>;
+}
+
+// Dynamically import ESM package in CommonJS context
+async function importEsm(specifier: string): Promise<any> {
+  // eslint-disable-next-line @typescript-eslint/no-implied-eval
+  return new Function(`return import('${specifier}')`)();
+}
+
+/**
+ * Ensures the target database exists, checking pg_database first and tolerating
+ * race conditions (SQLSTATE 42P04 duplicate_database) without failure.
+ */
+export async function ensureDatabaseExists(
+  pg: any,
+  databaseName: string,
+  log: (s: string) => void = () => {},
+): Promise<void> {
+  const client = pg.getPgClient();
+  await client.connect();
   try {
-    await pg.createDatabase(dbName);
-    log(`Base de données « ${dbName} » créée.`);
-  } catch (err: any) {
-    const code = err?.code;
-    const msg = String(err?.message ?? err);
-    if (code === '42P04' || /already exists/i.test(msg)) {
-      log(`Base de données « ${dbName} » déjà existante (tolérée par code SQLSTATE 42P04).`);
-      return;
+    const res = await client.query(
+      `SELECT 1 FROM pg_database WHERE datname = $1`,
+      [databaseName],
+    );
+    if (res.rows.length === 0) {
+      log(`Création de la base de données « ${databaseName} »...`);
+      try {
+        await pg.createDatabase(databaseName);
+        log(`Base de données « ${databaseName} » créée avec succès.`);
+      } catch (createErr: any) {
+        if (createErr?.code === '42P04' || /already exists/i.test(createErr?.message)) {
+          log(`Base de données « ${databaseName} » déjà existante (42P04 ignoré).`);
+        } else {
+          throw createErr;
+        }
+      }
+    } else {
+      log(`Base de données « ${databaseName} » déjà existante.`);
     }
-    throw err;
+  } finally {
+    try {
+      await client.end();
+    } catch {
+      // client end error ignored
+    }
   }
 }
 
 /**
- * Stops PostgreSQL cleanly using pg_ctl stop -m fast, falling back to pg.stop().
+ * Stops PostgreSQL cleanly. On Windows, runs pg_ctl stop -m fast before pg.stop()
+ * to ensure checkpoints and file locks are cleanly released without crash recovery.
  */
 export async function stopEmbeddedPostgresCleanly(
   pg: any,
@@ -90,6 +103,9 @@ export async function stopEmbeddedPostgresCleanly(
   log: (s: string) => void = () => {},
 ): Promise<void> {
   if (!pg || !pg.process) return;
+
+  const inspector = new SystemProcessInspector();
+  const pid = pg.process.pid;
 
   // On Windows, taskkill /f causes abnormal termination unless stopped with pg_ctl
   if (process.platform === 'win32') {
@@ -112,16 +128,26 @@ export async function stopEmbeddedPostgresCleanly(
     }
   }
 
+  let stopError: unknown = null;
   try {
     await pg.stop();
   } catch (stopErr) {
+    stopError = stopErr;
     log(`Avertissement lors de pg.stop(): ${String(stopErr)}`);
+  }
+
+  // Verify process exit
+  if (pid && inspector.isPidAlive(pid)) {
+    log(`Le processus PostgreSQL (PID ${pid}) est toujours actif après pg.stop().`);
+    if (stopError) {
+      throw stopError;
+    }
+    throw new Error(`Le processus PostgreSQL (PID ${pid}) n'a pas pu être arrêté.`);
   }
 }
 
 export interface StartDatabaseOptions {
   inspector?: ProcessInspector;
-  maxRetries?: number;
 }
 
 /**
@@ -155,6 +181,9 @@ export async function startEmbeddedPostgres(
   if (pidCheck.foreignProcessPid) {
     throw new Error(`Un processus étranger (PID ${pidCheck.foreignProcessPid}) occupe le verrou postmaster.pid.`);
   }
+  if (pidCheck.error) {
+    throw new Error(`Verrou postmaster.pid invalide ou corrompu : ${pidCheck.error}`);
+  }
 
   const pg = new EmbeddedPostgres({
     databaseDir: dataDir,
@@ -171,8 +200,18 @@ export async function startEmbeddedPostgres(
   let started = false;
   try {
     if (!initialised) {
-      // Never delete if PG_VERSION is present. If folder is completely fresh or half-init without PG_VERSION:
-      fs.rmSync(dataDir, { recursive: true, force: true });
+      // Check if dataDir already exists and contains files other than empty dir
+      if (fs.existsSync(dataDir)) {
+        const files = fs.readdirSync(dataDir);
+        if (files.length > 0) {
+          // Data directory has files but lacks PG_VERSION: corrupt or incomplete cluster.
+          // Never delete automatically to avoid data loss.
+          throw new DatabaseVersionFileCorruptError(
+            `Le dossier de base de données (${dataDir}) contient des fichiers mais le fichier PG_VERSION est absent. ` +
+            `Pour éviter toute perte de données, le dossier n’a pas été supprimé automatiquement.`
+          );
+        }
+      }
       await pg.initialise();
     }
     await pg.start();

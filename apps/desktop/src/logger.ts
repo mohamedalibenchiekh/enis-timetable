@@ -12,16 +12,23 @@ export function maskUsername(str: string): string {
   if (!str) return str;
   const username = process.env.USERNAME || process.env.USER;
   if (!username) return str;
-  // Replace username in paths case-insensitively
-  const regex = new RegExp(`([\\\\/](?:Users|home)[\\\\/])${username}([\\\\/]|$)`, 'gi');
+  // Escape regex metacharacters in username
+  const escaped = username.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const regex = new RegExp(`([\\\\/](?:Users|home)[\\\\/])${escaped}([\\\\/]|$)`, 'gi');
   return str.replace(regex, '$1***$2');
+}
+
+export function maskCredentials(str: string): string {
+  if (!str) return str;
+  // Match postgres:// or postgresql:// with credentials before the last @ before host
+  return str.replace(/(postgres(?:ql)?:\/\/)[^\s/?#]+@/gi, '$1***:***@');
 }
 
 export function rotateLogs(logDir: string, maxFiles = 5): void {
   try {
     fs.mkdirSync(logDir, { recursive: true });
     const logFiles = fs.readdirSync(logDir)
-      .filter((file) => /^startup(-\d+)?\.log$/i.test(file))
+      .filter((file) => /^startup(-[0-9A-Za-z_-]+)?\.log$/i.test(file))
       .map((file) => {
         const fullPath = path.join(logDir, file);
         return { fullPath, mtime: fs.statSync(fullPath).mtimeMs };
@@ -43,7 +50,6 @@ export function rotateLogs(logDir: string, maxFiles = 5): void {
 
 export class StartupLogger {
   private logPath: string;
-  private buffer: string[] = [];
   private currentLog: string = '';
 
   constructor(private logDir: string) {
@@ -55,9 +61,9 @@ export class StartupLogger {
 
   log(step: string, message: string, meta?: Record<string, unknown>): void {
     const timestamp = new Date().toISOString();
+    const cleanMessage = this.sanitizeString(message);
     const metaStr = meta ? ' ' + JSON.stringify(this.sanitizeMeta(meta)) : '';
-    const line = `[${timestamp}] [${step}] ${message}${metaStr}`;
-    this.buffer.push(line);
+    const line = `[${timestamp}] [${step}] ${cleanMessage}${metaStr}`;
     this.currentLog = (this.currentLog + line + '\n').slice(-6000);
     try {
       fs.appendFileSync(this.logPath, line + '\n', 'utf8');
@@ -74,13 +80,17 @@ export class StartupLogger {
     return this.logPath;
   }
 
+  private sanitizeString(str: string): string {
+    return maskUsername(maskCredentials(str));
+  }
+
   private sanitizeMeta(meta: Record<string, unknown>): Record<string, unknown> {
     const clean: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(meta)) {
       if (/password|secret|token|cred/i.test(key)) {
         clean[key] = '***';
       } else if (typeof value === 'string') {
-        clean[key] = maskUsername(value.replace(/postgres:\/\/[^:]+:[^@]+@/g, 'postgres://enis:***@'));
+        clean[key] = this.sanitizeString(value);
       } else {
         clean[key] = value;
       }

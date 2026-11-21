@@ -3,9 +3,9 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
 const { ensureDatabaseExists } = require('../dist/database.js');
-const { inspectAndCleanPostmasterPid } = require('../dist/pid-manager.js');
+const { inspectAndCleanPostmasterPid, SystemProcessInspector } = require('../dist/pid-manager.js');
 const { classifyStartupError } = require('../dist/error-classifier.js');
-const { maskUsername, rotateLogs } = require('../dist/logger.js');
+const { maskUsername, maskCredentials, rotateLogs } = require('../dist/logger.js');
 
 test('startup succeeds when database enis_timetable already exists', async () => {
   let created = false;
@@ -69,6 +69,24 @@ test('stale postmaster.pid with dead PID is cleaned safely', () => {
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });
 
+test('unparseable postmaster.pid fails closed and is NOT unlinked', () => {
+  const tmpDir = path.join(__dirname, 'temp-pid-corrupt');
+  fs.mkdirSync(tmpDir, { recursive: true });
+  fs.writeFileSync(path.join(tmpDir, 'postmaster.pid'), 'NOT_A_NUMBER\n/some/data\n');
+
+  const fakeInspector = {
+    isPidAlive: () => false,
+    isPostgresPid: () => false,
+    killPid: () => false,
+  };
+
+  const res = inspectAndCleanPostmasterPid(tmpDir, fakeInspector);
+  assert.equal(res.cleaned, false);
+  assert.ok(res.error);
+  assert.equal(fs.existsSync(path.join(tmpDir, 'postmaster.pid')), true, 'File must not be deleted');
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+});
+
 test('stale postmaster.pid with live foreign PID is preserved and flagged', () => {
   const tmpDir = path.join(__dirname, 'temp-pid-foreign');
   fs.mkdirSync(tmpDir, { recursive: true });
@@ -76,7 +94,7 @@ test('stale postmaster.pid with live foreign PID is preserved and flagged', () =
 
   const fakeInspector = {
     isPidAlive: (pid) => pid === 12345,
-    isPostgresPid: () => false, // not a postgres process
+    isPostgresPid: () => false, // not our postgres process
     killPid: () => false,
   };
 
@@ -100,6 +118,10 @@ test('residual live postgres PID is stopped and postmaster.pid is cleaned', () =
       alive = false;
       return true;
     },
+    stopPostgres: () => {
+      alive = false;
+      return true;
+    },
   };
 
   const res = inspectAndCleanPostmasterPid(tmpDir, fakeInspector);
@@ -108,7 +130,7 @@ test('residual live postgres PID is stopped and postmaster.pid is cleaned', () =
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });
 
-test('error classification maps errors to plain French messages', () => {
+test('error classification maps errors to plain French messages and preserves error message in details', () => {
   const errLock = new Error('Un autre exemplaire de l’application est déjà ouvert');
   assert.match(classifyStartupError(errLock).userMessage, /autre exemplaire/i);
 
@@ -123,24 +145,54 @@ test('error classification maps errors to plain French messages', () => {
 
   const errPerm = new Error('EACCES: permission denied');
   assert.match(classifyStartupError(errPerm).userMessage, /droits d’accès refusés/i);
+
+  const classified = classifyStartupError(new Error('Fatal error occurred'), 'log line 1\nlog line 2');
+  assert.ok(classified.technicalDetail.includes('Fatal error occurred'), 'Detail must include error message');
+  assert.ok(classified.technicalDetail.includes('log line 2'), 'Detail must include log tail');
 });
 
 test('maskUsername anonymizes user paths without leaking usernames', () => {
-  const user = process.env.USERNAME || process.env.USER || 'moham';
-  const samplePath = `C:\\Users\\${user}\\AppData\\Roaming\\enis`;
-  const masked = maskUsername(samplePath);
-  assert.ok(!masked.includes(user), `Masked string should not contain ${user}: ${masked}`);
-  assert.ok(masked.includes('***'));
+  const originalUser = process.env.USER;
+  const originalUsername = process.env.USERNAME;
+  try {
+    process.env.USERNAME = 'testuser';
+    delete process.env.USER;
+
+    const samplePath = `C:\\Users\\testuser\\AppData\\Roaming\\enis`;
+    const masked = maskUsername(samplePath);
+    assert.ok(!masked.includes('testuser'), `Masked string should not contain testuser: ${masked}`);
+    assert.ok(masked.includes('***'));
+
+    // Test with regex metacharacters in username
+    process.env.USERNAME = 'user.name+test';
+    const specialPath = `C:\\Users\\user.name+test\\Documents`;
+    const maskedSpecial = maskUsername(specialPath);
+    assert.ok(!maskedSpecial.includes('user.name+test'));
+    assert.ok(maskedSpecial.includes('***'));
+  } finally {
+    if (originalUsername !== undefined) process.env.USERNAME = originalUsername;
+    else delete process.env.USERNAME;
+    if (originalUser !== undefined) process.env.USER = originalUser;
+    else delete process.env.USER;
+  }
 });
 
-test('rotateLogs keeps at most 5 files', () => {
+test('maskCredentials masks passwords and usernames in postgres and postgresql URLs', () => {
+  const pgUrl = 'postgres://admin:secret123@127.0.0.1:5432/enis_timetable';
+  assert.equal(maskCredentials(pgUrl), 'postgres://***:***@127.0.0.1:5432/enis_timetable');
+
+  const psqlUrl = 'postgresql://app_user:p@ss@@word@db.host.internal:5432/production';
+  assert.equal(maskCredentials(psqlUrl), 'postgresql://***:***@db.host.internal:5432/production');
+});
+
+test('rotateLogs keeps exactly maxFiles - 1 files', () => {
   const tmpDir = path.join(__dirname, 'temp-rotate-logs');
   fs.mkdirSync(tmpDir, { recursive: true });
   for (let i = 1; i <= 8; i++) {
-    fs.writeFileSync(path.join(tmpDir, `startup-2026112100000${i}.log`), `test log ${i}`);
+    fs.writeFileSync(path.join(tmpDir, `startup-20261121T00000${i}.log`), `test log ${i}`);
   }
   rotateLogs(tmpDir, 5);
   const remaining = fs.readdirSync(tmpDir).filter((f) => f.startsWith('startup-'));
-  assert.ok(remaining.length <= 5, `Expected <= 5 logs, got ${remaining.length}`);
+  assert.equal(remaining.length, 4, `Expected exactly 4 logs, got ${remaining.length}`);
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });
