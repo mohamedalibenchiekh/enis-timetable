@@ -28,12 +28,12 @@ export function assertEmbeddedDatabaseVersion(dir: string): void {
   const versionFile = path.join(dir, 'pgdata', 'PG_VERSION');
   if (!fs.existsSync(versionFile)) return; // Fresh install or not yet initialized
   const content = fs.readFileSync(versionFile, 'utf8').trim();
-  const major = parseInt(content, 10);
-  if (isNaN(major) || major <= 0) {
+  if (!/^\d+$/.test(content)) {
     throw new DatabaseVersionFileCorruptError(
       `Le fichier de version PostgreSQL est vide ou corrompu (${content || 'vide'}). Les données n’ont pas été modifiées.`
     );
   }
+  const major = parseInt(content, 10);
   if (major !== EMBEDDED_POSTGRES_VERSION) {
     throw new DatabaseVersionMismatchError(
       `La base de données existante utilise PostgreSQL ${major}, incompatible avec PostgreSQL ${EMBEDDED_POSTGRES_VERSION} fourni avec cette version. ` +
@@ -50,7 +50,8 @@ export interface EmbeddedDb {
 // Dynamically import ESM package in CommonJS context
 async function importEsm(specifier: string): Promise<any> {
   // eslint-disable-next-line @typescript-eslint/no-implied-eval
-  return new Function(`return import('${specifier}')`)();
+  const dynamicImport = new Function('s', 'return import(s)');
+  return dynamicImport(specifier);
 }
 
 /**

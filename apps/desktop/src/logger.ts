@@ -20,8 +20,11 @@ export function maskUsername(str: string): string {
 
 export function maskCredentials(str: string): string {
   if (!str) return str;
-  // Match postgres:// or postgresql:// with credentials before the last @ before host
-  return str.replace(/(postgres(?:ql)?:\/\/)[^\s/?#]+@/gi, '$1***:***@');
+  // Match postgres:// or postgresql:// with credentials before the last @ before host,
+  // and mask password query parameters e.g. postgresql:///db?password=secret
+  return str
+    .replace(/(postgres(?:ql)?:\/\/)[^\s/?#]+@/gi, '$1***:***@')
+    .replace(/([?&]password=)[^&\s]+/gi, '$1***');
 }
 
 export function rotateLogs(logDir: string, maxFiles = 5): void {

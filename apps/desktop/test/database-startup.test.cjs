@@ -2,7 +2,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
-const { ensureDatabaseExists } = require('../dist/database.js');
+const { ensureDatabaseExists, assertEmbeddedDatabaseVersion, DatabaseVersionMismatchError, DatabaseVersionFileCorruptError } = require('../dist/database.js');
 const { inspectAndCleanPostmasterPid, SystemProcessInspector } = require('../dist/pid-manager.js');
 const { classifyStartupError } = require('../dist/error-classifier.js');
 const { maskUsername, maskCredentials, rotateLogs } = require('../dist/logger.js');
@@ -183,6 +183,29 @@ test('maskCredentials masks passwords and usernames in postgres and postgresql U
 
   const psqlUrl = 'postgresql://app_user:p@ss@@word@db.host.internal:5432/production';
   assert.equal(maskCredentials(psqlUrl), 'postgresql://***:***@db.host.internal:5432/production');
+
+  const queryUrl = 'postgresql:///db?password=secret&other=val';
+  assert.equal(maskCredentials(queryUrl), 'postgresql:///db?password=***&other=val');
+});
+
+test('assertEmbeddedDatabaseVersion validates exact major version without allowing prefix garbage', () => {
+  const tmpDir = path.join(__dirname, 'temp-version-check');
+  const pgdata = path.join(tmpDir, 'pgdata');
+  fs.mkdirSync(pgdata, { recursive: true });
+
+  // 17 exact matches
+  fs.writeFileSync(path.join(pgdata, 'PG_VERSION'), '17\n');
+  assert.doesNotThrow(() => assertEmbeddedDatabaseVersion(tmpDir));
+
+  // 17garbage must fail with DatabaseVersionFileCorruptError
+  fs.writeFileSync(path.join(pgdata, 'PG_VERSION'), '17garbage');
+  assert.throws(() => assertEmbeddedDatabaseVersion(tmpDir), DatabaseVersionFileCorruptError);
+
+  // Incompatible version must fail with DatabaseVersionMismatchError
+  fs.writeFileSync(path.join(pgdata, 'PG_VERSION'), '16');
+  assert.throws(() => assertEmbeddedDatabaseVersion(tmpDir), DatabaseVersionMismatchError);
+
+  fs.rmSync(tmpDir, { recursive: true, force: true });
 });
 
 test('rotateLogs keeps exactly maxFiles - 1 files', () => {
