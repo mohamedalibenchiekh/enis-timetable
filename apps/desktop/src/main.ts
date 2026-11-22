@@ -5,10 +5,12 @@ import * as fs from 'fs';
 import * as net from 'net';
 import * as path from 'path';
 import { backupBeforeUpgrade } from './backup';
-import { assertEmbeddedDatabaseVersion, DatabaseVersionMismatchError, EmbeddedDb, startEmbeddedPostgres } from './database';
+import { assertEmbeddedDatabaseVersion, DatabaseVersionMismatchError, DatabaseVersionFileCorruptError, EmbeddedDb, startEmbeddedPostgres } from './database';
 import { buildApplicationMenu } from './menu';
 import { createUpdater } from './updater';
 import { showMessageBoxWithOptionalParent } from './window-dialog';
+import { StartupLogger } from './logger';
+import { classifyStartupError } from './error-classifier';
 
 let api: ChildProcess | null = null;
 let win: BrowserWindow | null = null;
@@ -19,6 +21,15 @@ let updaterService: ReturnType<typeof createUpdater> | null = null;
 let shutdownPromise: Promise<void> | null = null;
 let servicesStopped = false;
 let backupWarning: string | undefined;
+let startupLogger: StartupLogger | null = null;
+
+function getLogger(): StartupLogger {
+  if (!startupLogger) {
+    const logDirectory = path.join(app.getPath('userData'), 'logs');
+    startupLogger = new StartupLogger(logDirectory);
+  }
+  return startupLogger;
+}
 
 /**
  * By default the app runs its own embedded PostgreSQL. To use an existing server instead, put
@@ -98,20 +109,101 @@ async function waitForApi(port: number, timeoutMs = 60_000) {
   throw new Error('Le serveur ne répond pas.');
 }
 
+function isTransientDatabaseError(err: unknown): boolean {
+  if (!err) return false;
+  if (err instanceof DatabaseVersionMismatchError || err instanceof DatabaseVersionFileCorruptError) {
+    return false;
+  }
+  const msg = err instanceof Error ? err.message : String(err);
+  const code = (err as any)?.code;
+  if (code === 'EACCES' || code === 'ENOSPC') return false;
+  if (/processus étranger|incompatible|corrompu|vide ou corrompu|invalide ou corrompu/i.test(msg)) {
+    return false;
+  }
+  return true;
+}
+
 async function startApi(): Promise<number> {
+  const logger = getLogger();
   const config = readConfig();
   const external = config.databaseUrl;
   let databaseUrl = external || '';
+
   if (!databaseUrl) {
     const databaseDirectory = path.join(app.getPath('userData'), 'database');
     assertEmbeddedDatabaseVersion(databaseDirectory);
-    db = await startEmbeddedPostgres(databaseDirectory, await freePort(), (m) => { apiLog = (apiLog + m + '\n').slice(-4000); });
-    databaseUrl = db.url;
+
+    // Startup with retry & backoff for transient issues
+    let attempts = 0;
+    const maxAttempts = 3;
+    let lastError: unknown = null;
+
+    while (attempts < maxAttempts) {
+      attempts++;
+      if (db) {
+        try {
+          await db.stop();
+        } catch {
+          // ignore
+        }
+        db = null;
+      }
+
+      const dbPort = await freePort();
+      logger.log('DB_START', `Tentative ${attempts}/${maxAttempts} de démarrage de PostgreSQL`, {
+        port: dbPort,
+        dir: databaseDirectory,
+      });
+
+      const startTime = Date.now();
+      try {
+        db = await startEmbeddedPostgres(databaseDirectory, dbPort, (m) => {
+          apiLog = (apiLog + m + '\n').slice(-4000);
+          logger.log('PG', m);
+        });
+        databaseUrl = db.url;
+        logger.log('DB_READY', `PostgreSQL prêt en ${Date.now() - startTime}ms`, { port: dbPort });
+        break;
+      } catch (err) {
+        lastError = err;
+        db = null;
+        logger.log('DB_FAIL', `Échec de démarrage de PostgreSQL à la tentative ${attempts}: ${String(err)}`);
+
+        if (!isTransientDatabaseError(err)) {
+          logger.log('DB_FATAL', `Erreur non transitoire détectée, abandon des tentatives supplémentaires.`);
+          break;
+        }
+
+        if (attempts < maxAttempts) {
+          const delay = attempts * 1000;
+          logger.log('DB_RETRY', `Nouvelle tentative dans ${delay}ms...`);
+          await new Promise((r) => setTimeout(r, delay));
+        }
+      }
+    }
+
+    if (!db && lastError) {
+      throw lastError;
+    }
   }
+
   const be = resolveBackend();
   if (!fs.existsSync(be.main)) throw new Error(`Backend introuvable : ${be.main}\nLancez « npm run build » à la racine du projet.`);
+
+  // If an earlier API process is still running, terminate it before starting a new one
+  if (api && api.exitCode === null && api.signalCode === null) {
+    try {
+      api.kill('SIGKILL');
+    } catch {
+      // ignore
+    }
+    api = null;
+  }
+
   const port = await freePort();
   const backupsDirectory = path.join(app.getPath('userData'), 'backups');
+  logger.log('API_SPAWN', `Lancement du processus API sur le port ${port}`);
+
   api = spawn(process.execPath, [be.main], {
     cwd: be.cwd,
     env: {
@@ -125,10 +217,17 @@ async function startApi(): Promise<number> {
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
-  const keep = (d: Buffer) => { apiLog = (apiLog + d.toString()).slice(-4000); };
+
+  const keep = (d: Buffer) => {
+    const text = d.toString();
+    apiLog = (apiLog + text).slice(-4000);
+    logger.log('API', text.trim());
+  };
   api.stdout!.on('data', keep);
   api.stderr!.on('data', keep);
+
   await waitForApi(port);
+  logger.log('API_READY', `API prête et fonctionnelle sur le port ${port}`);
   return port;
 }
 
@@ -162,30 +261,56 @@ async function createWindow(port: number) {
   await win.loadURL(origin);
 }
 
-function showStartupError(err: Error) {
+function showStartupError(err: Error): 'retry' | 'quit' {
   splash?.close();
-  const versionMismatch = err instanceof DatabaseVersionMismatchError;
-  const hint = readConfig().databaseUrl
-    ? '\n\nLa connexion à PostgreSQL a échoué. Vérifiez que le serveur est démarré et que « databaseUrl » est correct dans le fichier de configuration.'
-    : '\n\nLa base de données intégrée n\'a pas pu démarrer. Fermez les autres fenêtres de l\'application et réessayez.';
-  const buttons = versionMismatch ? ['Ouvrir les sauvegardes', 'Quitter'] : ['Ouvrir le dossier de configuration', 'Quitter'];
+  const logger = getLogger();
+  const classified = classifyStartupError(err, `${apiLog}\n${logger.getTail()}`);
+  logger.log('STARTUP_ERROR', classified.userMessage, { technicalDetail: classified.technicalDetail });
+
+  const backupDir = path.join(app.getPath('userData'), 'backups');
+  const hasBackups = fs.existsSync(backupDir) && fs.readdirSync(backupDir).length > 0;
+
+  // Buttons: "Réessayer", "Ouvrir le dossier des journaux", "Copier les détails", "Ouvrir le dossier de configuration", "Quitter"
+  // (and optionally "Restaurer depuis une sauvegarde" if corrupt and backups exist)
+  const buttons: string[] = ['Réessayer', 'Ouvrir le dossier des journaux', 'Copier les détails', 'Ouvrir le dossier de configuration'];
+  if (classified.isVersionMismatch || (hasBackups && /corrompu|illisible/i.test(classified.userMessage))) {
+    buttons.push('Ouvrir les sauvegardes');
+  }
+  buttons.push('Quitter');
+
+  const quitId = buttons.length - 1;
   const choice = dialog.showMessageBoxSync({
     type: 'error',
     title: 'Démarrage impossible',
-    message: err.message + (versionMismatch ? '' : hint),
-    detail: apiLog.trim().split('\n').slice(-8).join('\n'),
+    message: classified.userMessage,
+    detail: `Détails techniques :\n${classified.technicalDetail}`,
     buttons,
-    defaultId: 1,
+    defaultId: 0,
+    cancelId: quitId,
   });
-  if (choice === 0) {
-    if (versionMismatch) {
-      const backupDirectory = path.join(app.getPath('userData'), 'backups');
-      fs.mkdirSync(backupDirectory, { recursive: true });
-      void shell.openPath(backupDirectory);
-    } else {
-      shell.showItemInFolder(ensureConfigFile());
-    }
+
+  const chosen = buttons[choice];
+  if (chosen === 'Réessayer') {
+    return 'retry';
+  } else if (chosen === 'Ouvrir le dossier des journaux') {
+    const logsDirectory = path.join(app.getPath('userData'), 'logs');
+    fs.mkdirSync(logsDirectory, { recursive: true });
+    void shell.openPath(logsDirectory);
+    return 'quit';
+  } else if (chosen === 'Copier les détails') {
+    const { clipboard } = require('electron');
+    clipboard.writeText(`${classified.userMessage}\n\n${classified.technicalDetail}`);
+    return 'quit';
+  } else if (chosen === 'Ouvrir le dossier de configuration') {
+    shell.showItemInFolder(ensureConfigFile());
+    return 'quit';
+  } else if (chosen === 'Ouvrir les sauvegardes') {
+    fs.mkdirSync(backupDir, { recursive: true });
+    void shell.openPath(backupDir);
+    return 'quit';
   }
+
+  return 'quit';
 }
 
 function assertNoIpcArguments(args: unknown[]) {
@@ -222,17 +347,35 @@ ipcMain.handle('install-update', async (_event, ...args: unknown[]) => {
 
 if (process.platform === 'win32') app.setAppUserModelId('tn.enis.timetable');
 
-if (!app.requestSingleInstanceLock()) {
-  app.quit();
-} else {
-  app.on('second-instance', () => { if (win) { if (win.isMinimized()) win.restore(); win.focus(); } });
+// Single instance locking with waiting support if previous instance is closing
+let gotLock = app.requestSingleInstanceLock();
+if (!gotLock) {
+  // Check for a few seconds if the lock frees up (previous instance quitting)
+  const startTime = Date.now();
+  while (!gotLock && Date.now() - startTime < 3500) {
+    const sleep = (ms: number) => {
+      const buf = new Int32Array(new SharedArrayBuffer(4));
+      Atomics.wait(buf, 0, 0, ms);
+    };
+    sleep(300);
+    gotLock = app.requestSingleInstanceLock();
+  }
 }
 
-app.whenReady().then(async () => {
-  if (!app.hasSingleInstanceLock()) return;
-  showSplash();
-  const userDataPath = app.getPath('userData');
-  backupWarning = backupBeforeUpgrade(userDataPath, app.getVersion(), logUpdate).warning;
+if (!gotLock) {
+  // A second instance exits quietly without any error dialog
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    if (win) {
+      if (win.isMinimized()) win.restore();
+      win.focus();
+    }
+  });
+}
+
+function initServicesOnce() {
+  if (updaterService) return;
   const platformCanUpdate = process.platform === 'win32' || (process.platform === 'linux' && Boolean(process.env.APPIMAGE));
   autoUpdater.logger = {
     info: (message?: unknown) => logUpdate(`INFO ${String(message ?? '')}`),
@@ -309,8 +452,17 @@ app.whenReady().then(async () => {
         });
     },
   })));
+}
+
+async function boot(): Promise<void> {
+  showSplash();
+  initServicesOnce();
+  const userDataPath = app.getPath('userData');
+  backupWarning = backupBeforeUpgrade(userDataPath, app.getVersion(), logUpdate).warning;
+
   try {
-    await createWindow(await startApi());
+    const port = await startApi();
+    await createWindow(port);
     if (backupWarning) {
       void dialog.showMessageBox(win!, {
         type: 'warning',
@@ -320,9 +472,25 @@ app.whenReady().then(async () => {
       }).catch((error: unknown) => logUpdate(`Impossible d’afficher l’avertissement de sauvegarde: ${String(error)}`));
     }
   } catch (e) {
-    showStartupError(e instanceof Error ? e : new Error(String(e)));
-    app.quit();
+    const decision = showStartupError(e instanceof Error ? e : new Error(String(e)));
+    if (decision === 'retry') {
+      try {
+        await stopServices();
+      } catch (stopErr) {
+        getLogger().log('STOP_FAIL', `Échec du nettoyage avant réessai: ${String(stopErr)}`);
+      }
+      servicesStopped = false;
+      shutdownPromise = null;
+      void boot();
+    } else {
+      app.quit();
+    }
   }
+}
+
+app.whenReady().then(async () => {
+  if (!app.hasSingleInstanceLock()) return;
+  await boot();
 });
 
 app.on('window-all-closed', () => app.quit());
@@ -361,6 +529,8 @@ async function saveGuideAsPdf() {
 function stopServices(): Promise<void> {
   if (shutdownPromise) return shutdownPromise;
   const attempt = (async () => {
+    const logger = getLogger();
+    logger.log('SHUTDOWN', 'Arrêt des services...');
     const child = api;
     if (child && child.exitCode === null && child.signalCode === null) {
       await new Promise<void>((resolve, reject) => {
@@ -398,7 +568,12 @@ function stopServices(): Promise<void> {
 
     if (db) {
       const activeDatabase = db;
-      await activeDatabase.stop();
+      try {
+        await activeDatabase.stop();
+        logger.log('SHUTDOWN', 'Base de données arrêtée proprement.');
+      } catch (err) {
+        logger.log('SHUTDOWN_ERR', `Erreur lors de l’arrêt de la base de données: ${String(err)}`);
+      }
       db = null;
     }
     servicesStopped = true;
@@ -435,5 +610,17 @@ app.on('will-quit', (event) => {
       logUpdate(`Impossible d’afficher les options d’arrêt: ${String(dialogError)}; arrêt forcé.`);
       app.exit(1);
     });
+  });
+});
+
+process.on('uncaughtException', (error) => {
+  getLogger().log('UNCAUGHT', `Exception non interceptée: ${String(error)}`, { stack: error?.stack });
+  void stopServices().finally(() => process.exit(1));
+});
+
+process.on('unhandledRejection', (reason) => {
+  getLogger().log('UNHANDLED_REJECTION', `Promesse rejetée non interceptée: ${String(reason)}`);
+  void stopServices().finally(() => {
+    app.exit(1);
   });
 });

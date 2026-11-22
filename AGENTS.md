@@ -101,6 +101,7 @@ Test commands:
 - When a UI label or user-visible behaviour changes, update `docs/guide-utilisateur.fr.md` and run `npm run guide:screenshots` (requires Playwright Chromium, LibreOffice Writer, and Poppler `pdftoppm`; see the README's “Documentation utilisateur” section).
 - **DO** keep HTTP and DB listeners strictly bound to `127.0.0.1`.
 - **DO** write pure, deterministic functions in parser and export modules.
+- **DO** ensure database bootstrap is idempotent; never delete the data folder automatically; only one desktop app instance may run against a given data folder.
 - **DO** ask before introducing new dependencies or changing package versions.
 - **DO** preserve French terminology in timetable entities, exports, and UI strings.
 - **DON'T** modify generated directories (`dist/`, `out/`, `.next/`, `stage/`, `release/`, `test-output/`).
