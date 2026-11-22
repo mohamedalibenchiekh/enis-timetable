@@ -14,15 +14,18 @@ export class SystemProcessInspector implements ProcessInspector {
     if (pid <= 0) return false;
     try {
       process.kill(pid, 0);
-      // On Linux, a zombie process is already dead and cannot run or hold locks
-      if (process.platform === 'linux' && fs.existsSync(`/proc/${pid}/status`)) {
+      // On Linux, a zombie process is already dead and cannot run or hold locks.
+      // Fail closed on read errors: if we cannot confirm the state, treat the
+      // process as alive (process.kill(pid, 0) already proved it exists).
+      if (process.platform === 'linux') {
         try {
           const status = fs.readFileSync(`/proc/${pid}/status`, 'utf8');
           if (/State:\s+Z/i.test(status)) {
             return false;
           }
         } catch {
-          return false;
+          // /proc/<pid>/status unreadable (race, EPERM, etc.) — we cannot
+          // confirm the process is gone, so keep it alive per fail-closed policy.
         }
       }
       return true;
