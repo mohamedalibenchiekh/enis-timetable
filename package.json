@@ -30,7 +30,7 @@
     "typeorm": "^1.1.3",
     "@playwright/test": "^1.65.1",
     "markdown-it": "^15.0.3",
-    "path-scurry": "^1.11.1",
+    "path-scurry": "^3.0.0",
     "sharp": "^0.35.5"
   }
 }
