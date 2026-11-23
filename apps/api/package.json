@@ -34,7 +34,7 @@
     "@nestjs/testing": "^12.6.0",
     "@types/express": "^5.0.0",
     "@types/node": "^26.6.6",
-    "@types/pixelmatch": "^5.2.6",
+    "@types/pixelmatch": "^7.1.0",
     "@types/pngjs": "^6.0.5",
     "@types/supertest": "^7.2.1",
     "@vitest/coverage-v8": "^5.1.1",
