@@ -23,7 +23,7 @@
     "@types/node": "^26.6.6",
     "electron": "45.4.1",
     "electron-builder": "^26.18.0",
-    "typescript": "^6.0.0"
+    "typescript": "^7.0.2"
   },
   "build": {
     "appId": "tn.enis.timetable",
