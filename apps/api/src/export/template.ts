@@ -10,6 +10,7 @@ export interface CellFields {
   subjectCode: string;
   subject: string;
   frequency: string;
+  program: string;
 }
 
 // Punctuation separators that may dangle around an empty token. Whitespace is

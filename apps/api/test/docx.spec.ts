@@ -56,4 +56,41 @@ describe('Word documents', () => {
     }
     expect(names).toEqual(['Lundi.docx', 'Mardi.docx', 'Mercredi.docx', 'Jeudi.docx', 'Vendredi.docx', 'Samedi.docx']);
   });
+
+  it('emits unassigned master sessions section in DOCX when includeMasters is true', async () => {
+    const unassignedMaster = {
+      day: 0,
+      slot: 1,
+      slotSpan: 2,
+      programCode: 'GT-M1',
+      title: 'Séance Sans Salle',
+      teachers: ['Professeur Inconnu'],
+      room: null,
+      roomUnassigned: true,
+    };
+    const options = { ...DEFAULT_OPTIONS, includeMasters: true };
+    const grid = buildDayGrid(
+      parsed.sessions,
+      meta,
+      0,
+      options,
+      undefined,
+      [unassignedMaster],
+    );
+
+    expect(grid.unassignedSessions).toBeDefined();
+    expect(grid.unassignedSessions).toHaveLength(1);
+
+    const buffer = await buildDayDocx(grid, options);
+    const zip = await JSZip.loadAsync(buffer);
+    const xml = await zip.file('word/document.xml')?.async('string');
+    expect(xml).toBeDefined();
+
+    const $ = cheerio.load(xml!, { xmlMode: true });
+    const text = $('*').text();
+    expect(text).toContain('Salles à attribuer');
+    expect(text).toContain('GT-M1');
+    expect(text).toContain('Séance Sans Salle');
+    expect(text).toContain('Professeur Inconnu');
+  });
 });

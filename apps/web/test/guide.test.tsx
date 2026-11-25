@@ -161,6 +161,23 @@ describe('guide drift protection', () => {
       'Séance ': 'Session payload validation; reanalyze the source file and correct the highlighted session.',
       'Les noms de l’alias sont invalides': 'Alias validation; use nonempty names of at most 255 characters.',
       'Libellé de créneau illisible': 'The parser exception is caught by normalizeProgramSlots; users see its French fallback warning with the affected slot number.',
+      'Jour ou créneau invalide': 'Grid coordinate validation; day and slot must be within 0..5.',
+      'Corps de requête invalide': 'HTTP payload validation; body cannot be empty.',
+      'La révision attendue (expectedRevision) est obligatoire': 'Optimistic concurrency locking requires expected revision number.',
+      'Jour ou créneau de déplacement invalide': 'Grid destination coordinate validation for session move.',
+      'La séance dépasse les limites de la grille': 'Span boundary validation; slot + slotSpan cannot exceed 6.',
+      'Opération batch inconnue': 'Batch operation type validation; supported ops are create, update, delete, move.',
+      'Chevauchement de séances dans le programme à la case': 'Internal overlap prevention; two sessions in the same program cannot collide.',
+      'La salle ': 'Occupancy engine room double booking conflict message.',
+      "L'enseignant(e)": 'Occupancy engine teacher double booking conflict message.',
+      'Salle à rechercher pour la séance': 'Occupancy engine placeholder room to find info message.',
+      'Aucune salle affectée pour la séance': 'Occupancy engine missing room warning message.',
+      'Salle hors FET « ': 'Occupancy engine non-FET room informational message.',
+      'Révision orpheline : programme': 'Backup restore validation; reject revision pointing to a missing program in archive.',
+      'Le numéro de révision valide est obligatoire': 'Program controller validation; strict positive integer revision number check.',
+      'L’import initial ne contient aucun instantané de séances': 'Program service revert guard; initial revision snapshot must contain sessions.',
+      'slotSpan dépasse les limites de la grille': 'Occupancy controller grid boundary check; slot + slotSpan cannot exceed 6.',
+      'daySpan dépasse les limites de la grille': 'Occupancy controller grid boundary check; day + daySpan cannot exceed 6.',
     };
     const sources = ['apps/api/src', 'apps/desktop/src'].flatMap((directory) => {
       const walk = (current: string): string[] => fs.readdirSync(path.join(root, current), { withFileTypes: true })

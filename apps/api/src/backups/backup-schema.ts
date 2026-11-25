@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { getMetadataArgsStorage } from 'typeorm';
 import { BackupCounts, BackupManifest } from './backup-types.js';
 
-export const BACKUP_SCHEMA_VERSION = 5;
+export const BACKUP_SCHEMA_VERSION = 6;
 export const BACKUP_FORMAT_VERSION = 1;
 
 export const BACKUP_TABLES = [
@@ -17,6 +17,7 @@ export const BACKUP_TABLES = [
   'program_sessions',
   'teacher_aliases',
   'room_aliases',
+  'program_revisions',
 ] as const;
 
 export type BackupTableName = (typeof BACKUP_TABLES)[number];
@@ -36,6 +37,7 @@ export interface BackupData {
   program_sessions: any[];
   teacher_aliases: any[];
   room_aliases: any[];
+  program_revisions: any[];
 }
 
 export type SchemaUpgrader = (data: BackupData) => BackupData;
@@ -67,6 +69,10 @@ export const SCHEMA_UPGRADERS: Record<number, SchemaUpgrader> = {
       ...program,
       version: String(program.version ?? '1'),
     })),
+  }),
+  5: (data) => ({
+    ...data,
+    program_revisions: data.program_revisions ?? [],
   }),
 };
 
@@ -305,6 +311,22 @@ export function validateRow(table: BackupTableName, row: unknown, index: number)
       return r;
     case 'room_aliases':
       if (typeof r.id !== 'number' || !Number.isInteger(r.id) || typeof r.aliasKey !== 'string' || typeof r.canonicalName !== 'string' || typeof r.aliasName !== 'string') throw new ValidationError(`Ligne ${index + 1} de « room_aliases » invalide.`);
+      return r;
+    case 'program_revisions':
+      if (
+        typeof r.id !== 'number' ||
+        typeof r.programId !== 'string' ||
+        !UUID_REGEX.test(r.programId) ||
+        !Number.isInteger(r.revision) ||
+        r.revision < 1 ||
+        typeof r.snapshot !== 'object' ||
+        r.snapshot === null ||
+        Array.isArray(r.snapshot) ||
+        typeof r.createdAt !== 'string' ||
+        Number.isNaN(Date.parse(r.createdAt))
+      ) {
+        throw new ValidationError(`Ligne ${index + 1} de « program_revisions » invalide.`);
+      }
       return r;
 
     default: {

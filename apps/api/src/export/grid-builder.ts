@@ -4,6 +4,7 @@ import { ExportOptions } from './options.js';
 import { createNameResolver, NameResolver } from './name-resolver.js';
 import { formatTeacher, roomLabel } from './formatters.js';
 import { CellFields, isLegacyTemplate, joinGroups, renderTemplate, subjectDisplay } from './template.js';
+import { normalizeText, resolveCanonicalRoom } from '../occupancy/normalization.js';
 
 export { formatTeacher, roomLabel } from './formatters.js';
 
@@ -43,6 +44,31 @@ export interface DayPage {
   blocs: number[];
 }
 
+export interface UnassignedGridSession {
+  slot: number;
+  slotSpan: number;
+  programCode: string;
+  title: string;
+  teachers: string;
+}
+
+export interface MasterGridSession {
+  id?: string;
+  programCode: string;
+  day: number;
+  slot: number;
+  slotSpan?: number;
+  daySpan?: number;
+  title: string;
+  code?: string;
+  teachers: string[];
+  room: string | null;
+  canonicalRoom?: string | null;
+  roomUnassigned?: boolean;
+  customTime?: string | null;
+  frequency?: string;
+}
+
 export interface DayGrid {
   day: number;
   dayName: string;
@@ -52,6 +78,8 @@ export interface DayGrid {
   sessionCount: number;
   /** Page groups — present only when more than one page is configured. */
   pages?: DayPage[];
+  /** Sessions with no assigned room to be printed in the final section. */
+  unassignedSessions?: UnassignedGridSession[];
 }
 
 const naturalCmp = (a: string, b: string) => a.localeCompare(b, 'fr', { numeric: true, sensitivity: 'base' });
@@ -76,6 +104,7 @@ function cellFields(s: GridSession, options: ExportOptions, resolver: NameResolv
     subjectCode: s.subjectCode,
     subject: subjectDisplay({ subjectCode: s.subjectCode, subject: s.subject }, options),
     frequency: options.showFrequency && s.frequency ? s.frequency : '',
+    program: '',
   };
 }
 
@@ -85,11 +114,35 @@ export function buildDayGrid(
   day: number,
   options: ExportOptions,
   nameResolver: NameResolver = createNameResolver(new Map(), new Map()),
+  masterSessions: MasterGridSession[] = [],
+  conflicts: Array<{ day: number; slot: number; resource: string; type?: string }> = [],
 ): DayGrid {
   const nSlots = meta.slots.length;
   const daySessions = sessions.filter((s) => s.day === day && s.room);
   const key = (room: string) => clean(room).toLowerCase();
   const legacyCells = isLegacyTemplate(options.cellTemplate);
+  const unassignedSessions: UnassignedGridSession[] = [];
+
+  const checkConflict = (room: string, slot: number, sessionTeachers?: string[]) => {
+    if (!options.highlightConflicts) return false;
+    const rCanon = resolveCanonicalRoom(room).canonicalRoom ?? clean(room);
+    const rNorm = normalizeText(rCanon);
+
+    return conflicts.some((c) => {
+      if (c.day !== day || c.slot !== slot) return false;
+      if (c.type === 'room_double_booked' || c.type === 'room_unknown' || c.type === 'room_missing') {
+        const cCanon = resolveCanonicalRoom(c.resource).canonicalRoom ?? clean(c.resource);
+        return normalizeText(cCanon) === rNorm;
+      }
+      if (c.type === 'teacher_double_booked') {
+        const tCanon = normalizeText(c.resource);
+        if (sessionTeachers && sessionTeachers.some((t) => normalizeText(t) === tCanon)) return true;
+        const resCanon = resolveCanonicalRoom(c.resource).canonicalRoom ?? clean(c.resource);
+        return normalizeText(resCanon) === rNorm;
+      }
+      return false;
+    });
+  };
 
   // ----- cell content ------------------------------------------------------------------------
   // cellMap: `${room}|${slot}` → rendered entries (one per session, deduplicated).
@@ -97,20 +150,80 @@ export function buildDayGrid(
   for (const s of daySessions) {
     const k = `${key(s.room)}|${s.slot}`;
     const list = cellMap.get(k) ?? [];
+    const tList = s.teachers ? s.teachers.split(',').map((t) => t.trim()) : [];
+    const hasConflict = checkConflict(s.room, s.slot, tList);
+    const prefix = hasConflict ? '⚠ ' : '';
+
     if (legacyCells) {
       // Historical behaviour: one entry per (session, teacher), deduplicated, joined " / ".
       for (const t of s.teachers.split(',')) {
         const name = nameResolver.teacher(t, options.abbreviateBen);
         if (!name) continue;
-        const text = options.showFrequency && s.frequency ? `${name} ${s.frequency}` : name;
+        let text = options.showFrequency && s.frequency ? `${name} ${s.frequency}` : name;
+        if (hasConflict) text = `${prefix}${text}`;
         if (!list.some((e) => e.lines[0] === text)) list.push({ lines: [text] });
       }
     } else {
       const lines = renderTemplate(options.cellTemplate, cellFields(s, options, nameResolver));
+      if (hasConflict && lines.length > 0) lines[0] = `${prefix}${lines[0]}`;
       const text = lines.join('\n');
       if (text && !list.some((e) => e.lines.join('\n') === text)) list.push({ lines });
     }
     cellMap.set(k, list);
+  }
+
+  const additionalRooms: string[] = [];
+
+  // ----- master program sessions -------------------------------------------------------------
+  if (options.includeMasters && masterSessions.length > 0) {
+    for (const m of masterSessions) {
+      const dSpan = m.daySpan ?? 1;
+      if (day < m.day || day >= m.day + dSpan) continue;
+
+      if (m.roomUnassigned || !m.room || !m.room.trim()) {
+        unassignedSessions.push({
+          slot: m.slot,
+          slotSpan: m.slotSpan ?? 1,
+          programCode: m.programCode,
+          title: m.title || m.code || 'Séance mastère',
+          teachers: m.teachers.map((t) => nameResolver.teacher(t, options.abbreviateBen)).filter(Boolean).join(', '),
+        });
+        continue;
+      }
+
+      // Canonical room resolution
+      const canonRoom = resolveCanonicalRoom(m.room).canonicalRoom ?? clean(m.room);
+      additionalRooms.push(canonRoom);
+
+      const sSpan = m.slotSpan ?? 1;
+      for (let sl = m.slot; sl < Math.min(nSlots, m.slot + sSpan); sl++) {
+        const k = `${key(canonRoom)}|${sl}`;
+        const list = cellMap.get(k) ?? [];
+        const hasConflict = checkConflict(canonRoom, sl, m.teachers);
+        const prefix = hasConflict ? '⚠ ' : '';
+
+        const teacherPart = m.teachers.map((t) => nameResolver.teacher(t, options.abbreviateBen)).filter(Boolean).join(' / ');
+        if (legacyCells) {
+          const content = teacherPart ? `${teacherPart} (${m.programCode})` : m.programCode;
+          const text = `${prefix}${content}`;
+          if (!list.some((e) => e.lines[0] === text)) list.push({ lines: [text] });
+        } else {
+          const fields: CellFields = {
+            teacher: teacherPart,
+            group: '',
+            subjectCode: m.code ?? '',
+            subject: subjectDisplay({ subjectCode: m.code ?? '', subject: m.title }, options),
+            frequency: options.showFrequency && m.frequency ? m.frequency : '',
+            program: m.programCode,
+          };
+          const lines = renderTemplate(options.cellTemplate, fields);
+          if (hasConflict && lines.length > 0) lines[0] = `${prefix}${lines[0]}`;
+          const text = lines.join('\n');
+          if (text && !list.some((e) => e.lines.join('\n') === text)) list.push({ lines });
+        }
+        cellMap.set(k, list);
+      }
+    }
   }
 
   const cellText = (entries: CellSession[]): string =>
@@ -129,13 +242,23 @@ export function buildDayGrid(
   });
 
   // ----- rooms per bloc ----------------------------------------------------------------------
-  const allRooms = Array.from(new Set([...meta.rooms, ...daySessions.map((s) => clean(s.room))]));
+  const allRooms = Array.from(new Set([...meta.rooms, ...daySessions.map((s) => clean(s.room)), ...additionalRooms]));
   const used = new Set<string>();
   // Build blocs together with their configured page, then drop empty ones.
   const built: { bloc: BlocGrid; page: number }[] = options.blocs.map((b) => {
     const regs = b.patterns.map((p) => new RegExp(p, 'i'));
     // Order: first by the pattern that matched (so "Amphi" can follow the numbered rooms), then naturally.
-    const rank = (r: string) => regs.findIndex((re) => re.test(r));
+    const rank = (r: string) => {
+      const idx = regs.findIndex((re) => re.test(r));
+      if (idx >= 0) return idx;
+      if (options.includeMasters && (r === 'PAQ/DGSE' || r.includes('PAQ') || r.includes('DGSE'))) {
+        // Place PAQ/DGSE in Bloc R if available, or in the last bloc
+        if (b.id === 'bloc-r' || b.patterns.some((p) => /R/i.test(p)) || b.title.includes('R')) {
+          return 999;
+        }
+      }
+      return -1;
+    };
     const rooms = allRooms
       .filter((r) => rank(r) >= 0 && !used.has(key(r)))
       .sort((a, b2) => rank(a) - rank(b2) || naturalCmp(a, b2));
@@ -143,9 +266,13 @@ export function buildDayGrid(
     const rows: RoomRow[] = rooms
       .map((room) => {
         const slotEntries = Array.from({ length: nSlots }, (_, i) => cellMap.get(`${key(room)}|${i}`) ?? []);
+        let label = nameResolver.room(room);
+        if (room === 'PAQ/DGSE' && label === 'PAQ/DGSE') {
+          label = 'Salle PAQ/DGSE';
+        }
         const row: RoomRow = {
           room,
-          label: nameResolver.room(room),
+          label,
           cells: slotEntries.map(cellText),
         };
         if (!legacyCells) row.details = slotEntries;
@@ -173,12 +300,20 @@ export function buildDayGrid(
     }));
   }
 
-  return {
+  const grid: DayGrid = {
     day,
     dayName: meta.days[day] ?? `Jour ${day + 1}`,
     headers,
     blocs,
-    sessionCount: daySessions.length,
+    sessionCount:
+      daySessions.length +
+      (options.includeMasters
+        ? masterSessions.filter((m) => day >= m.day && day < m.day + (m.daySpan ?? 1)).length
+        : 0),
     pages,
   };
+  if (unassignedSessions.length > 0) {
+    grid.unassignedSessions = unassignedSessions;
+  }
+  return grid;
 }

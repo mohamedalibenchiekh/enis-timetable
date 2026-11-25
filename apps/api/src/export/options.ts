@@ -45,6 +45,10 @@ export interface ExportOptions {
   repeatDayHeader: boolean;
   /** Show a bold page title (bloc titles) above each page table. */
   showPageTitle: boolean;
+  /** Include master programs sessions in the rooms export. */
+  includeMasters: boolean;
+  /** Prepend "⚠" to cell contents when a conflict is detected. */
+  highlightConflicts: boolean;
 }
 
 /** Template used by the default preset — reproduces the historical cell content exactly. */
@@ -85,6 +89,8 @@ export const DEFAULT_OPTIONS: ExportOptions = {
   orientation: 'portrait',
   repeatDayHeader: true,
   showPageTitle: false,
+  includeMasters: false,
+  highlightConflicts: false,
 };
 
 // ---------------------------------------------------------------------------
@@ -97,7 +103,7 @@ export const MAX_TITLE_LENGTH = 80;
 export const MAX_NAME_LENGTH = 60;
 export const MAX_PAGES = 50;
 
-export const CELL_TOKENS = ['teacher', 'group', 'subjectCode', 'subject', 'frequency'] as const;
+export const CELL_TOKENS = ['teacher', 'group', 'subjectCode', 'subject', 'frequency', 'program'] as const;
 export type CellToken = (typeof CELL_TOKENS)[number];
 
 const TOKEN_RE = /\{([^{}]*)\}/g;
@@ -261,6 +267,8 @@ export function normalizeOptions(raw: unknown, strict = false): ExportOptions {
     orientation: strict ? strictOneOf(src, 'orientation', ['portrait', 'landscape'] as const, DEFAULT_OPTIONS.orientation) : oneOf(src.orientation, ['portrait', 'landscape'] as const, DEFAULT_OPTIONS.orientation),
     repeatDayHeader: strict ? strictBool(src, 'repeatDayHeader', DEFAULT_OPTIONS.repeatDayHeader) : bool(src.repeatDayHeader, DEFAULT_OPTIONS.repeatDayHeader),
     showPageTitle: strict ? strictBool(src, 'showPageTitle', DEFAULT_OPTIONS.showPageTitle) : bool(src.showPageTitle, DEFAULT_OPTIONS.showPageTitle),
+    includeMasters: strict ? strictBool(src, 'includeMasters', DEFAULT_OPTIONS.includeMasters) : bool(src.includeMasters, DEFAULT_OPTIONS.includeMasters),
+    highlightConflicts: strict ? strictBool(src, 'highlightConflicts', DEFAULT_OPTIONS.highlightConflicts) : bool(src.highlightConflicts, DEFAULT_OPTIONS.highlightConflicts),
   };
 }
 

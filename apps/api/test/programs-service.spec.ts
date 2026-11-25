@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { DataSource, Repository } from 'typeorm';
-import { KnownRoom, Program, ProgramSessionEntity, ProgramSlotEntity, RoomAlias, SessionEntity, TeacherAlias } from '../src/entities/timetable.entity.js';
+import { KnownRoom, Program, ProgramRevision, ProgramSessionEntity, ProgramSlotEntity, RoomAlias, SessionEntity, TeacherAlias, Timetable } from '../src/entities/timetable.entity.js';
 import { vi } from 'vitest';
 import type { ProgramAnalysis } from '../src/masters/types.js';
 
@@ -60,8 +60,32 @@ describe('ProgramsService save modes', () => {
         return { affected: 1 };
       },
     };
+    const storedRevisions: any[] = [];
+    const revisionRepo = {
+      create: (value: any) => value,
+      save: async (value: any) => {
+        const item = { ...value, id: value.id ?? `rev-${++sequence}` };
+        storedRevisions.push(item);
+        return item;
+      },
+      delete: async (criteria: any) => {
+        let deletedCount = 0;
+        for (let index = storedRevisions.length - 1; index >= 0; index--) {
+          if (Object.entries(criteria).every(([key, value]) => storedRevisions[index][key] === value)) {
+            storedRevisions.splice(index, 1);
+            deletedCount++;
+          }
+        }
+        return { affected: deletedCount };
+      },
+      find: async () => [...storedRevisions],
+      findOneBy: async (criteria: any) =>
+        storedRevisions.find((r) => Object.entries(criteria).every(([k, v]) => r[k] === v)) ?? null,
+      query: async () => [],
+    };
     const manager = {
-      getRepository: (entity: unknown) => entity === Program ? programRepo : entity === ProgramSlotEntity ? slotRepo : sessionRepo,
+      getRepository: (entity: unknown) =>
+        entity === Program ? programRepo : entity === ProgramSlotEntity ? slotRepo : entity === ProgramRevision ? revisionRepo : sessionRepo,
       query: async () => [{ revision: Math.max(0, ...programs.map((row) => row.revision)) }],
     };
     const dataSource = { transaction: async (work: (transactionManager: typeof manager) => Promise<unknown>) => work(manager) };
@@ -70,7 +94,12 @@ describe('ProgramsService save modes', () => {
       programRepo as unknown as Repository<Program>,
       slotRepo as unknown as Repository<ProgramSlotEntity>,
       sessionRepo as unknown as Repository<ProgramSessionEntity>,
-      emptyRepo as unknown as Repository<RoomAlias>, emptyRepo as unknown as Repository<TeacherAlias>, emptyRepo as unknown as Repository<SessionEntity>, emptyRepo as unknown as Repository<KnownRoom>,
+      revisionRepo as unknown as Repository<ProgramRevision>,
+      emptyRepo as unknown as Repository<RoomAlias>,
+      emptyRepo as unknown as Repository<TeacherAlias>,
+      emptyRepo as unknown as Repository<SessionEntity>,
+      emptyRepo as unknown as Repository<Timetable>,
+      emptyRepo as unknown as Repository<KnownRoom>,
       dataSource as unknown as DataSource,
     );
     const analysis: ProgramAnalysis = {
@@ -106,5 +135,7 @@ describe('ProgramsService save modes', () => {
     expect(sessions.find((session) => session.programId === current.id)?.id).not.toBe(currentSession.id);
     expect(slots.filter((slot) => slot.programId === current.id)).toHaveLength(6);
     expect(slots.find((slot) => slot.programId === current.id)?.id).not.toBe(currentSlots[0].id);
+    expect(storedRevisions.filter((r) => r.programId === current.id && r.revision === 2)).toHaveLength(1);
+    expect(storedRevisions.some((r) => r.programId === current.id && r.revision === 2 && r.description.includes('Remplacement'))).toBe(true);
   });
 });

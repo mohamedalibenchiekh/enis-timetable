@@ -38,7 +38,7 @@ export class BackupCreator {
         teacher_names: 0,
         room_labels: 0,
         known_rooms: 0,
-        programs: 0, program_slots: 0, program_sessions: 0, teacher_aliases: 0, room_aliases: 0,
+        programs: 0, program_slots: 0, program_sessions: 0, teacher_aliases: 0, room_aliases: 0, program_revisions: 0,
       };
       const sha256: Record<string, string> = {};
       const dataFiles: Record<string, Buffer> = {};
@@ -143,6 +143,7 @@ export class BackupCreator {
       case 'program_sessions': return em.query('SELECT * FROM program_sessions ORDER BY "programId" ASC, day ASC, slot ASC, id ASC');
       case 'teacher_aliases': return em.query('SELECT * FROM teacher_aliases ORDER BY id ASC');
       case 'room_aliases': return em.query('SELECT * FROM room_aliases ORDER BY id ASC');
+      case 'program_revisions': return em.query('SELECT * FROM program_revisions ORDER BY "programId" ASC, revision ASC');
       default: {
         const exhaustive: never = table;
         throw new Error(`Table non gérée : ${exhaustive}`);

@@ -1,4 +1,21 @@
-import { BadRequestException, Body, CallHandler, Controller, Delete, ExecutionContext, Get, NestInterceptor, Param, ParseIntPipe, ParseUUIDPipe, Post, UploadedFiles, UseInterceptors } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  CallHandler,
+  Controller,
+  Delete,
+  ExecutionContext,
+  Get,
+  NestInterceptor,
+  Param,
+  ParseIntPipe,
+  ParseUUIDPipe,
+  Post,
+  Put,
+  Query,
+  UploadedFiles,
+  UseInterceptors,
+} from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { catchError, throwError } from 'rxjs';
 import { Readable } from 'node:stream';
@@ -61,28 +78,149 @@ export class ProgramsController {
   constructor(private readonly service: ProgramsService) {}
 
   @Post('analyze')
-  @UseInterceptors(FrenchUploadLimitInterceptor, FilesInterceptor('files', MAX_FILES, { storage: aggregateMemoryStorage, limits: { fileSize: MAX_FILE_BYTES, files: MAX_FILES, parts: MAX_FILES + 3 } }))
-  analyze(@UploadedFiles() files: { originalname: string; buffer: Buffer; size: number }[], @Body() body: { referenceSlots?: string; referenceTimetableId?: string; referenceOverrides?: string }) {
+  @UseInterceptors(
+    FrenchUploadLimitInterceptor,
+    FilesInterceptor('files', MAX_FILES, {
+      storage: aggregateMemoryStorage,
+      limits: { fileSize: MAX_FILE_BYTES, files: MAX_FILES, parts: MAX_FILES + 3 },
+    }),
+  )
+  analyze(
+    @UploadedFiles() files: { originalname: string; buffer: Buffer; size: number }[],
+    @Body() body: { referenceSlots?: string; referenceTimetableId?: string; referenceOverrides?: string },
+  ) {
     let slots: string[] | undefined;
     if (body?.referenceSlots) {
       try { slots = JSON.parse(body.referenceSlots) as string[]; }
       catch { throw new BadRequestException('Créneaux de référence invalides.'); }
-      if (!Array.isArray(slots) || slots.length !== 6 || slots.some((slot) => typeof slot !== 'string' || slot.length > 80)) throw new BadRequestException('Six créneaux de référence sont attendus (80 caractères maximum chacun).');
+      if (!Array.isArray(slots) || slots.length !== 6 || slots.some((slot) => typeof slot !== 'string' || slot.length > 80)) {
+        throw new BadRequestException('Six créneaux de référence sont attendus (80 caractères maximum chacun).');
+      }
     }
     let overrides: Record<number, Record<number, string>> | undefined;
     if (body?.referenceOverrides) {
       try { overrides = JSON.parse(body.referenceOverrides) as Record<number, Record<number, string>>; }
       catch { throw new BadRequestException('Surcharges de créneaux de référence invalides.'); }
-      if (!overrides || typeof overrides !== 'object' || Array.isArray(overrides) || Object.entries(overrides).some(([index, value]) => !/^[0-5]$/u.test(index) || !value || typeof value !== 'object' || Array.isArray(value) || Object.entries(value).some(([day, label]) => !/^[0-5]$/u.test(day) || typeof label !== 'string' || label.length > 80))) throw new BadRequestException('Surcharges de créneaux de référence invalides.');
+      if (!overrides || typeof overrides !== 'object' || Array.isArray(overrides) || Object.entries(overrides).some(([index, value]) => !/^[0-5]$/u.test(index) || !value || typeof value !== 'object' || Array.isArray(value) || Object.entries(value).some(([day, label]) => !/^[0-5]$/u.test(day) || typeof label !== 'string' || label.length > 80))) {
+        throw new BadRequestException('Surcharges de créneaux de référence invalides.');
+      }
     }
     return this.service.analyze(files, slots, body?.referenceTimetableId, overrides);
   }
 
-  @Post() save(@Body() body: unknown) { return this.service.save(body); }
-  @Get() list() { return this.service.list(); }
-  @Get('aliases') aliases() { return this.service.listAliases(); }
-  @Post('aliases') saveAlias(@Body() body: unknown) { return this.service.saveAlias(body); }
-  @Delete('aliases/:kind/:id') deleteAlias(@Param('kind') kind: string, @Param('id', ParseIntPipe) id: number) { return this.service.deleteAlias(kind, id); }
-  @Get(':id') get(@Param('id', ParseUUIDPipe) id: string) { return this.service.get(id); }
-  @Delete(':id') remove(@Param('id', ParseUUIDPipe) id: string) { return this.service.remove(id); }
+  @Post()
+  save(@Body() body: unknown) {
+    return this.service.save(body);
+  }
+
+  @Get()
+  list() {
+    return this.service.list();
+  }
+
+  @Get('aliases')
+  aliases() {
+    return this.service.listAliases();
+  }
+
+  @Post('aliases')
+  saveAlias(@Body() body: unknown) {
+    return this.service.saveAlias(body);
+  }
+
+  @Delete('aliases/:kind/:id')
+  deleteAlias(@Param('kind') kind: string, @Param('id', ParseIntPipe) id: number) {
+    return this.service.deleteAlias(kind, id);
+  }
+
+  @Get(':id/conflicts')
+  getConflicts(@Param('id', ParseUUIDPipe) id: string, @Query('against') against?: string) {
+    return this.service.getConflicts(id, against);
+  }
+
+  @Get(':id/sessions/:sid/suggestions')
+  getSuggestions(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('sid', ParseUUIDPipe) sid: string,
+    @Query('against') against?: string,
+  ) {
+    return this.service.getSessionSuggestions(id, sid, against);
+  }
+
+  @Post(':id/sessions')
+  createSession(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: { expectedRevision?: number; session?: unknown },
+  ) {
+    return this.service.createSession(id, body);
+  }
+
+  @Put(':id/sessions/:sid')
+  updateSession(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('sid', ParseUUIDPipe) sid: string,
+    @Body() body: { expectedRevision?: number; session?: unknown },
+  ) {
+    return this.service.updateSession(id, sid, body);
+  }
+
+  @Delete(':id/sessions/:sid')
+  deleteSession(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('sid', ParseUUIDPipe) sid: string,
+    @Query('expectedRevision') expectedRevision?: string,
+  ) {
+    const expRev = expectedRevision ? parseInt(expectedRevision, 10) : undefined;
+    return this.service.deleteSession(id, sid, expRev);
+  }
+
+  @Post(':id/sessions/batch')
+  batchSessions(@Param('id', ParseUUIDPipe) id: string, @Body() body: unknown) {
+    return this.service.batchSessions(id, body);
+  }
+
+  @Post(':id/revert')
+  revert(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Query('expectedRevision') expectedRevision?: string,
+  ) {
+    const expRev = expectedRevision ? parseInt(expectedRevision, 10) : undefined;
+    return this.service.revert(id, expRev);
+  }
+
+  @Get(':id/revisions')
+  listRevisions(@Param('id', ParseUUIDPipe) id: string) {
+    return this.service.listRevisions(id);
+  }
+
+  @Post(':id/revisions/:revision/restore')
+  restoreRevision(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('revision', ParseIntPipe) revision: number,
+    @Query('expectedRevision') expectedRevision?: string,
+  ) {
+    const expRev = expectedRevision ? parseInt(expectedRevision, 10) : undefined;
+    return this.service.restoreRevision(id, revision, expRev);
+  }
+
+  @Post(':id/restore')
+  restoreRevisionFromBody(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: { revision: number; expectedRevision?: number },
+  ) {
+    if (!body || typeof body.revision !== 'number' || !Number.isInteger(body.revision) || body.revision < 1) {
+      throw new BadRequestException('Le numéro de révision valide est obligatoire.');
+    }
+    return this.service.restoreRevision(id, body.revision, body.expectedRevision);
+  }
+
+  @Get(':id')
+  get(@Param('id', ParseUUIDPipe) id: string) {
+    return this.service.get(id);
+  }
+
+  @Delete(':id')
+  remove(@Param('id', ParseUUIDPipe) id: string) {
+    return this.service.remove(id);
+  }
 }

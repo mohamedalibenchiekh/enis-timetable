@@ -12,6 +12,7 @@ export interface BackupCounts {
   program_sessions?: number;
   teacher_aliases?: number;
   room_aliases?: number;
+  program_revisions?: number;
 }
 
 export interface BackupManifest {

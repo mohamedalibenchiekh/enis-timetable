@@ -21,7 +21,7 @@ const meta = {
   slots: ['08:00-09:30', '11:30-13:00', '14:30-16:00', '12:00-13:30'].map(parseSlotLabel),
   rooms: ['A01', 'A02', 'B12', 'R01', 'Amphi'],
 };
-const fields = { teacher: 'Prof Dupont', group: 'G1', subjectCode: 'ALG', subject: 'Algorithmique', frequency: '1/15' };
+const fields = { teacher: 'Prof Dupont', group: 'G1', subjectCode: 'ALG', subject: 'Algorithmique', frequency: '1/15', program: '' };
 
 describe('template engine', () => {
   it('renders each token and splits lines on \\n', () => {

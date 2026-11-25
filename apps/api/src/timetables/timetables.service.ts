@@ -7,7 +7,7 @@ import JSZip from 'jszip';
 import { KnownRoom, SessionEntity, SourceFileInfo, Timetable } from '../entities/timetable.entity.js';
 import { detectKind, parseHtml } from '../parser/html-parser.js';
 import { ParsedFile, SourceKind } from '../parser/types.js';
-import { buildDayGrid, DayGrid } from '../export/grid-builder.js';
+import { buildDayGrid, DayGrid, MasterGridSession } from '../export/grid-builder.js';
 import { buildDayDocx } from '../export/docx-builder.js';
 import { dayFileName, ExportOptions } from '../export/options.js';
 import { SettingsService } from '../settings/settings.service.js';
@@ -18,6 +18,8 @@ import { CompareService } from '../compare/compare.service.js';
 import type { CompareSummary } from '../compare/types.js';
 import { ImporterRegistry } from '../importers/registry.js';
 import { ImportReport } from '../importers/types.js';
+import { ProgramsService } from '../masters/programs.service.js';
+import { Conflict, detectConflicts } from '../occupancy/index.js';
 
 const PRIORITY: SourceKind[] = ['rooms', 'teachers', 'groups'];
 
@@ -39,6 +41,7 @@ export class TimetablesService {
     private names: NamesService,
     private compare: CompareService,
     @Optional() private backups?: BackupsService,
+    @Optional() private programsService?: ProgramsService,
   ) {}
 
   list() {
@@ -219,14 +222,67 @@ export class TimetablesService {
     return { options: profile.options as ExportOptions, profile, isDefault };
   }
 
-  private async gridFor(t: Timetable, day: number, options: ExportOptions, nameResolver?: NameResolver, source?: SourceKind): Promise<DayGrid> {
+  private async occupancyExtras(
+    t: Timetable,
+    options: ExportOptions,
+  ): Promise<{ masterSessions: MasterGridSession[]; conflicts: Conflict[] }> {
+    let masterSessions: MasterGridSession[] = [];
+    let conflicts: Conflict[] = [];
+
+    if ((options.includeMasters || options.highlightConflicts) && this.programsService) {
+      if (options.includeMasters && options.highlightConflicts && typeof this.programsService.buildOccupancyAndPrograms === 'function') {
+        const { state, programs } = await this.programsService.buildOccupancyAndPrograms(t.id);
+        conflicts = detectConflicts(state);
+        masterSessions = programs.flatMap((p) =>
+          (p.sessions ?? []).map((s) => ({
+            ...s,
+            programCode: p.code,
+          })),
+        );
+      } else {
+        if (options.highlightConflicts) {
+          const state = await this.programsService.buildFullOccupancyState(t.id);
+          conflicts = detectConflicts(state);
+        }
+        if (options.includeMasters) {
+          const programs = await this.programsService.list();
+          masterSessions = programs.flatMap((p) =>
+            (p.sessions ?? []).map((s) => ({
+              ...s,
+              programCode: p.code,
+            })),
+          );
+        }
+      }
+    }
+    return { masterSessions, conflicts };
+  }
+
+  private async gridFor(
+    t: Timetable,
+    day: number,
+    options: ExportOptions,
+    nameResolver?: NameResolver,
+    source?: SourceKind,
+    precomputed?: { masterSessions?: MasterGridSession[]; conflicts?: Conflict[] },
+  ): Promise<DayGrid> {
     if (!Number.isInteger(day) || day < 0 || day >= t.days.length) throw new BadRequestException('Jour invalide');
     const requested = source && PRIORITY.includes(source) && t.files.some((f) => f.kind === source) ? source : undefined;
     const kind = requested ?? this.pickSource(t);
     const rows = await this.sessions.find({ where: { timetableId: t.id, source: kind, day } });
     const resolver = nameResolver ?? await this.names.getResolver();
     const roomsUniverse = await this.resolveRoomsUniverse(t);
-    return buildDayGrid(rows, { days: t.days, slots: t.slots, rooms: roomsUniverse }, day, options, resolver);
+
+    let masterSessions: MasterGridSession[] = precomputed?.masterSessions ?? [];
+    let conflicts: Conflict[] = precomputed?.conflicts ?? [];
+
+    if (!precomputed && (options.includeMasters || options.highlightConflicts)) {
+      const extras = await this.occupancyExtras(t, options);
+      masterSessions = extras.masterSessions;
+      conflicts = extras.conflicts;
+    }
+
+    return buildDayGrid(rows, { days: t.days, slots: t.slots, rooms: roomsUniverse }, day, options, resolver, masterSessions, conflicts);
   }
 
   async dayGrid(id: string, day: number, nameResolver?: NameResolver, source?: SourceKind, profileId?: string): Promise<DayGrid & { options: ExportOptions }> {
@@ -249,9 +305,12 @@ export class TimetablesService {
     const t = await this.get(id);
     const { options, profile, isDefault } = await this.resolveProfile(profileId);
     const nameResolver = await this.names.getResolver();
+
+    // Precompute occupancy & conflicts once for all days
+    const precomputed = await this.occupancyExtras(t, options);
     const out: { fileName: string; buffer: Buffer }[] = [];
     for (let d = 0; d < t.days.length; d++) {
-      const grid = await this.gridFor(t, d, options, nameResolver);
+      const grid = await this.gridFor(t, d, options, nameResolver, undefined, precomputed);
       out.push({ fileName: dayFileName(grid.dayName, profile, isDefault), buffer: await buildDayDocx(grid, options) });
     }
     return out;
