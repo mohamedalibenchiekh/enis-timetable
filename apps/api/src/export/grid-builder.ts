@@ -4,6 +4,7 @@ import { ExportOptions } from './options.js';
 import { createNameResolver, NameResolver } from './name-resolver.js';
 import { formatTeacher, roomLabel } from './formatters.js';
 import { CellFields, isLegacyTemplate, joinGroups, renderTemplate, subjectDisplay } from './template.js';
+import { normalizeText, resolveCanonicalRoom } from '../occupancy/normalization.js';
 
 export { formatTeacher, roomLabel } from './formatters.js';
 
@@ -114,7 +115,7 @@ export function buildDayGrid(
   options: ExportOptions,
   nameResolver: NameResolver = createNameResolver(new Map(), new Map()),
   masterSessions: MasterGridSession[] = [],
-  conflicts: Array<{ day: number; slot: number; resource: string }> = [],
+  conflicts: Array<{ day: number; slot: number; resource: string; type?: string }> = [],
 ): DayGrid {
   const nSlots = meta.slots.length;
   const daySessions = sessions.filter((s) => s.day === day && s.room);
@@ -122,12 +123,25 @@ export function buildDayGrid(
   const legacyCells = isLegacyTemplate(options.cellTemplate);
   const unassignedSessions: UnassignedGridSession[] = [];
 
-  const normConflictResource = (r: string) => clean(r).toLowerCase().replace(/^salle\s+/u, '');
-
-  const checkConflict = (room: string, slot: number) => {
+  const checkConflict = (room: string, slot: number, sessionTeachers?: string[]) => {
     if (!options.highlightConflicts) return false;
-    const rKey = normConflictResource(room);
-    return conflicts.some((c) => c.day === day && c.slot === slot && normConflictResource(c.resource) === rKey);
+    const rCanon = resolveCanonicalRoom(room).canonicalRoom ?? clean(room);
+    const rNorm = normalizeText(rCanon);
+
+    return conflicts.some((c) => {
+      if (c.day !== day || c.slot !== slot) return false;
+      if (c.type === 'room_double_booked' || c.type === 'room_unknown' || c.type === 'room_missing') {
+        const cCanon = resolveCanonicalRoom(c.resource).canonicalRoom ?? clean(c.resource);
+        return normalizeText(cCanon) === rNorm;
+      }
+      if (c.type === 'teacher_double_booked') {
+        const tCanon = normalizeText(c.resource);
+        if (sessionTeachers && sessionTeachers.some((t) => normalizeText(t) === tCanon)) return true;
+        const resCanon = resolveCanonicalRoom(c.resource).canonicalRoom ?? clean(c.resource);
+        return normalizeText(resCanon) === rNorm;
+      }
+      return false;
+    });
   };
 
   // ----- cell content ------------------------------------------------------------------------
@@ -136,7 +150,8 @@ export function buildDayGrid(
   for (const s of daySessions) {
     const k = `${key(s.room)}|${s.slot}`;
     const list = cellMap.get(k) ?? [];
-    const hasConflict = checkConflict(s.room, s.slot);
+    const tList = s.teachers ? s.teachers.split(',').map((t) => t.trim()) : [];
+    const hasConflict = checkConflict(s.room, s.slot, tList);
     const prefix = hasConflict ? '⚠ ' : '';
 
     if (legacyCells) {
@@ -171,24 +186,20 @@ export function buildDayGrid(
           slotSpan: m.slotSpan ?? 1,
           programCode: m.programCode,
           title: m.title || m.code || 'Séance mastère',
-          teachers: m.teachers.join(', '),
+          teachers: m.teachers.map((t) => nameResolver.teacher(t, options.abbreviateBen)).filter(Boolean).join(', '),
         });
         continue;
       }
 
       // Canonical room resolution
-      let canonRoom = m.room.trim();
-      const normRoom = clean(canonRoom).toLowerCase();
-      if (normRoom === 'salle paq' || normRoom === 'paq' || normRoom === 'salle dgse' || normRoom === 'dgse') {
-        canonRoom = 'PAQ/DGSE';
-      }
+      const canonRoom = resolveCanonicalRoom(m.room).canonicalRoom ?? clean(m.room);
       additionalRooms.push(canonRoom);
 
       const sSpan = m.slotSpan ?? 1;
       for (let sl = m.slot; sl < Math.min(nSlots, m.slot + sSpan); sl++) {
         const k = `${key(canonRoom)}|${sl}`;
         const list = cellMap.get(k) ?? [];
-        const hasConflict = checkConflict(canonRoom, sl);
+        const hasConflict = checkConflict(canonRoom, sl, m.teachers);
         const prefix = hasConflict ? '⚠ ' : '';
 
         const teacherPart = m.teachers.map((t) => nameResolver.teacher(t, options.abbreviateBen)).filter(Boolean).join(' / ');
@@ -240,8 +251,11 @@ export function buildDayGrid(
     const rank = (r: string) => {
       const idx = regs.findIndex((re) => re.test(r));
       if (idx >= 0) return idx;
-      if (options.includeMasters && (b.id === 'bloc-r' || b.title.includes('R')) && (r === 'PAQ/DGSE' || r.includes('PAQ') || r.includes('DGSE'))) {
-        return 999;
+      if (options.includeMasters && (r === 'PAQ/DGSE' || r.includes('PAQ') || r.includes('DGSE'))) {
+        // Place PAQ/DGSE in Bloc R if available, or in the last bloc
+        if (b.id === 'bloc-r' || b.patterns.some((p) => /R/i.test(p)) || b.title.includes('R')) {
+          return 999;
+        }
       }
       return -1;
     };
@@ -291,7 +305,11 @@ export function buildDayGrid(
     dayName: meta.days[day] ?? `Jour ${day + 1}`,
     headers,
     blocs,
-    sessionCount: daySessions.length + (options.includeMasters ? masterSessions.length : 0),
+    sessionCount:
+      daySessions.length +
+      (options.includeMasters
+        ? masterSessions.filter((m) => day >= m.day && day < m.day + (m.daySpan ?? 1)).length
+        : 0),
     pages,
   };
   if (unassignedSessions.length > 0) {

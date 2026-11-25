@@ -295,11 +295,28 @@ describe('Hostile archive hardening & validation suite', () => {
     expect(() => validateRow('program_sessions', { ...validSession, slot: 0, day: 0, slotSpan: 0 }, 0)).toThrow(ValidationError);
     expect(() => validateRow('program_sessions', { ...validSession, slot: 0, day: 0, daySpan: 0 }, 0)).toThrow(ValidationError);
 
+    // Validate program_revisions rows
+    const validRev = {
+      id: 1,
+      programId: program.id,
+      revision: 1,
+      snapshot: { sessions: [] },
+      description: 'Initial',
+      createdAt: new Date().toISOString(),
+    };
+    expect(() => validateRow('program_revisions', validRev, 0)).not.toThrow();
+    expect(() => validateRow('program_revisions', { ...validRev, programId: 'bad-uuid' }, 0)).toThrow(ValidationError);
+    expect(() => validateRow('program_revisions', { ...validRev, revision: 0 }, 0)).toThrow(ValidationError);
+    expect(() => validateRow('program_revisions', { ...validRev, snapshot: 'not-an-object' }, 0)).toThrow(ValidationError);
+    expect(() => validateRow('program_revisions', { ...validRev, createdAt: 'invalid-date' }, 0)).toThrow(ValidationError);
+
     const legacyData = {
       timetables: [], sessions: [], settings: [], teacher_names: [], room_labels: [], known_rooms: [],
-      programs: [{ ...program, version: 12 }], program_slots: [], program_sessions: [], teacher_aliases: [], room_aliases: [], program_revisions: [],
-    } as BackupData;
-    expect(upgradeBackupData(legacyData, 4).programs[0].version).toBe('12');
+      programs: [{ ...program, version: 12 }], program_slots: [], program_sessions: [], teacher_aliases: [], room_aliases: [],
+    } as unknown as BackupData;
+    const upgraded = upgradeBackupData(legacyData, 4);
+    expect(upgraded.programs[0].version).toBe('12');
+    expect(upgraded.program_revisions).toEqual([]);
   });
 
   it('rejects program slots and sessions with missing programs', async () => {
@@ -317,6 +334,7 @@ describe('Hostile archive hardening & validation suite', () => {
     for (const [table, row] of [
       ['program_slots', JSON.stringify({ id: 1, programId: orphanProgramId, index: 0, label: '08:30', rawLabel: '08:30', base: '08:30', dayOverrides: {}, note: '' }) + '\n'],
       ['program_sessions', JSON.stringify({ id: randomUUID(), programId: orphanProgramId, day: 0, slot: 0 }) + '\n'],
+      ['program_revisions', JSON.stringify({ id: 1, programId: orphanProgramId, revision: 1, snapshot: {}, createdAt: new Date().toISOString() }) + '\n'],
     ] as const) {
       const content = Object.fromEntries(tables.map((name) => [`data/${name}.ndjson`, name === 'programs' ? programRow : name === table ? row : empty]));
       const counts: BackupManifest['counts'] = {

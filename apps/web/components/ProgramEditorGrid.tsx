@@ -45,6 +45,9 @@ export function ProgramEditorGrid({
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [draggedSessionId, setDraggedSessionId] = useState<string | null>(null);
+  const lastOpenedSessionIdRef = useRef<string | null>(null);
+  const activeRequestIdRef = useRef<number>(0);
+  const modalRef = useRef<HTMLDivElement>(null);
 
   // Keyboard navigation focus
   const [focusedCell, setFocusedCell] = useState<{ day: number; slot: number }>({ day: 0, slot: 0 });
@@ -61,11 +64,14 @@ export function ProgramEditorGrid({
 
   // Handle external session selection (e.g. from conflict list)
   useEffect(() => {
-    if (onOpenSessionId) {
+    if (onOpenSessionId && onOpenSessionId !== lastOpenedSessionIdRef.current) {
+      lastOpenedSessionIdRef.current = onOpenSessionId;
       const found = program.sessions.find((s) => s.id === onOpenSessionId);
       if (found) {
         openSessionModal(found);
       }
+    } else if (!onOpenSessionId) {
+      lastOpenedSessionIdRef.current = null;
     }
   }, [onOpenSessionId, program.sessions]);
 
@@ -93,13 +99,18 @@ export function ProgramEditorGrid({
 
     if (session.id) {
       setLoadingSuggestions(true);
+      const reqId = ++activeRequestIdRef.current;
       try {
         const res = await api.getSessionSuggestions(program.id, session.id, referenceId);
-        setSuggestions(res);
+        if (reqId === activeRequestIdRef.current) {
+          setSuggestions(res);
+        }
       } catch {
         // Suggestions unavailable
       } finally {
-        setLoadingSuggestions(false);
+        if (reqId === activeRequestIdRef.current) {
+          setLoadingSuggestions(false);
+        }
       }
     }
   };
@@ -111,7 +122,11 @@ export function ProgramEditorGrid({
     setSuggestions(null);
   };
 
-  // Conflicts related to the selected session
+  useEffect(() => {
+    if (selectedSession && modalRef.current) {
+      modalRef.current.focus();
+    }
+  }, [selectedSession]);
   const activeSessionConflicts = useMemo(() => {
     if (!selectedSession?.id) return [];
     return conflicts.filter((c) => c.sessions?.some((s) => s.id === selectedSession.id));
@@ -238,10 +253,10 @@ export function ProgramEditorGrid({
         program.revision,
         [
           {
-            op: 'move',
-            sessionId: draggedSessionId,
-            targetDay,
-            targetSlot,
+            type: 'move',
+            id: draggedSessionId,
+            day: targetDay,
+            slot: targetSlot,
           },
         ],
         `Déplacement de « ${session.title} » vers ${DAYS[targetDay]} créneau ${targetSlot + 1}`,
@@ -537,14 +552,26 @@ export function ProgramEditorGrid({
                               : 'Sans salle';
 
                           return (
-                            <div
+                            <button
+                              type="button"
                               key={session.id}
                               draggable
+                              tabIndex={0}
                               onDragStart={(e) => {
                                 setDraggedSessionId(session.id ?? null);
                                 e.dataTransfer.effectAllowed = 'move';
                               }}
-                              onClick={() => openSessionModal(session)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openSessionModal(session);
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  openSessionModal(session);
+                                }
+                              }}
                               style={{
                                 padding: '6px 8px',
                                 borderRadius: '6px',
@@ -556,6 +583,7 @@ export function ProgramEditorGrid({
                                 display: 'flex',
                                 flexDirection: 'column',
                                 gap: '3px',
+                                width: '100%',
                               }}
                             >
                               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '4px' }}>
@@ -593,7 +621,7 @@ export function ProgramEditorGrid({
                                   </span>
                                 )}
                               </div>
-                            </div>
+                            </button>
                           );
                         })}
 
@@ -625,6 +653,17 @@ export function ProgramEditorGrid({
       {/* Session Edit & Suggestions Modal / Drawer */}
       {selectedSession && sessionDraft && (
         <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="session-modal-title"
+          tabIndex={-1}
+          ref={modalRef}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') {
+              e.stopPropagation();
+              closeModal();
+            }
+          }}
           style={{
             position: 'fixed',
             inset: 0,
@@ -653,7 +692,7 @@ export function ProgramEditorGrid({
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
               <div>
-                <h3 style={{ margin: 0 }}>Modifier la séance</h3>
+                <h3 id="session-modal-title" style={{ margin: 0 }}>Modifier la séance</h3>
                 <p className="muted small" style={{ margin: '0.2rem 0 0' }}>
                   {DAYS[sessionDraft.day ?? 0]} · Créneau {(sessionDraft.slot ?? 0) + 1} ({SLOTS[sessionDraft.slot ?? 0]?.label})
                 </p>
@@ -824,14 +863,20 @@ export function ProgramEditorGrid({
                     <input
                       type="checkbox"
                       checked={sessionDraft.roomUnassigned ?? false}
-                      onChange={(e) =>
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        const currentLoc = sessionDraft.locationNote ?? '';
+                        const nextLoc = checked
+                          ? (!currentLoc || currentLoc.toLowerCase().includes('rechercher') ? 'salle à rechercher' : currentLoc)
+                          : (currentLoc.toLowerCase().includes('rechercher') ? '' : currentLoc);
+
                         setSessionDraft({
                           ...sessionDraft,
-                          roomUnassigned: e.target.checked,
-                          room: e.target.checked ? null : sessionDraft.room,
-                          locationNote: e.target.checked ? 'salle à rechercher' : '',
-                        })
-                      }
+                          roomUnassigned: checked,
+                          room: checked ? null : sessionDraft.room,
+                          locationNote: nextLoc,
+                        });
+                      }}
                     />
                     Salle à rechercher (XX)
                   </label>

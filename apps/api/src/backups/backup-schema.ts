@@ -313,7 +313,18 @@ export function validateRow(table: BackupTableName, row: unknown, index: number)
       if (typeof r.id !== 'number' || !Number.isInteger(r.id) || typeof r.aliasKey !== 'string' || typeof r.canonicalName !== 'string' || typeof r.aliasName !== 'string') throw new ValidationError(`Ligne ${index + 1} de « room_aliases » invalide.`);
       return r;
     case 'program_revisions':
-      if (typeof r.id !== 'number' || typeof r.programId !== 'string' || !UUID_REGEX.test(r.programId) || !Number.isInteger(r.revision) || r.revision < 1 || typeof r.snapshot !== 'object' || r.snapshot === null || Array.isArray(r.snapshot)) {
+      if (
+        typeof r.id !== 'number' ||
+        typeof r.programId !== 'string' ||
+        !UUID_REGEX.test(r.programId) ||
+        !Number.isInteger(r.revision) ||
+        r.revision < 1 ||
+        typeof r.snapshot !== 'object' ||
+        r.snapshot === null ||
+        Array.isArray(r.snapshot) ||
+        typeof r.createdAt !== 'string' ||
+        Number.isNaN(Date.parse(r.createdAt))
+      ) {
         throw new ValidationError(`Ligne ${index + 1} de « program_revisions » invalide.`);
       }
       return r;

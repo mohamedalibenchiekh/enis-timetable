@@ -243,7 +243,7 @@ export class BackupInspector {
     }
 
     const programIds = new Set(data.programs.map((program: any) => program.id));
-    for (const [table, rows] of [['program_slots', data.program_slots], ['program_sessions', data.program_sessions]] as const) {
+    for (const [table, rows] of [['program_slots', data.program_slots], ['program_sessions', data.program_sessions], ['program_revisions', data.program_revisions]] as const) {
       for (let i = 0; i < rows.length; i++) {
         if (!programIds.has(rows[i].programId)) {
           throw new BadRequestException(

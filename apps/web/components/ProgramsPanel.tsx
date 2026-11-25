@@ -124,7 +124,7 @@ export function ProgramsPanel() {
       const result = await api.getConflicts(referenceId || undefined);
       setConflicts(result);
     } catch {
-      // Silently ignore in mock tests or offline
+      setConflicts([]);
     }
   }, [referenceId]);
 
@@ -184,8 +184,7 @@ export function ProgramsPanel() {
         (_, index) => listDrafts[listDraftKey(selected, index, 'teachers')] !== undefined,
       );
       const saved = await api.saveProgram(hasTeacherDraft ? invalidateConflicts(programToSave) : programToSave, mode);
-      const nextPrograms = [...(programs ?? []).filter((item) => item.code !== saved.code), saved];
-      setPrograms(nextPrograms);
+      setPrograms((old) => [...(old ?? []).filter((item) => item.code !== saved.code), saved]);
       setActiveProgramId(saved.id);
       setMessage(`Programme ${saved.code} enregistré (révision ${saved.revision}).`);
       setStep('saved');
@@ -268,6 +267,18 @@ export function ProgramsPanel() {
 
   const handleProgramUpdated = (updated: SavedProgram) => {
     setPrograms((old) => (old ?? []).map((p) => (p.id === updated.id ? updated : p)));
+    setAnalyses((old) =>
+      old.map((item) => {
+        if (item.code !== updated.code) return item;
+        return {
+          ...item,
+          ...updated,
+          warnings: updated.warnings ?? item.warnings ?? [],
+          confidence: updated.confidence ?? item.confidence ?? 1,
+          rawSnapshot: updated.rawSnapshot ?? item.rawSnapshot ?? {},
+        };
+      }),
+    );
     reloadConflicts();
   };
 

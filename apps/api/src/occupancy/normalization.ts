@@ -79,27 +79,40 @@ export function resolveCanonicalRoom(
     cacheKey = trimmed;
   }
 
+  // Normalize custom room aliases so keys match normalizeText (stripping punctuation etc.)
+  const normalizedCustomAliases: Record<string, string> = Object.create(null);
+  if (hasCustomAliases) {
+    for (const [k, v] of Object.entries(roomAliases)) {
+      if (Object.prototype.hasOwnProperty.call(roomAliases, k)) {
+        normalizedCustomAliases[normalizeText(k)] = v;
+      }
+    }
+  }
+
   let result: { canonicalRoom: string | null; roomUnassigned: boolean };
 
   if (isRoomUnassignedPlaceholder(trimmed)) {
     result = { canonicalRoom: null, roomUnassigned: true };
   } else {
     const norm = normalizeText(trimmed);
-    const aliasMatch = (hasCustomAliases && roomAliases[norm]) || SEEDED_ROOM_ALIASES[norm];
+    const aliasMatch = (Object.prototype.hasOwnProperty.call(normalizedCustomAliases, norm) && normalizedCustomAliases[norm]) ||
+      (Object.prototype.hasOwnProperty.call(SEEDED_ROOM_ALIASES, norm) && SEEDED_ROOM_ALIASES[norm]);
 
     // Direct alias match or match without "salle "
     if (aliasMatch) {
       result = { canonicalRoom: aliasMatch, roomUnassigned: false };
     } else {
       const strippedNorm = norm.startsWith('salle ') ? norm.slice(6) : norm;
-      const strippedAlias = (hasCustomAliases && roomAliases[strippedNorm]) || SEEDED_ROOM_ALIASES[strippedNorm];
+      const strippedAlias = (Object.prototype.hasOwnProperty.call(normalizedCustomAliases, strippedNorm) && normalizedCustomAliases[strippedNorm]) ||
+        (Object.prototype.hasOwnProperty.call(SEEDED_ROOM_ALIASES, strippedNorm) && SEEDED_ROOM_ALIASES[strippedNorm]);
       if (strippedAlias) {
         result = { canonicalRoom: strippedAlias, roomUnassigned: false };
       } else {
         // Standard room label
         const formatted = formatStandardRoomLabel(trimmed.replace(/^salle\s+/iu, ''));
         const formattedNorm = normalizeText(formatted);
-        const formattedAlias = (hasCustomAliases && roomAliases[formattedNorm]) || SEEDED_ROOM_ALIASES[formattedNorm];
+        const formattedAlias = (Object.prototype.hasOwnProperty.call(normalizedCustomAliases, formattedNorm) && normalizedCustomAliases[formattedNorm]) ||
+          (Object.prototype.hasOwnProperty.call(SEEDED_ROOM_ALIASES, formattedNorm) && SEEDED_ROOM_ALIASES[formattedNorm]);
         if (formattedAlias) {
           result = { canonicalRoom: formattedAlias, roomUnassigned: false };
         } else {
@@ -135,7 +148,7 @@ export function canonicalTeacherKey(
   }
 
   const norm = normalizeText(teacher);
-  const resolved = (hasAliases && teacherAliases[norm]) || teacher;
+  const resolved = (hasAliases && Object.prototype.hasOwnProperty.call(teacherAliases, norm) && teacherAliases[norm]) || teacher;
   if (isGenericTeacher(resolved)) {
     if (cacheKey) teacherCache.set(cacheKey, null);
     return null;
@@ -157,8 +170,13 @@ export function parseCustomTime(timeStr: string | null | undefined): TimeInterva
   if (!timeStr) return null;
   const match = timeStr.match(/(\d{1,2})\s*[h:]\s*(\d{2})\s*[-–]\s*(\d{1,2})\s*[h:]\s*(\d{2})/iu);
   if (!match) return null;
-  const start = parseInt(match[1], 10) * 60 + parseInt(match[2], 10);
-  const end = parseInt(match[3], 10) * 60 + parseInt(match[4], 10);
+  const startH = parseInt(match[1], 10);
+  const startM = parseInt(match[2], 10);
+  const endH = parseInt(match[3], 10);
+  const endM = parseInt(match[4], 10);
+  if (startH > 23 || endH > 23 || startM > 59 || endM > 59) return null;
+  const start = startH * 60 + startM;
+  const end = endH * 60 + endM;
   if (start >= end) return null;
   return { start, end };
 }

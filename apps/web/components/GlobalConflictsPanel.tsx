@@ -3,7 +3,13 @@ import { useMemo, useState } from 'react';
 import { Conflict, ConflictSeverity, SavedProgram } from '@/lib/api';
 
 const DAYS = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
-const SLOTS = ['08:30 - 10:00', '10:15 - 11:45', 'Pause (12:00 - 13:00)', '13:00 - 14:30', '14:45 - 16:15', '16:30 - 18:00'];
+const STANDARD_SLOTS = ['08:30 - 10:00', '10:15 - 11:45', 'Pause (12:00 - 13:00)', '13:00 - 14:30', '14:45 - 16:15', '16:30 - 18:00'];
+const FRIDAY_SLOTS = ['08:30 - 10:00', '10:15 - 11:45', 'Pause (12:00 - 14:00)', '14:00 - 15:30', '15:45 - 17:15', '17:30 - 19:00'];
+
+function getSlotLabel(day: number, slot: number): string {
+  const slots = day === 4 ? FRIDAY_SLOTS : STANDARD_SLOTS;
+  return slots[slot] ?? `Créneau ${slot + 1}`;
+}
 
 export function GlobalConflictsPanel({
   conflicts,
@@ -144,7 +150,7 @@ export function GlobalConflictsPanel({
         <ul style={{ listStyle: 'none', padding: 0, margin: '1rem 0', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
           {filtered.map((conflict) => {
             const dayLabel = DAYS[conflict.day] ?? `Jour ${conflict.day + 1}`;
-            const slotLabel = SLOTS[conflict.slot] ?? `Créneau ${conflict.slot + 1}`;
+            const slotLabel = getSlotLabel(conflict.day, conflict.slot);
 
             return (
               <li
@@ -202,6 +208,7 @@ export function GlobalConflictsPanel({
                             <button
                               className="link"
                               style={{ padding: '0 4px', fontSize: '11px', textDecoration: 'underline' }}
+                              aria-label={`Ouvrir ${prog.code} : ${s.title} dans l’éditeur`}
                               onClick={() => onSelectProgramSession(prog.id, String(s.id))}
                             >
                               Ouvrir dans l’éditeur

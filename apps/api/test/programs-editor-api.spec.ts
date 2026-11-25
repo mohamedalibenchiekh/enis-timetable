@@ -136,8 +136,37 @@ describe('Programs Editor API (Revisions, Batch, Revert, Conflicts)', () => {
       query: async () => [{ revision: Math.max(0, ...programs.map((row) => row.revision)) }],
     };
 
+    let txLock = Promise.resolve();
+
     const dataSource = {
-      transaction: async (work: (m: typeof manager) => Promise<unknown>) => work(manager),
+      transaction: async (work: (m: typeof manager) => Promise<unknown>) => {
+        // Linearize transactions to simulate DB pessimistic write lock
+        const prevLock = txLock;
+        let release: () => void;
+        txLock = new Promise((resolve) => {
+          release = resolve;
+        });
+
+        await prevLock;
+        // Snapshot state for rollback simulation
+        const progSnap = JSON.stringify(programs);
+        const sessSnap = JSON.stringify(sessions);
+        const revSnap = JSON.stringify(revisions);
+        try {
+          const res = await work(manager);
+          return res;
+        } catch (err) {
+          programs.length = 0;
+          programs.push(...JSON.parse(progSnap));
+          sessions.length = 0;
+          sessions.push(...JSON.parse(sessSnap));
+          revisions.length = 0;
+          revisions.push(...JSON.parse(revSnap));
+          throw err;
+        } finally {
+          release!();
+        }
+      },
     };
 
     const service = new ProgramsService(
@@ -209,6 +238,24 @@ describe('Programs Editor API (Revisions, Batch, Revert, Conflicts)', () => {
 
     expect(result.ok).toBe(true);
     expect(result.revision).toBe(2);
+
+    // Concurrent batch simulation: start two calls simultaneously with the same expectedRevision = 2
+    const concurrent1 = service.batchSessions(prog.id, {
+      expectedRevision: 2,
+      operations: [{ type: 'create', session: { day: 1, slot: 1, title: 'Concurrent 1' } }],
+    });
+    const concurrent2 = service.batchSessions(prog.id, {
+      expectedRevision: 2,
+      operations: [{ type: 'create', session: { day: 2, slot: 2, title: 'Concurrent 2' } }],
+    });
+
+    const results = await Promise.allSettled([concurrent1, concurrent2]);
+    const fulfilled = results.filter((r) => r.status === 'fulfilled');
+    const rejected = results.filter((r) => r.status === 'rejected');
+
+    expect(fulfilled).toHaveLength(1);
+    expect(rejected).toHaveLength(1);
+    expect((rejected[0] as PromiseRejectedResult).reason).toBeInstanceOf(ConflictException);
   });
 
   it('rejects batch creating overlapping sessions inside the same program', async () => {
@@ -317,7 +364,15 @@ describe('Programs Editor API (Revisions, Batch, Revert, Conflicts)', () => {
     // Revert to import
     const reverted = await service.revert(prog.id);
     expect(reverted.sessions).toHaveLength(1);
-    expect(reverted.sessions[0].title).toBe('Séance Originale');
+    expect(reverted.sessions[0]).toMatchObject({
+      day: initialSession.day,
+      slot: initialSession.slot,
+      slotSpan: initialSession.slotSpan,
+      daySpan: initialSession.daySpan,
+      title: initialSession.title,
+      code: initialSession.code,
+      source: initialSession.source,
+    });
 
     // Revisions list
     const revs = await service.listRevisions(prog.id);

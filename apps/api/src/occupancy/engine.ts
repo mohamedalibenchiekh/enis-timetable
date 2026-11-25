@@ -1,9 +1,12 @@
 import {
   areSessionsOverlapping,
   canonicalTeacherKey,
+  doIntervalsOverlap,
   getRoomBloc,
+  getSlotInterval,
   isGenericTeacher,
   normalizeText,
+  parseCustomTime,
   resolveCanonicalRoom,
   SEEDED_ROOM_ALIASES,
 } from './normalization.js';
@@ -101,9 +104,15 @@ export function buildOccupancyState(
         ? fet.teachers.split(',').map((t) => t.trim()).filter(Boolean)
         : [];
 
-    const teacherKeys = teachersList
-      .map((t) => canonicalTeacherKey(t, teacherAliases))
-      .filter((k): k is string => Boolean(k));
+    // Teachers with aligned key mapping
+    const teacherMap: Array<{ name: string; key: string }> = [];
+    for (const t of teachersList) {
+      const k = canonicalTeacherKey(t, teacherAliases);
+      if (k) {
+        teacherMap.push({ name: t, key: k });
+      }
+    }
+    const teacherKeys = teacherMap.map((tm) => tm.key);
 
     const { canonicalRoom } = resolveCanonicalRoom(fet.room, roomAliases);
     if (canonicalRoom) knownCatalogRaw.add(canonicalRoom);
@@ -147,9 +156,15 @@ export function buildOccupancyState(
   for (let idx = 0; idx < programSessions.length; idx++) {
     const p = programSessions[idx];
     const teachersList = p.teachers ?? [];
-    const teacherKeys = teachersList
-      .map((t) => canonicalTeacherKey(t, teacherAliases))
-      .filter((k): k is string => Boolean(k));
+    // Teachers with aligned key mapping
+    const teacherMap: Array<{ name: string; key: string }> = [];
+    for (const t of teachersList) {
+      const k = canonicalTeacherKey(t, teacherAliases);
+      if (k) {
+        teacherMap.push({ name: t, key: k });
+      }
+    }
+    const teacherKeys = teacherMap.map((tm) => tm.key);
 
     const { canonicalRoom, roomUnassigned } = resolveCanonicalRoom(p.room, roomAliases);
     const effectiveRoomUnassigned = Boolean(p.roomUnassigned || roomUnassigned);
@@ -226,15 +241,37 @@ export function buildOccupancyState(
         }
         drList.push(s);
 
-        for (let sl = 0; sl < sSpan; sl++) {
-          const curSlot = s.slot + sl;
-          const dsrKey = `${curDay}:${curSlot}:${roomNorm}`;
-          let dsrList = byDaySlotRoom.get(dsrKey);
-          if (!dsrList) {
-            dsrList = [];
-            byDaySlotRoom.set(dsrKey, dsrList);
+        // If session has customTime, it can overlap any slot touched by its interval
+        let startSlot = s.slot;
+        let endSlot = Math.min(5, s.slot + sSpan - 1);
+        if (s.customTime) {
+          const parsed = parseCustomTime(s.customTime);
+          if (parsed) {
+            startSlot = 0;
+            endSlot = 5;
+            for (let sl = 0; sl < 6; sl++) {
+              const slotInt = getSlotInterval(curDay, sl, 1);
+              if (doIntervalsOverlap(parsed, slotInt)) {
+                const dsrKey = `${curDay}:${sl}:${roomNorm}`;
+                let dsrList = byDaySlotRoom.get(dsrKey);
+                if (!dsrList) {
+                  dsrList = [];
+                  byDaySlotRoom.set(dsrKey, dsrList);
+                }
+                dsrList.push(s);
+              }
+            }
           }
-          dsrList.push(s);
+        } else {
+          for (let sl = startSlot; sl <= endSlot; sl++) {
+            const dsrKey = `${curDay}:${sl}:${roomNorm}`;
+            let dsrList = byDaySlotRoom.get(dsrKey);
+            if (!dsrList) {
+              dsrList = [];
+              byDaySlotRoom.set(dsrKey, dsrList);
+            }
+            dsrList.push(s);
+          }
         }
       }
     }
@@ -251,15 +288,33 @@ export function buildOccupancyState(
         }
         dtList.push(s);
 
-        for (let sl = 0; sl < sSpan; sl++) {
-          const curSlot = s.slot + sl;
-          const dstKey = `${curDay}:${curSlot}:${tKey}`;
-          let dstList = byDaySlotTeacher.get(dstKey);
-          if (!dstList) {
-            dstList = [];
-            byDaySlotTeacher.set(dstKey, dstList);
+        if (s.customTime) {
+          const parsed = parseCustomTime(s.customTime);
+          if (parsed) {
+            for (let sl = 0; sl < 6; sl++) {
+              const slotInt = getSlotInterval(curDay, sl, 1);
+              if (doIntervalsOverlap(parsed, slotInt)) {
+                const dstKey = `${curDay}:${sl}:${tKey}`;
+                let dstList = byDaySlotTeacher.get(dstKey);
+                if (!dstList) {
+                  dstList = [];
+                  byDaySlotTeacher.set(dstKey, dstList);
+                }
+                dstList.push(s);
+              }
+            }
           }
-          dstList.push(s);
+        } else {
+          for (let sl = 0; sl < sSpan; sl++) {
+            const curSlot = s.slot + sl;
+            const dstKey = `${curDay}:${curSlot}:${tKey}`;
+            let dstList = byDaySlotTeacher.get(dstKey);
+            if (!dstList) {
+              dstList = [];
+              byDaySlotTeacher.set(dstKey, dstList);
+            }
+            dstList.push(s);
+          }
         }
       }
     }
@@ -360,7 +415,9 @@ export function detectConflicts(
   // 1. Check room double bookings using byDaySlotRoom
   for (const [dsrKey, sessionsInSlot] of state.byDaySlotRoom.entries()) {
     if (sessionsInSlot.length < 2) continue;
-    const [, , roomNorm] = dsrKey.split(':');
+    const [dayStr, slotStr, roomNorm] = dsrKey.split(':');
+    const curConflictDay = parseInt(dayStr, 10);
+    const curConflictSlot = parseInt(slotStr, 10);
 
     for (let i = 0; i < sessionsInSlot.length; i++) {
       for (let j = i + 1; j < sessionsInSlot.length; j++) {
@@ -371,8 +428,8 @@ export function detectConflicts(
 
         const id1 = s1.idStr ?? String(s1.id ?? i);
         const id2 = s2.idStr ?? String(s2.id ?? j);
-        const pairKey = id1 < id2 ? `${id1}:${id2}` : `${id2}:${id1}`;
         const hasSpans = (s1.slotSpan ?? 1) > 1 || (s2.slotSpan ?? 1) > 1 || (s1.daySpan ?? 1) > 1 || (s2.daySpan ?? 1) > 1;
+        const pairKey = hasSpans ? `${curConflictDay}:${curConflictSlot}:${id1 < id2 ? `${id1}:${id2}` : `${id2}:${id1}`}` : (id1 < id2 ? `${id1}:${id2}` : `${id2}:${id1}`);
 
         if (hasSpans) {
           if (processedRoomPairs.has(pairKey)) continue;
@@ -382,11 +439,11 @@ export function detectConflicts(
         if (s1.customTime || s2.customTime) {
           if (
             !areSessionsOverlapping(
-              s1.day,
+              curConflictDay,
               s1.slot,
               s1.slotSpan ?? 1,
               s1.customTime,
-              s2.day,
+              curConflictDay,
               s2.slot,
               s2.slotSpan ?? 1,
               s2.customTime,
@@ -400,8 +457,6 @@ export function detectConflicts(
 
         if (hasSpans) processedRoomPairs.add(pairKey);
         const roomDisplayName = s1.canonicalRoom ?? s2.canonicalRoom ?? roomNorm;
-        const conflictDay = s1.day;
-        const conflictSlot = Math.max(s1.slot, s2.slot);
 
         // Order sessions symmetrically by id or title
         const [first, second] = id1 < id2 ? [s1, s2] : [s2, s1];
@@ -410,8 +465,8 @@ export function detectConflicts(
           id: `room-double-${pairKey}`,
           type: 'room_double_booked',
           severity: 'error',
-          day: conflictDay,
-          slot: conflictSlot,
+          day: curConflictDay,
+          slot: curConflictSlot,
           resource: roomDisplayName,
           message: `La salle ${roomDisplayName} est réservée simultanément par « ${first.title} » (${first.source}) et « ${second.title} » (${second.source}).`,
           sessions: [first.ref ?? makeSessionRef(first), second.ref ?? makeSessionRef(second)],
@@ -423,7 +478,9 @@ export function detectConflicts(
   // 2. Check teacher double bookings using byDaySlotTeacher
   for (const [dstKey, sessionsForTeacher] of state.byDaySlotTeacher.entries()) {
     if (sessionsForTeacher.length < 2) continue;
-    const [, , teacherKey] = dstKey.split(':');
+    const [dayStr, slotStr, teacherKey] = dstKey.split(':');
+    const curConflictDay = parseInt(dayStr, 10);
+    const curConflictSlot = parseInt(slotStr, 10);
 
     for (let i = 0; i < sessionsForTeacher.length; i++) {
       for (let j = i + 1; j < sessionsForTeacher.length; j++) {
@@ -434,8 +491,8 @@ export function detectConflicts(
 
         const id1 = s1.idStr ?? String(s1.id ?? i);
         const id2 = s2.idStr ?? String(s2.id ?? j);
-        const pairKey = `${teacherKey}:${id1 < id2 ? `${id1}:${id2}` : `${id2}:${id1}`}`;
         const hasSpans = (s1.slotSpan ?? 1) > 1 || (s2.slotSpan ?? 1) > 1 || (s1.daySpan ?? 1) > 1 || (s2.daySpan ?? 1) > 1;
+        const pairKey = hasSpans ? `${curConflictDay}:${curConflictSlot}:${teacherKey}:${id1 < id2 ? `${id1}:${id2}` : `${id2}:${id1}`}` : `${teacherKey}:${id1 < id2 ? `${id1}:${id2}` : `${id2}:${id1}`}`;
 
         if (hasSpans) {
           if (processedTeacherPairs.has(pairKey)) continue;
@@ -444,11 +501,11 @@ export function detectConflicts(
         if (s1.customTime || s2.customTime) {
           if (
             !areSessionsOverlapping(
-              s1.day,
+              curConflictDay,
               s1.slot,
               s1.slotSpan ?? 1,
               s1.customTime,
-              s2.day,
+              curConflictDay,
               s2.slot,
               s2.slotSpan ?? 1,
               s2.customTime,
@@ -469,16 +526,14 @@ export function detectConflicts(
             ? s1.teachers[tIdx1]
             : (s2.teachers[s2.teacherKeys.indexOf(teacherKey)] ?? teacherKey);
 
-        const conflictDay = s1.day;
-        const conflictSlot = Math.max(s1.slot, s2.slot);
         const [first, second] = id1 < id2 ? [s1, s2] : [s2, s1];
 
         addConflict({
           id: `teacher-double-${pairKey}`,
           type: 'teacher_double_booked',
           severity: 'error',
-          day: conflictDay,
-          slot: conflictSlot,
+          day: curConflictDay,
+          slot: curConflictSlot,
           resource: teacherName,
           message: `L'enseignant(e) ${teacherName} est programmé(e) simultanément sur « ${first.title} » (${first.source}) et « ${second.title} » (${second.source}).`,
           sessions: [first.ref ?? makeSessionRef(first), second.ref ?? makeSessionRef(second)],
@@ -585,12 +640,14 @@ export function findFreeRooms(
   state: OccupancyState,
   options: {
     slotSpan?: number;
+    daySpan?: number;
     customTime?: string | null;
     targetBloc?: string;
     excludeSessionId?: string | number;
   } = {},
 ): FreeRoomSuggestion[] {
   const span = Math.max(1, options.slotSpan ?? 1);
+  const dSpan = Math.max(1, options.daySpan ?? 1);
   const freeRooms: FreeRoomSuggestion[] = [];
 
   const blocPriority: Record<string, number> = {
@@ -604,31 +661,43 @@ export function findFreeRooms(
 
   for (const room of state.knownRoomsCatalog) {
     const roomNorm = normalizeText(room);
-    const occupiedSessions = state.byDayRoom.get(`${day}:${roomNorm}`) ?? [];
+    let isOccupied = false;
 
-    const isOccupied = occupiedSessions.some((s) => {
-      if (options.excludeSessionId && s.id === options.excludeSessionId) return false;
-      return areSessionsOverlapping(
-        day,
-        slot,
-        span,
-        options.customTime,
-        s.day,
-        s.slot,
-        s.slotSpan ?? 1,
-        s.customTime,
-      );
-    });
+    for (let d = 0; d < dSpan; d++) {
+      const curDay = day + d;
+      const occupiedSessions = state.byDayRoom.get(`${curDay}:${roomNorm}`) ?? [];
+
+      const dayOccupied = occupiedSessions.some((s) => {
+        if (options.excludeSessionId !== undefined && s.id === options.excludeSessionId) return false;
+        return areSessionsOverlapping(
+          curDay,
+          slot,
+          span,
+          options.customTime,
+          s.day,
+          s.slot,
+          s.slotSpan ?? 1,
+          s.customTime,
+        );
+      });
+
+      if (dayOccupied) {
+        isOccupied = true;
+        break;
+      }
+    }
 
     if (!isOccupied) {
       const bloc = getRoomBloc(room);
+      const isSameBloc = Boolean(options.targetBloc && bloc === options.targetBloc);
       let score = blocPriority[bloc] ?? 99;
-      if (options.targetBloc && bloc === options.targetBloc) {
+      if (isSameBloc) {
         score -= 100; // Prefer target bloc heavily
       }
       freeRooms.push({
         room,
         bloc,
+        isSameBloc,
         isKnown: true,
         score,
       });
@@ -659,6 +728,9 @@ export function findFreeSlots(
   for (let d = 0; d <= 6 - daySpan; d++) {
     for (let s = 0; s <= 6 - slotSpan; s++) {
       // 1. Check if the session's program already has another session at (d, s)
+    const dayName = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'][d] ?? `Jour ${d + 1}`;
+    const slotLabels = ['08:30-10:00', '10:15-11:45', '12:00-13:00', '13:00-14:30', '14:45-16:15', '16:30-18:00'];
+    const slotLabel = slotLabels[s] ?? `Créneau ${s + 1}`;
       let programBusy = false;
       if (session.source !== 'fet') {
         for (let dayOffset = 0; dayOffset < daySpan; dayOffset++) {
@@ -722,6 +794,8 @@ export function findFreeSlots(
       freeSlots.push({
         day: d,
         slot: s,
+        dayName,
+        slotLabel,
         score: distance,
       });
     }

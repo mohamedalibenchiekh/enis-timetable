@@ -141,25 +141,37 @@ export class ProgramsController {
   @Get(':id/sessions/:sid/suggestions')
   getSuggestions(
     @Param('id', ParseUUIDPipe) id: string,
-    @Param('sid') sid: string,
+    @Param('sid', ParseUUIDPipe) sid: string,
     @Query('against') against?: string,
   ) {
     return this.service.getSessionSuggestions(id, sid, against);
   }
 
   @Post(':id/sessions')
-  createSession(@Param('id', ParseUUIDPipe) id: string, @Body() body: unknown) {
+  createSession(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: { expectedRevision?: number; session?: unknown },
+  ) {
     return this.service.createSession(id, body);
   }
 
   @Put(':id/sessions/:sid')
-  updateSession(@Param('id', ParseUUIDPipe) id: string, @Param('sid') sid: string, @Body() body: unknown) {
+  updateSession(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('sid', ParseUUIDPipe) sid: string,
+    @Body() body: { expectedRevision?: number; session?: unknown },
+  ) {
     return this.service.updateSession(id, sid, body);
   }
 
   @Delete(':id/sessions/:sid')
-  deleteSession(@Param('id', ParseUUIDPipe) id: string, @Param('sid') sid: string) {
-    return this.service.deleteSession(id, sid);
+  deleteSession(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('sid', ParseUUIDPipe) sid: string,
+    @Query('expectedRevision') expectedRevision?: string,
+  ) {
+    const expRev = expectedRevision ? parseInt(expectedRevision, 10) : undefined;
+    return this.service.deleteSession(id, sid, expRev);
   }
 
   @Post(':id/sessions/batch')
@@ -168,8 +180,12 @@ export class ProgramsController {
   }
 
   @Post(':id/revert')
-  revert(@Param('id', ParseUUIDPipe) id: string) {
-    return this.service.revert(id);
+  revert(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Query('expectedRevision') expectedRevision?: string,
+  ) {
+    const expRev = expectedRevision ? parseInt(expectedRevision, 10) : undefined;
+    return this.service.revert(id, expRev);
   }
 
   @Get(':id/revisions')
@@ -181,19 +197,21 @@ export class ProgramsController {
   restoreRevision(
     @Param('id', ParseUUIDPipe) id: string,
     @Param('revision', ParseIntPipe) revision: number,
+    @Query('expectedRevision') expectedRevision?: string,
   ) {
-    return this.service.restoreRevision(id, revision);
+    const expRev = expectedRevision ? parseInt(expectedRevision, 10) : undefined;
+    return this.service.restoreRevision(id, revision, expRev);
   }
 
   @Post(':id/restore')
   restoreRevisionFromBody(
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() body: { revision: number },
+    @Body() body: { revision: number; expectedRevision?: number },
   ) {
-    if (!body || typeof body.revision !== 'number') {
-      throw new BadRequestException('Le numéro de révision est obligatoire.');
+    if (!body || typeof body.revision !== 'number' || !Number.isInteger(body.revision) || body.revision < 1) {
+      throw new BadRequestException('Le numéro de révision valide est obligatoire.');
     }
-    return this.service.restoreRevision(id, body.revision);
+    return this.service.restoreRevision(id, body.revision, body.expectedRevision);
   }
 
   @Get(':id')

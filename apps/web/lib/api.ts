@@ -354,19 +354,19 @@ export const api = {
   batchProgramSessions: (
     programId: string,
     expectedRevision: number,
-    ops: Array<{
-      op: 'create' | 'update' | 'delete' | 'move';
+    operations: Array<{
+      type: 'create' | 'update' | 'delete' | 'move';
+      id?: string;
+      day?: number;
+      slot?: number;
       session?: Partial<ProgramSession>;
-      sessionId?: string;
-      targetDay?: number;
-      targetSlot?: number;
     }>,
     description?: string,
   ) =>
     req<{ ok: true; revision: number; sessions: ProgramSession[] }>(`/api/programs/${encodeURIComponent(programId)}/sessions/batch`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ expectedRevision, ops, description }),
+      body: JSON.stringify({ expectedRevision, operations, description }),
     }),
   revertProgram: (programId: string) =>
     req<{ ok: true; revision: number; sessions: ProgramSession[] }>(`/api/programs/${encodeURIComponent(programId)}/revert`, {

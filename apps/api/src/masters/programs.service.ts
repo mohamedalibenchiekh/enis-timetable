@@ -182,6 +182,9 @@ export class ProgramsService implements OnModuleInit {
       if (replacingCurrent) {
         await slots.delete({ programId: program.id });
         await sessions.delete({ programId: program.id });
+        if (typeof revisions.delete === 'function') {
+          await revisions.delete({ programId: program.id, revision });
+        }
       }
 
       await slots.save(analysis.slots.map((slot) => {
@@ -338,14 +341,16 @@ export class ProgramsService implements OnModuleInit {
 
   async getConflicts(programId?: string, against?: string) {
     const state = await this.buildFullOccupancyState(against);
-    return detectConflicts(state, programId ? { targetProgramId: programId } : {});
+    const conflicts = detectConflicts(state, programId ? { targetProgramId: programId } : {});
+    if (!programId) return conflicts;
+    return conflicts.filter((c) => c.sessions.some((s) => s.programId === programId));
   }
 
   async getFreeRooms(
     day: number,
     slot: number,
     against?: string,
-    options: { slotSpan?: number; customTime?: string | null; targetBloc?: string } = {},
+    options: { slotSpan?: number; daySpan?: number; customTime?: string | null; targetBloc?: string } = {},
   ) {
     if (!Number.isInteger(day) || day < 0 || day > 5 || !Number.isInteger(slot) || slot < 0 || slot > 5) {
       throw new BadRequestException('Jour ou créneau invalide.');
@@ -356,11 +361,14 @@ export class ProgramsService implements OnModuleInit {
 
   async getSessionSuggestions(programId: string, sessionId: string, against?: string) {
     const state = await this.buildFullOccupancyState(against);
-    const session = state.sessions.find((s) => String(s.id) === String(sessionId));
+    const session = (state.programSessions ?? state.sessions).find(
+      (s) => String(s.id) === String(sessionId) && s.programId === programId,
+    );
     if (!session) throw new NotFoundException('Séance introuvable.');
 
     const freeRooms = findFreeRooms(session.day, session.slot, state, {
       slotSpan: session.slotSpan,
+      daySpan: session.daySpan,
       customTime: session.customTime,
       excludeSessionId: session.id,
     });
@@ -379,24 +387,37 @@ export class ProgramsService implements OnModuleInit {
   // ---------------------------------------------------------------------------
 
   async createSession(programId: string, body: unknown) {
-    const program = await this.programs.findOne({ where: { id: programId }, relations: { sessions: true, slots: true } });
-    if (!program) throw new NotFoundException('Programme introuvable.');
     if (!body || typeof body !== 'object') throw new BadRequestException('Séance invalide.');
-
     const input = body as Record<string, unknown>;
-    const sessionData = this.prepareSessionInput(input);
+    const expectedRevision = typeof input.expectedRevision === 'number' ? input.expectedRevision : undefined;
+
+    const rawSession = (input.session && typeof input.session === 'object' ? input.session : input) as Record<string, unknown>;
+    const sessionData = this.prepareSessionInput(rawSession);
     this.validateSession(sessionData, 0);
 
-    // Check no cell overlap within the program
-    this.checkNoOverlapInsideProgram([...(program.sessions ?? []), sessionData]);
-
-    const newRevision = program.revision + 1;
-
     const saved = await this.dataSource.transaction(async (manager) => {
-      const sessionRepo = manager.getRepository(ProgramSessionEntity);
       const progRepo = manager.getRepository(Program);
+      const sessionRepo = manager.getRepository(ProgramSessionEntity);
       const revRepo = manager.getRepository(ProgramRevision);
 
+      // Pessimistic lock on the program
+      const program = await progRepo.findOne({
+        where: { id: programId },
+        relations: { sessions: true, slots: true },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!program) throw new NotFoundException('Programme introuvable.');
+
+      if (expectedRevision !== undefined && program.revision !== expectedRevision) {
+        throw new ConflictException(
+          `Le programme a été modifié (révision attendue : ${expectedRevision}, actuelle : ${program.revision}). Veuillez actualiser.`,
+        );
+      }
+
+      // Check no cell overlap within the program
+      this.checkNoOverlapInsideProgram([...(program.sessions ?? []), sessionData]);
+
+      const newRevision = program.revision + 1;
       const entity = sessionRepo.create({
         ...sessionData,
         id: randomUUID(),
@@ -409,34 +430,47 @@ export class ProgramsService implements OnModuleInit {
       const allSessions = [...(program.sessions ?? []), created];
       await this.recordRevisionSnapshot(revRepo, program.id, newRevision, `Ajout séance : ${created.title}`, allSessions, program.slots);
 
-      return created;
+      return { created, newRevision };
     });
 
     this.backups?.scheduler?.notifyDataChanged();
-    return { ok: true, revision: newRevision, session: saved };
+    return { ok: true, revision: saved.newRevision, session: saved.created };
   }
 
   async updateSession(programId: string, sessionId: string, body: unknown) {
-    const program = await this.programs.findOne({ where: { id: programId }, relations: { sessions: true, slots: true } });
-    if (!program) throw new NotFoundException('Programme introuvable.');
+    if (!body || typeof body !== 'object') throw new BadRequestException('Séance invalide.');
+    const input = body as Record<string, unknown>;
+    const expectedRevision = typeof input.expectedRevision === 'number' ? input.expectedRevision : undefined;
+
+    const rawSession = (input.session && typeof input.session === 'object' ? input.session : input) as Record<string, unknown>;
     const session = await this.sessions.findOneBy({ id: sessionId, programId });
     if (!session) throw new NotFoundException('Séance introuvable.');
-    if (!body || typeof body !== 'object') throw new BadRequestException('Séance invalide.');
 
-    const input = body as Record<string, unknown>;
-    const sessionData = this.prepareSessionInput(input, session);
+    const sessionData = this.prepareSessionInput(rawSession, session);
     this.validateSession(sessionData, 0);
 
-    const otherSessions = (program.sessions ?? []).filter((s) => s.id !== sessionId);
-    this.checkNoOverlapInsideProgram([...otherSessions, sessionData]);
-
-    const newRevision = program.revision + 1;
-
     const updated = await this.dataSource.transaction(async (manager) => {
-      const sessionRepo = manager.getRepository(ProgramSessionEntity);
       const progRepo = manager.getRepository(Program);
+      const sessionRepo = manager.getRepository(ProgramSessionEntity);
       const revRepo = manager.getRepository(ProgramRevision);
 
+      const program = await progRepo.findOne({
+        where: { id: programId },
+        relations: { sessions: true, slots: true },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!program) throw new NotFoundException('Programme introuvable.');
+
+      if (expectedRevision !== undefined && program.revision !== expectedRevision) {
+        throw new ConflictException(
+          `Le programme a été modifié (révision attendue : ${expectedRevision}, actuelle : ${program.revision}). Veuillez actualiser.`,
+        );
+      }
+
+      const otherSessions = (program.sessions ?? []).filter((s) => s.id !== sessionId);
+      this.checkNoOverlapInsideProgram([...otherSessions, sessionData]);
+
+      const newRevision = program.revision + 1;
       await sessionRepo.update({ id: sessionId }, sessionData);
       const refreshed = await sessionRepo.findOneBy({ id: sessionId });
 
@@ -445,65 +479,102 @@ export class ProgramsService implements OnModuleInit {
       const allSessions = [...otherSessions, refreshed!];
       await this.recordRevisionSnapshot(revRepo, program.id, newRevision, `Modification séance : ${refreshed!.title}`, allSessions, program.slots);
 
-      return refreshed!;
+      return { refreshed: refreshed!, newRevision };
     });
 
     this.backups?.scheduler?.notifyDataChanged();
-    return { ok: true, revision: newRevision, session: updated };
+    return { ok: true, revision: updated.newRevision, session: updated.refreshed };
   }
 
-  async deleteSession(programId: string, sessionId: string) {
-    const program = await this.programs.findOne({ where: { id: programId }, relations: { sessions: true, slots: true } });
-    if (!program) throw new NotFoundException('Programme introuvable.');
+  async deleteSession(programId: string, sessionId: string, expectedRevision?: number) {
     const session = await this.sessions.findOneBy({ id: sessionId, programId });
     if (!session) throw new NotFoundException('Séance introuvable.');
 
-    const newRevision = program.revision + 1;
-
-    await this.dataSource.transaction(async (manager) => {
-      const sessionRepo = manager.getRepository(ProgramSessionEntity);
+    const res = await this.dataSource.transaction(async (manager) => {
       const progRepo = manager.getRepository(Program);
+      const sessionRepo = manager.getRepository(ProgramSessionEntity);
       const revRepo = manager.getRepository(ProgramRevision);
 
+      const program = await progRepo.findOne({
+        where: { id: programId },
+        relations: { sessions: true, slots: true },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!program) throw new NotFoundException('Programme introuvable.');
+
+      if (expectedRevision !== undefined && program.revision !== expectedRevision) {
+        throw new ConflictException(
+          `Le programme a été modifié (révision attendue : ${expectedRevision}, actuelle : ${program.revision}). Veuillez actualiser.`,
+        );
+      }
+
+      const newRevision = program.revision + 1;
       await sessionRepo.delete({ id: sessionId });
       await progRepo.update({ id: program.id }, { revision: newRevision, updatedAt: new Date() });
 
       const remainingSessions = (program.sessions ?? []).filter((s) => s.id !== sessionId);
       await this.recordRevisionSnapshot(revRepo, program.id, newRevision, `Suppression séance : ${session.title}`, remainingSessions, program.slots);
+
+      return { newRevision };
     });
 
     this.backups?.scheduler?.notifyDataChanged();
-    return { ok: true, revision: newRevision };
+    return { ok: true, revision: res.newRevision };
   }
 
   async batchSessions(programId: string, body: unknown) {
-    const program = await this.programs.findOne({ where: { id: programId }, relations: { sessions: true, slots: true } });
-    if (!program) throw new NotFoundException('Programme introuvable.');
     if (!body || typeof body !== 'object') throw new BadRequestException('Corps de requête invalide.');
 
-    const input = body as { expectedRevision?: number; operations?: Array<Record<string, unknown>> };
+    const input = body as {
+      expectedRevision?: number;
+      operations?: Array<Record<string, unknown>>;
+      ops?: Array<Record<string, unknown>>;
+    };
     if (typeof input.expectedRevision !== 'number') {
       throw new BadRequestException('La révision attendue (expectedRevision) est obligatoire.');
     }
 
-    if (program.revision !== input.expectedRevision) {
-      throw new ConflictException(
-        `Le programme a été modifié (révision attendue : ${input.expectedRevision}, actuelle : ${program.revision}). Veuillez actualiser.`,
-      );
-    }
+    const rawOps = Array.isArray(input.operations) ? input.operations : Array.isArray(input.ops) ? input.ops : [];
+    // Normalize ops if using web client's format (op -> type, sessionId -> id, etc.)
+    const operations: any[] = rawOps.map((op: any) => {
+      const type = (op.type ?? op.op) as string;
+      const id = (op.id ?? op.sessionId ?? (op.session as Record<string, unknown>)?.id) as string;
+      const day = (op.day ?? op.targetDay) as number;
+      const slot = (op.slot ?? op.targetSlot) as number;
+      return {
+        ...op,
+        type,
+        id,
+        day,
+        slot,
+      };
+    });
 
-    const operations = Array.isArray(input.operations) ? input.operations : [];
-    if (!operations.length) {
-      return { ok: true, revision: program.revision, sessions: program.sessions ?? [] };
-    }
-
-    const newRevision = program.revision + 1;
-
-    const resultSessions = await this.dataSource.transaction(async (manager) => {
-      const sessionRepo = manager.getRepository(ProgramSessionEntity);
+    const result = await this.dataSource.transaction(async (manager) => {
       const progRepo = manager.getRepository(Program);
+      const sessionRepo = manager.getRepository(ProgramSessionEntity);
       const revRepo = manager.getRepository(ProgramRevision);
 
+      // Pessimistic write lock on program to prevent concurrent race condition
+      const program = await progRepo.findOne({
+        where: { id: programId },
+        relations: { slots: true },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!program) throw new NotFoundException('Programme introuvable.');
+
+      if (program.revision !== input.expectedRevision) {
+        throw new ConflictException(
+          `Le programme a été modifié (révision attendue : ${input.expectedRevision}, actuelle : ${program.revision}). Veuillez actualiser.`,
+        );
+      }
+
+      if (!operations.length) {
+        const cur = await sessionRepo.findBy({ programId });
+        return { revision: program.revision, sessions: cur };
+      }
+
+      const newRevision = program.revision + 1;
       let currentSessions = await sessionRepo.findBy({ programId });
 
       for (const op of operations) {
@@ -515,7 +586,7 @@ export class ProgramsService implements OnModuleInit {
           const saved = await sessionRepo.save(entity);
           currentSessions.push(saved);
         } else if (type === 'update') {
-          const id = (op.id ?? (op.session as Record<string, unknown>)?.id) as string;
+          const id = op.id as string;
           const target = currentSessions.find((s) => s.id === id);
           if (!target) throw new NotFoundException(`Séance à modifier introuvable : ${id}`);
           const sData = this.prepareSessionInput(op.session as Record<string, unknown>, target);
@@ -551,25 +622,38 @@ export class ProgramsService implements OnModuleInit {
       await progRepo.update({ id: program.id }, { revision: newRevision, updatedAt: new Date() });
       await this.recordRevisionSnapshot(revRepo, program.id, newRevision, `Modification groupée (${operations.length} opérations)`, currentSessions, program.slots);
 
-      return currentSessions;
+      return { revision: newRevision, sessions: currentSessions };
     });
 
     this.backups?.scheduler?.notifyDataChanged();
-    return { ok: true, revision: newRevision, sessions: resultSessions };
+    return { ok: true, revision: result.revision, sessions: result.sessions };
   }
 
-  async revert(programId: string) {
-    const program = await this.programs.findOne({ where: { id: programId }, relations: { sessions: true, slots: true } });
-    if (!program) throw new NotFoundException('Programme introuvable.');
-
-    const snap = program.originalSnapshot as { sessions?: ProgramSession[]; slots?: ProgramSlotEntity[] } | undefined;
-    const initialSessions = snap?.sessions ?? [];
-    const newRevision = program.revision + 1;
-
-    await this.dataSource.transaction(async (manager) => {
-      const sessionRepo = manager.getRepository(ProgramSessionEntity);
+  async revert(programId: string, expectedRevision?: number) {
+    const res = await this.dataSource.transaction(async (manager) => {
       const progRepo = manager.getRepository(Program);
+      const sessionRepo = manager.getRepository(ProgramSessionEntity);
       const revRepo = manager.getRepository(ProgramRevision);
+
+      const program = await progRepo.findOne({
+        where: { id: programId },
+        relations: { slots: true },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!program) throw new NotFoundException('Programme introuvable.');
+
+      if (expectedRevision !== undefined && program.revision !== expectedRevision) {
+        throw new ConflictException(
+          `Le programme a été modifié (révision attendue : ${expectedRevision}, actuelle : ${program.revision}). Veuillez actualiser.`,
+        );
+      }
+
+      const snap = program.originalSnapshot as { sessions?: ProgramSession[]; slots?: ProgramSlotEntity[] } | undefined;
+      if (!snap || !Array.isArray(snap.sessions)) {
+        throw new BadRequestException('L’import initial ne contient aucun instantané de séances.');
+      }
+      const initialSessions = snap.sessions;
+      const newRevision = program.revision + 1;
 
       await sessionRepo.delete({ programId });
 
@@ -585,6 +669,8 @@ export class ProgramsService implements OnModuleInit {
 
       await progRepo.update({ id: program.id }, { revision: newRevision, updatedAt: new Date() });
       await this.recordRevisionSnapshot(revRepo, program.id, newRevision, 'Retour à l’import initial', saved, program.slots);
+
+      return { newRevision };
     });
 
     this.backups?.scheduler?.notifyDataChanged();
@@ -613,21 +699,31 @@ export class ProgramsService implements OnModuleInit {
     });
   }
 
-  async restoreRevision(programId: string, revisionNumber: number) {
-    const program = await this.programs.findOne({ where: { id: programId }, relations: { slots: true } });
-    if (!program) throw new NotFoundException('Programme introuvable.');
-
-    const targetRev = await this.programRevisions.findOneBy({ programId, revision: revisionNumber });
-    if (!targetRev) throw new NotFoundException(`Révision ${revisionNumber} introuvable.`);
-
-    const snap = targetRev.snapshot as { sessions?: ProgramSession[] } | undefined;
-    const restoreSessions = snap?.sessions ?? [];
-    const newRevision = program.revision + 1;
-
+  async restoreRevision(programId: string, revisionNumber: number, expectedRevision?: number) {
     await this.dataSource.transaction(async (manager) => {
-      const sessionRepo = manager.getRepository(ProgramSessionEntity);
       const progRepo = manager.getRepository(Program);
+      const sessionRepo = manager.getRepository(ProgramSessionEntity);
       const revRepo = manager.getRepository(ProgramRevision);
+
+      const program = await progRepo.findOne({
+        where: { id: programId },
+        relations: { slots: true },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!program) throw new NotFoundException('Programme introuvable.');
+
+      if (expectedRevision !== undefined && program.revision !== expectedRevision) {
+        throw new ConflictException(
+          `Le programme a été modifié (révision attendue : ${expectedRevision}, actuelle : ${program.revision}). Veuillez actualiser.`,
+        );
+      }
+
+      const targetRev = await revRepo.findOneBy({ programId, revision: revisionNumber });
+      if (!targetRev) throw new NotFoundException(`Révision ${revisionNumber} introuvable.`);
+
+      const snap = targetRev.snapshot as { sessions?: ProgramSession[] } | undefined;
+      const restoreSessions = snap?.sessions ?? [];
+      const newRevision = program.revision + 1;
 
       await sessionRepo.delete({ programId });
 

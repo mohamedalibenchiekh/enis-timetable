@@ -363,11 +363,11 @@ describe('Occupancy and Conflict Engine', () => {
       }
 
       // Warm up V8 JIT compiler
-      const warmupState = buildOccupancyState(fetSessions.slice(0, 300), programSessions.slice(0, 300));
+      const warmupState = buildOccupancyState(fetSessions.slice(0, 500), programSessions.slice(0, 500));
       detectConflicts(warmupState);
 
-      const state = buildOccupancyState(fetSessions, programSessions);
       const start = performance.now();
+      const state = buildOccupancyState(fetSessions, programSessions);
       const conflicts = detectConflicts(state);
       const duration = performance.now() - start;
 

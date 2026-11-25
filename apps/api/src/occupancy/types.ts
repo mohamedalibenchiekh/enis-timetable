@@ -68,6 +68,7 @@ export interface Conflict {
 export interface FreeRoomSuggestion {
   room: string;
   bloc: string;
+  isSameBloc?: boolean;
   isKnown: boolean;
   score: number;
 }
@@ -75,6 +76,8 @@ export interface FreeRoomSuggestion {
 export interface FreeSlotSuggestion {
   day: number;
   slot: number;
+  dayName?: string;
+  slotLabel?: string;
   score: number;
   label?: string;
 }

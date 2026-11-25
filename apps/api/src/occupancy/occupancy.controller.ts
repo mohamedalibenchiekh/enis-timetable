@@ -28,12 +28,23 @@ export class OccupancyController {
     @Query('against') against?: string,
     @Query('targetBloc') targetBloc?: string,
     @Query('slotSpan') slotSpan?: string,
+    @Query('daySpan') daySpan?: string,
     @Query('customTime') customTime?: string,
   ) {
+    if (day < 0 || day > 5 || slot < 0 || slot > 5) {
+      throw new BadRequestException('Jour ou créneau invalide.');
+    }
     const span = slotSpan ? parseInt(slotSpan, 10) : 1;
-    if (isNaN(span) || span < 1) throw new BadRequestException('slotSpan invalide.');
+    const dSpan = daySpan ? parseInt(daySpan, 10) : 1;
+    if (isNaN(span) || span < 1 || span > 6 - slot) {
+      throw new BadRequestException('slotSpan dépasse les limites de la grille.');
+    }
+    if (isNaN(dSpan) || dSpan < 1 || dSpan > 6 - day) {
+      throw new BadRequestException('daySpan dépasse les limites de la grille.');
+    }
     return this.service.getFreeRooms(day, slot, against, {
       slotSpan: span,
+      daySpan: dSpan,
       customTime: customTime || null,
       targetBloc,
     });

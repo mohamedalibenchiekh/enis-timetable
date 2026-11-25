@@ -63,6 +63,7 @@ describe('ProgramsService save modes', () => {
     const revisionRepo = {
       create: (value: any) => value,
       save: async (value: any) => value,
+      delete: async () => ({ affected: 1 }),
       find: async () => [],
       findOneBy: async () => null,
       query: async () => [],

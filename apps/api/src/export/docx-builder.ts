@@ -186,7 +186,22 @@ function unassignedSection(grid: DayGrid, totalWidth: number): (Paragraph | Tabl
   ];
 
   for (const item of grid.unassignedSessions) {
-    const slotLabel = grid.headers[item.slot]?.[0] ?? `Créneau ${item.slot + 1}`;
+    const sSpan = Math.max(1, item.slotSpan ?? 1);
+    let slotLabel: string;
+    if (sSpan > 1) {
+      const firstSlot = grid.headers[item.slot]?.[0] ?? `Créneau ${item.slot + 1}`;
+      const lastSlot = grid.headers[item.slot + sSpan - 1]?.[0] ?? `Créneau ${item.slot + sSpan}`;
+      const startMatch = firstSlot.match(/^(\d{1,2}:\d{2})/);
+      const endMatch = lastSlot.match(/(\d{1,2}:\d{2})$/);
+      if (startMatch && endMatch) {
+        slotLabel = `${startMatch[1]}-${endMatch[1]}`;
+      } else {
+        slotLabel = `${firstSlot} – ${lastSlot}`;
+      }
+    } else {
+      slotLabel = grid.headers[item.slot]?.[0] ?? `Créneau ${item.slot + 1}`;
+    }
+
     rows.push(
       row([
         cell([slotLabel], colW[0], { size: 18 }),

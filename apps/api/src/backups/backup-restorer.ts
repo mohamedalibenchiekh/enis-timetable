@@ -339,9 +339,11 @@ export class BackupRestorer {
         }
 
         const programIdMap = new Map<string, string>();
+        const programRevisionOffsetMap = new Map<string, number>();
         for (const row of data.programs) {
           const id = randomUUID(); programIdMap.set(row.id, id);
           const newRevision = Number(await em.query('SELECT COALESCE(MAX(revision), 0) + 1 AS revision FROM programs WHERE code = $1', [row.code]).then((r: any[]) => r[0].revision));
+          programRevisionOffsetMap.set(row.id, newRevision - row.revision);
           const hasCurrent = await em.query('SELECT 1 FROM programs WHERE code = $1 AND "isCurrent" = TRUE LIMIT 1', [row.code]);
           await this.insertRows(em, 'programs', [{ ...row, id, revision: newRevision, isCurrent: row.isCurrent && hasCurrent.length === 0 }]);
           restoredCounts.programs = (restoredCounts.programs ?? 0) + 1;
@@ -360,9 +362,10 @@ export class BackupRestorer {
         }
         for (const row of (data.program_revisions ?? [])) {
           const programId = programIdMap.get(row.programId);
-          if (!programId) continue;
+          if (!programId) throw new BadRequestException(`Révision orpheline : programme « ${row.programId} » introuvable dans la sauvegarde.`);
+          const offset = programRevisionOffsetMap.get(row.programId) ?? 0;
           const { id: _id, ...rest } = row;
-          await this.insertRows(em, 'program_revisions', [{ ...rest, programId }]);
+          await this.insertRows(em, 'program_revisions', [{ ...rest, programId, revision: row.revision + offset }]);
           restoredCounts.program_revisions = (restoredCounts.program_revisions ?? 0) + 1;
         }
         for (const table of ['teacher_aliases', 'room_aliases'] as const) {
