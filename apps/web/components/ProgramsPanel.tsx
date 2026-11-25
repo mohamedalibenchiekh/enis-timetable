@@ -833,8 +833,8 @@ export function ProgramsPanel() {
         <GlobalConflictsPanel
           conflicts={conflicts}
           programs={programs ?? []}
-          referenceName={referenceTimetable?.name}
-          referenceSlots={referenceTimetable?.slots ?? activeProgram?.slots}
+          referenceName={referenceTimetable?.name ?? timetables[0]?.name}
+          referenceSlots={referenceTimetable?.slots ?? timetables[0]?.slots}
           onSelectProgramSession={handleSelectProgramSession}
           onRefresh={reloadConflicts}
         />

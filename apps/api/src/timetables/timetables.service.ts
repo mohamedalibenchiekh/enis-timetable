@@ -230,18 +230,29 @@ export class TimetablesService {
     let conflicts: Conflict[] = [];
 
     if ((options.includeMasters || options.highlightConflicts) && this.programsService) {
-      if (options.highlightConflicts) {
-        const state = await this.programsService.buildFullOccupancyState(t.id);
+      if (options.includeMasters && options.highlightConflicts && typeof this.programsService.buildOccupancyAndPrograms === 'function') {
+        const { state, programs } = await this.programsService.buildOccupancyAndPrograms(t.id);
         conflicts = detectConflicts(state);
-      }
-      if (options.includeMasters) {
-        const programs = await this.programsService.list();
         masterSessions = programs.flatMap((p) =>
           (p.sessions ?? []).map((s) => ({
             ...s,
             programCode: p.code,
           })),
         );
+      } else {
+        if (options.highlightConflicts) {
+          const state = await this.programsService.buildFullOccupancyState(t.id);
+          conflicts = detectConflicts(state);
+        }
+        if (options.includeMasters) {
+          const programs = await this.programsService.list();
+          masterSessions = programs.flatMap((p) =>
+            (p.sessions ?? []).map((s) => ({
+              ...s,
+              programCode: p.code,
+            })),
+          );
+        }
       }
     }
     return { masterSessions, conflicts };

@@ -231,9 +231,8 @@ export function buildOccupancyState(
     // Index by day and room
     if (s.canonicalRoom && !s.roomUnassigned) {
       const roomNorm = s.normCanonicalRoom || normalizeText(s.canonicalRoom);
-      for (let d = 0; d < dSpan; d++) {
-        const curDay = s.day + d;
-        const dayRoomKey = `${curDay}:${roomNorm}`;
+      if (dSpan === 1 && sSpan === 1 && !s.customTime) {
+        const dayRoomKey = `${s.day}:${roomNorm}`;
         let drList = byDayRoom.get(dayRoomKey);
         if (!drList) {
           drList = [];
@@ -241,12 +240,41 @@ export function buildOccupancyState(
         }
         drList.push(s);
 
-        // If session has customTime, it can overlap any slot touched by its interval
-        const parsed = s.customTime ? parseCustomTime(s.customTime) : null;
-        if (parsed) {
-          for (let sl = 0; sl < 6; sl++) {
-            const slotInt = getSlotInterval(curDay, sl, 1);
-            if (doIntervalsOverlap(parsed, slotInt)) {
+        const dsrKey = `${s.day}:${s.slot}:${roomNorm}`;
+        let dsrList = byDaySlotRoom.get(dsrKey);
+        if (!dsrList) {
+          dsrList = [];
+          byDaySlotRoom.set(dsrKey, dsrList);
+        }
+        dsrList.push(s);
+      } else {
+        for (let d = 0; d < dSpan; d++) {
+          const curDay = s.day + d;
+          const dayRoomKey = `${curDay}:${roomNorm}`;
+          let drList = byDayRoom.get(dayRoomKey);
+          if (!drList) {
+            drList = [];
+            byDayRoom.set(dayRoomKey, drList);
+          }
+          drList.push(s);
+
+          // If session has customTime, it can overlap any slot touched by its interval
+          const parsed = s.customTime ? parseCustomTime(s.customTime) : null;
+          if (parsed) {
+            for (let sl = 0; sl < 6; sl++) {
+              const slotInt = getSlotInterval(curDay, sl, 1);
+              if (doIntervalsOverlap(parsed, slotInt)) {
+                const dsrKey = `${curDay}:${sl}:${roomNorm}`;
+                let dsrList = byDaySlotRoom.get(dsrKey);
+                if (!dsrList) {
+                  dsrList = [];
+                  byDaySlotRoom.set(dsrKey, dsrList);
+                }
+                dsrList.push(s);
+              }
+            }
+          } else {
+            for (let sl = s.slot; sl < Math.min(6, s.slot + sSpan); sl++) {
               const dsrKey = `${curDay}:${sl}:${roomNorm}`;
               let dsrList = byDaySlotRoom.get(dsrKey);
               if (!dsrList) {
@@ -256,25 +284,14 @@ export function buildOccupancyState(
               dsrList.push(s);
             }
           }
-        } else {
-          for (let sl = s.slot; sl < Math.min(6, s.slot + sSpan); sl++) {
-            const dsrKey = `${curDay}:${sl}:${roomNorm}`;
-            let dsrList = byDaySlotRoom.get(dsrKey);
-            if (!dsrList) {
-              dsrList = [];
-              byDaySlotRoom.set(dsrKey, dsrList);
-            }
-            dsrList.push(s);
-          }
         }
       }
     }
 
     // Index by day and teacher
     for (const tKey of s.teacherKeys) {
-      for (let d = 0; d < dSpan; d++) {
-        const curDay = s.day + d;
-        const dayTeacherKey = `${curDay}:${tKey}`;
+      if (dSpan === 1 && sSpan === 1 && !s.customTime) {
+        const dayTeacherKey = `${s.day}:${tKey}`;
         let dtList = byDayTeacher.get(dayTeacherKey);
         if (!dtList) {
           dtList = [];
@@ -282,11 +299,40 @@ export function buildOccupancyState(
         }
         dtList.push(s);
 
-        const parsed = s.customTime ? parseCustomTime(s.customTime) : null;
-        if (parsed) {
-          for (let sl = 0; sl < 6; sl++) {
-            const slotInt = getSlotInterval(curDay, sl, 1);
-            if (doIntervalsOverlap(parsed, slotInt)) {
+        const dstKey = `${s.day}:${s.slot}:${tKey}`;
+        let dstList = byDaySlotTeacher.get(dstKey);
+        if (!dstList) {
+          dstList = [];
+          byDaySlotTeacher.set(dstKey, dstList);
+        }
+        dstList.push(s);
+      } else {
+        for (let d = 0; d < dSpan; d++) {
+          const curDay = s.day + d;
+          const dayTeacherKey = `${curDay}:${tKey}`;
+          let dtList = byDayTeacher.get(dayTeacherKey);
+          if (!dtList) {
+            dtList = [];
+            byDayTeacher.set(dayTeacherKey, dtList);
+          }
+          dtList.push(s);
+
+          const parsed = s.customTime ? parseCustomTime(s.customTime) : null;
+          if (parsed) {
+            for (let sl = 0; sl < 6; sl++) {
+              const slotInt = getSlotInterval(curDay, sl, 1);
+              if (doIntervalsOverlap(parsed, slotInt)) {
+                const dstKey = `${curDay}:${sl}:${tKey}`;
+                let dstList = byDaySlotTeacher.get(dstKey);
+                if (!dstList) {
+                  dstList = [];
+                  byDaySlotTeacher.set(dstKey, dstList);
+                }
+                dstList.push(s);
+              }
+            }
+          } else {
+            for (let sl = s.slot; sl < Math.min(6, s.slot + sSpan); sl++) {
               const dstKey = `${curDay}:${sl}:${tKey}`;
               let dstList = byDaySlotTeacher.get(dstKey);
               if (!dstList) {
@@ -296,31 +342,31 @@ export function buildOccupancyState(
               dstList.push(s);
             }
           }
-        } else {
-          for (let sl = s.slot; sl < Math.min(6, s.slot + sSpan); sl++) {
-            const dstKey = `${curDay}:${sl}:${tKey}`;
-            let dstList = byDaySlotTeacher.get(dstKey);
-            if (!dstList) {
-              dstList = [];
-              byDaySlotTeacher.set(dstKey, dstList);
-            }
-            dstList.push(s);
-          }
         }
       }
     }
 
     // Index by day, slot, and program (for internal program overlap)
     if (s.source !== 'fet') {
-      for (let d = 0; d < dSpan; d++) {
-        for (let sl = 0; sl < sSpan; sl++) {
-          const progKey = `${s.day + d}:${s.slot + sl}:${s.source}`;
-          let progList = byDayProgramSlot.get(progKey);
-          if (!progList) {
-            progList = [];
-            byDayProgramSlot.set(progKey, progList);
+      if (dSpan === 1 && sSpan === 1) {
+        const progKey = `${s.day}:${s.slot}:${s.source}`;
+        let progList = byDayProgramSlot.get(progKey);
+        if (!progList) {
+          progList = [];
+          byDayProgramSlot.set(progKey, progList);
+        }
+        progList.push(s);
+      } else {
+        for (let d = 0; d < dSpan; d++) {
+          for (let sl = 0; sl < sSpan; sl++) {
+            const progKey = `${s.day + d}:${s.slot + sl}:${s.source}`;
+            let progList = byDayProgramSlot.get(progKey);
+            if (!progList) {
+              progList = [];
+              byDayProgramSlot.set(progKey, progList);
+            }
+            progList.push(s);
           }
-          progList.push(s);
         }
       }
     }
@@ -406,9 +452,11 @@ export function detectConflicts(
   // 1. Check room double bookings using byDaySlotRoom
   for (const [dsrKey, sessionsInSlot] of state.byDaySlotRoom.entries()) {
     if (sessionsInSlot.length < 2) continue;
-    const [dayStr, slotStr, roomNorm] = dsrKey.split(':');
-    const curConflictDay = parseInt(dayStr, 10);
-    const curConflictSlot = parseInt(slotStr, 10);
+    const colon1 = dsrKey.indexOf(':');
+    const colon2 = dsrKey.indexOf(':', colon1 + 1);
+    const curConflictDay = Number(dsrKey.substring(0, colon1));
+    const curConflictSlot = Number(dsrKey.substring(colon1 + 1, colon2));
+    const roomNorm = dsrKey.substring(colon2 + 1);
 
     for (let i = 0; i < sessionsInSlot.length; i++) {
       for (let j = i + 1; j < sessionsInSlot.length; j++) {
@@ -419,13 +467,12 @@ export function detectConflicts(
 
         const id1 = s1.idStr ?? String(s1.id ?? i);
         const id2 = s2.idStr ?? String(s2.id ?? j);
+        const isFirst1 = id1 < id2;
         const needsDedup = (s1.slotSpan ?? 1) > 1 || (s2.slotSpan ?? 1) > 1 || (s1.daySpan ?? 1) > 1 || (s2.daySpan ?? 1) > 1 || Boolean(s1.customTime || s2.customTime);
-        let pairKey: string | undefined;
+        const pairKeyPart = isFirst1 ? `${id1}:${id2}` : `${id2}:${id1}`;
+        const effectiveKey = `${roomNorm}:${pairKeyPart}`;
 
-        if (needsDedup) {
-          pairKey = `${roomNorm}:${id1 < id2 ? `${id1}:${id2}` : `${id2}:${id1}`}`;
-          if (processedRoomPairs.has(pairKey)) continue;
-        }
+        if (needsDedup && processedRoomPairs.has(effectiveKey)) continue;
 
         // Check time overlap
         if (s1.customTime || s2.customTime) {
@@ -447,12 +494,12 @@ export function detectConflicts(
 
         if (isSameActivity(s1, s2)) continue;
 
-        const effectiveKey = pairKey ?? `${roomNorm}:${id1 < id2 ? `${id1}:${id2}` : `${id2}:${id1}`}`;
         if (needsDedup) processedRoomPairs.add(effectiveKey);
         const roomDisplayName = s1.canonicalRoom ?? s2.canonicalRoom ?? roomNorm;
 
         // Order sessions symmetrically by id or title
-        const [first, second] = id1 < id2 ? [s1, s2] : [s2, s1];
+        const first = isFirst1 ? s1 : s2;
+        const second = isFirst1 ? s2 : s1;
 
         addConflict({
           id: `room-double-${effectiveKey}`,
@@ -471,9 +518,11 @@ export function detectConflicts(
   // 2. Check teacher double bookings using byDaySlotTeacher
   for (const [dstKey, sessionsForTeacher] of state.byDaySlotTeacher.entries()) {
     if (sessionsForTeacher.length < 2) continue;
-    const [dayStr, slotStr, teacherKey] = dstKey.split(':');
-    const curConflictDay = parseInt(dayStr, 10);
-    const curConflictSlot = parseInt(slotStr, 10);
+    const colon1 = dstKey.indexOf(':');
+    const colon2 = dstKey.indexOf(':', colon1 + 1);
+    const curConflictDay = Number(dstKey.substring(0, colon1));
+    const curConflictSlot = Number(dstKey.substring(colon1 + 1, colon2));
+    const teacherKey = dstKey.substring(colon2 + 1);
 
     for (let i = 0; i < sessionsForTeacher.length; i++) {
       for (let j = i + 1; j < sessionsForTeacher.length; j++) {
@@ -484,13 +533,12 @@ export function detectConflicts(
 
         const id1 = s1.idStr ?? String(s1.id ?? i);
         const id2 = s2.idStr ?? String(s2.id ?? j);
+        const isFirst1 = id1 < id2;
         const needsDedup = (s1.slotSpan ?? 1) > 1 || (s2.slotSpan ?? 1) > 1 || (s1.daySpan ?? 1) > 1 || (s2.daySpan ?? 1) > 1 || Boolean(s1.customTime || s2.customTime);
-        let pairKey: string | undefined;
+        const pairKeyPart = isFirst1 ? `${id1}:${id2}` : `${id2}:${id1}`;
+        const effectiveKey = `${teacherKey}:${pairKeyPart}`;
 
-        if (needsDedup) {
-          pairKey = `${teacherKey}:${id1 < id2 ? `${id1}:${id2}` : `${id2}:${id1}`}`;
-          if (processedTeacherPairs.has(pairKey)) continue;
-        }
+        if (needsDedup && processedTeacherPairs.has(effectiveKey)) continue;
 
         if (s1.customTime || s2.customTime) {
           if (
@@ -513,7 +561,6 @@ export function detectConflicts(
           continue;
         }
 
-        const effectiveKey = pairKey ?? `${teacherKey}:${id1 < id2 ? `${id1}:${id2}` : `${id2}:${id1}`}`;
         if (needsDedup) processedTeacherPairs.add(effectiveKey);
         const tIdx1 = s1.teacherKeys.indexOf(teacherKey);
         const teacherName =
@@ -521,7 +568,8 @@ export function detectConflicts(
             ? s1.teachers[tIdx1]
             : (s2.teachers[s2.teacherKeys.indexOf(teacherKey)] ?? teacherKey);
 
-        const [first, second] = id1 < id2 ? [s1, s2] : [s2, s1];
+        const first = isFirst1 ? s1 : s2;
+        const second = isFirst1 ? s2 : s1;
 
         addConflict({
           id: `teacher-double-${effectiveKey}`,
@@ -603,19 +651,21 @@ export function detectConflicts(
     room_to_find: 3,
     room_unknown: 4,
   };
+  const severityRank: Record<string, number> = { error: 0, warning: 1, info: 2 };
 
   const conflicts: Conflict[] = [];
   for (let b = 0; b < 36; b++) {
     const list = buckets[b];
     if (list.length > 1) {
       list.sort((a, b) => {
-        const aSev = a.severity === 'error' ? 0 : a.severity === 'warning' ? 1 : 2;
-        const bSev = b.severity === 'error' ? 0 : b.severity === 'warning' ? 1 : 2;
+        const aSev = severityRank[a.severity] ?? 2;
+        const bSev = severityRank[b.severity] ?? 2;
         if (aSev !== bSev) return aSev - bSev;
         const typeDiff = typeRank[a.type] - typeRank[b.type];
         if (typeDiff !== 0) return typeDiff;
         if (a.resource !== b.resource) return a.resource < b.resource ? -1 : 1;
-        return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+        if (a.id !== b.id) return a.id < b.id ? -1 : 1;
+        return 0;
       });
     }
     for (let i = 0; i < list.length; i++) conflicts.push(list[i]);

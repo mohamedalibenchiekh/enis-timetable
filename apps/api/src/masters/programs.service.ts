@@ -146,7 +146,12 @@ export class ProgramsService implements OnModuleInit {
       if (typeof analysis[field as keyof ProgramAnalysis] !== 'string' || (analysis[field as keyof ProgramAnalysis] as string).length > max) throw new BadRequestException(`Champ programme invalide : ${field}.`);
     }
     if (!['docx', 'pdf'].includes(analysis.source) || !Array.isArray(analysis.warnings) || analysis.warnings.length > 500 || analysis.warnings.some((warning) => typeof warning !== 'string' || warning.length > 1_000) || !Number.isFinite(analysis.confidence) || analysis.confidence < 0 || analysis.confidence > 1 || !analysis.rawSnapshot || typeof analysis.rawSnapshot !== 'object' || Array.isArray(analysis.rawSnapshot)) throw new BadRequestException('Rapport d’analyse invalide.');
-    for (const [index, session] of analysis.sessions.entries()) this.validateSession(session, index);
+    for (const [index, session] of analysis.sessions.entries()) {
+      if (session.customTime && !parseCustomTime(session.customTime)) {
+        session.customTime = null;
+      }
+      this.validateSession(session, index);
+    }
 
     const mode = input.mode === 'replace' ? 'replace' : input.mode === 'new-version' ? 'new-version' : null;
     if (!mode) throw new BadRequestException('Choisissez « replace » ou « new-version ».');
@@ -285,9 +290,9 @@ export class ProgramsService implements OnModuleInit {
   // Occupancy & Conflict Engine Integration
   // ---------------------------------------------------------------------------
 
-  async buildFullOccupancyState(against?: string): Promise<OccupancyState> {
+  async buildOccupancyAndPrograms(against?: string): Promise<{ state: OccupancyState; programs: Program[] }> {
     const [allPrograms, rooms, teachers, knownRooms, allFetSessions] = await Promise.all([
-      this.programs.find({ where: { isCurrent: true }, relations: { sessions: true } }),
+      this.programs.find({ where: { isCurrent: true }, relations: { sessions: true, slots: true }, order: { code: 'ASC' } }),
       this.roomAliases.find(),
       this.teacherAliases.find(),
       this.knownRooms.find(),
@@ -318,7 +323,7 @@ export class ProgramsService implements OnModuleInit {
       })),
     );
 
-    return buildOccupancyState(
+    const state = buildOccupancyState(
       filteredFet.map((s) => ({
         id: s.id,
         day: s.day,
@@ -338,6 +343,13 @@ export class ProgramsService implements OnModuleInit {
         },
       },
     );
+
+    return { state, programs: allPrograms };
+  }
+
+  async buildFullOccupancyState(against?: string): Promise<OccupancyState> {
+    const { state } = await this.buildOccupancyAndPrograms(against);
+    return state;
   }
 
   async getConflicts(programId?: string, against?: string) {
@@ -826,6 +838,27 @@ export class ProgramsService implements OnModuleInit {
     const { canonicalRoom, roomUnassigned } = resolveCanonicalRoom(rawRoom);
     const effectiveRoomUnassigned = Boolean(input.roomUnassigned || roomUnassigned);
 
+    let customTime: string | null = null;
+    if (input.customTime !== undefined) {
+      if (input.customTime === null || input.customTime === '') {
+        customTime = null;
+      } else if (typeof input.customTime === 'string') {
+        const trimmed = input.customTime.trim();
+        if (!trimmed) {
+          customTime = null;
+        } else {
+          if (!parseCustomTime(trimmed)) {
+            throw new BadRequestException('Séance : horaire personnalisé invalide.');
+          }
+          customTime = trimmed;
+        }
+      } else {
+        throw new BadRequestException('Séance : horaire personnalisé invalide.');
+      }
+    } else {
+      customTime = current?.customTime ?? null;
+    }
+
     return {
       id: current?.id,
       day,
@@ -841,7 +874,7 @@ export class ProgramsService implements OnModuleInit {
       locationNote: typeof input.locationNote === 'string' ? input.locationNote.trim() : (current?.locationNote ?? ''),
       frequency: typeof input.frequency === 'string' ? input.frequency.trim() : (current?.frequency ?? ''),
       tags: Array.isArray(input.tags) ? (input.tags as string[]) : (current?.tags ?? []),
-      customTime: typeof input.customTime === 'string' ? input.customTime.trim() : (current?.customTime ?? null),
+      customTime,
       color: typeof input.color === 'string' ? input.color.replace(/^#/u, '').toUpperCase() : (current?.color ?? null),
       note: typeof input.note === 'string' ? input.note : (current?.note ?? ''),
       rawText: typeof input.rawText === 'string' ? input.rawText : (current?.rawText ?? title),
@@ -873,7 +906,7 @@ export class ProgramsService implements OnModuleInit {
     if (!Number.isInteger(session.slotSpan) || session.slotSpan < 1 || session.slot + session.slotSpan > 6 || !Number.isInteger(session.daySpan) || session.daySpan < 1 || session.day + session.daySpan > 6) throw new BadRequestException(`Séance ${index + 1} : fusion de cellules invalide.`);
     if (session.roomUnassigned && session.room) throw new BadRequestException(`Séance ${index + 1} : une salle à rechercher ne peut pas avoir de salle affectée.`);
     if (typeof session.title !== 'string' || session.title.length > 1_000 || typeof session.code !== 'string' || session.code.length > 100 || typeof session.rawText !== 'string' || session.rawText.length > 10_000 || !Array.isArray(session.teachers) || session.teachers.length > 20 || session.teachers.some((name) => typeof name !== 'string' || name.length > 255) || !Array.isArray(session.teacherKeys) || session.teacherKeys.length > 20 || session.teacherKeys.some((key) => typeof key !== 'string' || key.length > 255) || !Array.isArray(session.tags) || session.tags.length > 30 || session.tags.some((tag) => typeof tag !== 'string' || tag.length > 100) || !Array.isArray(session.reasons) || session.reasons.length > 30 || session.reasons.some((reason) => typeof reason !== 'string' || reason.length > 500) || !Number.isFinite(session.confidence) || session.confidence < 0 || session.confidence > 1) throw new BadRequestException(`Séance ${index + 1} : champs invalides.`);
-    if ((session.room !== null && typeof session.room !== 'string' && session.room !== undefined) || typeof session.locationNote !== 'string' || session.locationNote.length > 255 || typeof session.frequency !== 'string' || session.frequency.length > 100 || typeof session.note !== 'string' || session.note.length > 2_000 || typeof session.roomUnassigned !== 'boolean' || !['docx', 'pdf', 'manual'].includes(session.source) || (session.color !== null && session.color !== undefined && !/^(?:[0-9a-f]{3}|[0-9a-f]{6})$/iu.test(session.color)) || (session.customTime !== null && session.customTime !== undefined && (typeof session.customTime !== 'string' || session.customTime.length > 80 || !parseCustomTime(session.customTime)))) throw new BadRequestException(`Séance ${index + 1} : champs invalides.`);
+    if ((session.room !== null && typeof session.room !== 'string' && session.room !== undefined) || typeof session.locationNote !== 'string' || session.locationNote.length > 255 || typeof session.frequency !== 'string' || session.frequency.length > 100 || typeof session.note !== 'string' || session.note.length > 2_000 || typeof session.roomUnassigned !== 'boolean' || !['docx', 'pdf', 'manual'].includes(session.source) || (session.color !== null && session.color !== undefined && !/^(?:[0-9a-f]{3}|[0-9a-f]{6})$/iu.test(session.color)) || (session.customTime !== null && session.customTime !== undefined && (typeof session.customTime !== 'string' || session.customTime.length > 80))) throw new BadRequestException(`Séance ${index + 1} : champs invalides.`);
   }
 
   private validateAliasNames(aliasName: string, canonicalName: string) {
