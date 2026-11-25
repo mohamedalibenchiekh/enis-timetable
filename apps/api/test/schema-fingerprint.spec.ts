@@ -45,7 +45,7 @@ Procédure obligatoire :
       teacher_names: [],
       room_labels: [],
       known_rooms: [],
-      programs: [], program_slots: [], program_sessions: [], teacher_aliases: [], room_aliases: [],
+      programs: [], program_slots: [], program_sessions: [], teacher_aliases: [], room_aliases: [], program_revisions: [],
     };
 
     // If target is same as fromVersion, returns input unchanged

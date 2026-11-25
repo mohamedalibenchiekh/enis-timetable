@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { DataSource, Repository } from 'typeorm';
-import { KnownRoom, Program, ProgramRevision, ProgramSessionEntity, ProgramSlotEntity, RoomAlias, SessionEntity, TeacherAlias } from '../src/entities/timetable.entity.js';
+import { KnownRoom, Program, ProgramRevision, ProgramSessionEntity, ProgramSlotEntity, RoomAlias, SessionEntity, TeacherAlias, Timetable } from '../src/entities/timetable.entity.js';
 import { vi } from 'vitest';
 import type { ProgramAnalysis } from '../src/masters/types.js';
 
