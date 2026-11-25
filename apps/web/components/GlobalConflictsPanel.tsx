@@ -1,12 +1,23 @@
 'use client';
 import { useMemo, useState } from 'react';
-import { Conflict, ConflictSeverity, SavedProgram } from '@/lib/api';
+import { Conflict, ConflictSeverity, ProgramSlot, SavedProgram, SlotLabel } from '@/lib/api';
 
 const DAYS = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
 const STANDARD_SLOTS = ['08:30 - 10:00', '10:15 - 11:45', 'Pause (12:00 - 13:00)', '13:00 - 14:30', '14:45 - 16:15', '16:30 - 18:00'];
 const FRIDAY_SLOTS = ['08:30 - 10:00', '10:15 - 11:45', 'Pause (12:00 - 14:00)', '14:00 - 15:30', '15:45 - 17:15', '17:30 - 19:00'];
 
-function getSlotLabel(day: number, slot: number): string {
+function getSlotLabel(
+  day: number,
+  slot: number,
+  referenceSlots?: Array<{ base?: string; raw?: string; label?: string; rawLabel?: string; overrides?: Record<number, string>; dayOverrides?: Record<number, string> }>,
+): string {
+  if (referenceSlots && referenceSlots[slot]) {
+    const s = referenceSlots[slot];
+    const dayOverride = s.overrides?.[day] ?? s.dayOverrides?.[day];
+    if (dayOverride) return dayOverride;
+    const base = s.base || s.label || s.raw || s.rawLabel;
+    if (base) return base;
+  }
   const slots = day === 4 ? FRIDAY_SLOTS : STANDARD_SLOTS;
   return slots[slot] ?? `Créneau ${slot + 1}`;
 }
@@ -15,12 +26,14 @@ export function GlobalConflictsPanel({
   conflicts,
   programs,
   referenceName,
+  referenceSlots,
   onSelectProgramSession,
   onRefresh,
 }: {
   conflicts: Conflict[];
   programs: SavedProgram[];
   referenceName?: string;
+  referenceSlots?: SlotLabel[] | ProgramSlot[];
   onSelectProgramSession?: (programId: string, sessionId: string) => void;
   onRefresh?: () => void;
 }) {
@@ -150,7 +163,7 @@ export function GlobalConflictsPanel({
         <ul style={{ listStyle: 'none', padding: 0, margin: '1rem 0', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
           {filtered.map((conflict) => {
             const dayLabel = DAYS[conflict.day] ?? `Jour ${conflict.day + 1}`;
-            const slotLabel = getSlotLabel(conflict.day, conflict.slot);
+            const slotLabel = getSlotLabel(conflict.day, conflict.slot, referenceSlots);
 
             return (
               <li

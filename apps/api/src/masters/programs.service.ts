@@ -35,6 +35,7 @@ import {
   findFreeRooms,
   findFreeSlots,
   OccupancyState,
+  parseCustomTime,
   resolveCanonicalRoom,
 } from '../occupancy/index.js';
 
@@ -206,7 +207,7 @@ export class ProgramsService implements OnModuleInit {
       await revisions.save(revisions.create({
         programId: program.id,
         revision,
-        description: 'Import initial',
+        description: replacingCurrent ? `Remplacement révision ${revision}` : (revision === 1 ? 'Import initial' : `Nouvelle version (révision ${revision})`),
         snapshot: { sessions: savedSessions, slots: analysis.slots },
       }));
 
@@ -397,16 +398,23 @@ export class ProgramsService implements OnModuleInit {
 
     const saved = await this.dataSource.transaction(async (manager) => {
       const progRepo = manager.getRepository(Program);
+      const slotRepo = manager.getRepository(ProgramSlotEntity);
       const sessionRepo = manager.getRepository(ProgramSessionEntity);
       const revRepo = manager.getRepository(ProgramRevision);
 
       // Pessimistic lock on the program
       const program = await progRepo.findOne({
         where: { id: programId },
-        relations: { sessions: true, slots: true },
         lock: { mode: 'pessimistic_write' },
       });
       if (!program) throw new NotFoundException('Programme introuvable.');
+
+      const [programSlots, programSessions] = await Promise.all([
+        slotRepo.findBy({ programId }),
+        sessionRepo.findBy({ programId }),
+      ]);
+      program.slots = programSlots;
+      program.sessions = programSessions;
 
       if (expectedRevision !== undefined && program.revision !== expectedRevision) {
         throw new ConflictException(
@@ -451,15 +459,22 @@ export class ProgramsService implements OnModuleInit {
 
     const updated = await this.dataSource.transaction(async (manager) => {
       const progRepo = manager.getRepository(Program);
+      const slotRepo = manager.getRepository(ProgramSlotEntity);
       const sessionRepo = manager.getRepository(ProgramSessionEntity);
       const revRepo = manager.getRepository(ProgramRevision);
 
       const program = await progRepo.findOne({
         where: { id: programId },
-        relations: { sessions: true, slots: true },
         lock: { mode: 'pessimistic_write' },
       });
       if (!program) throw new NotFoundException('Programme introuvable.');
+
+      const [programSlots, programSessions] = await Promise.all([
+        slotRepo.findBy({ programId }),
+        sessionRepo.findBy({ programId }),
+      ]);
+      program.slots = programSlots;
+      program.sessions = programSessions;
 
       if (expectedRevision !== undefined && program.revision !== expectedRevision) {
         throw new ConflictException(
@@ -492,15 +507,22 @@ export class ProgramsService implements OnModuleInit {
 
     const res = await this.dataSource.transaction(async (manager) => {
       const progRepo = manager.getRepository(Program);
+      const slotRepo = manager.getRepository(ProgramSlotEntity);
       const sessionRepo = manager.getRepository(ProgramSessionEntity);
       const revRepo = manager.getRepository(ProgramRevision);
 
       const program = await progRepo.findOne({
         where: { id: programId },
-        relations: { sessions: true, slots: true },
         lock: { mode: 'pessimistic_write' },
       });
       if (!program) throw new NotFoundException('Programme introuvable.');
+
+      const [programSlots, programSessions] = await Promise.all([
+        slotRepo.findBy({ programId }),
+        sessionRepo.findBy({ programId }),
+      ]);
+      program.slots = programSlots;
+      program.sessions = programSessions;
 
       if (expectedRevision !== undefined && program.revision !== expectedRevision) {
         throw new ConflictException(
@@ -527,6 +549,7 @@ export class ProgramsService implements OnModuleInit {
 
     const input = body as {
       expectedRevision?: number;
+      description?: string;
       operations?: Array<Record<string, unknown>>;
       ops?: Array<Record<string, unknown>>;
     };
@@ -552,16 +575,17 @@ export class ProgramsService implements OnModuleInit {
 
     const result = await this.dataSource.transaction(async (manager) => {
       const progRepo = manager.getRepository(Program);
+      const slotRepo = manager.getRepository(ProgramSlotEntity);
       const sessionRepo = manager.getRepository(ProgramSessionEntity);
       const revRepo = manager.getRepository(ProgramRevision);
 
       // Pessimistic write lock on program to prevent concurrent race condition
       const program = await progRepo.findOne({
         where: { id: programId },
-        relations: { slots: true },
         lock: { mode: 'pessimistic_write' },
       });
       if (!program) throw new NotFoundException('Programme introuvable.');
+      program.slots = await slotRepo.findBy({ programId });
 
       if (program.revision !== input.expectedRevision) {
         throw new ConflictException(
@@ -619,8 +643,13 @@ export class ProgramsService implements OnModuleInit {
       // Check no overlapping sessions inside one program
       this.checkNoOverlapInsideProgram(currentSessions);
 
+      const description =
+        typeof input.description === 'string' && input.description.trim()
+          ? input.description.trim()
+          : `Modification groupée (${operations.length} opérations)`;
+
       await progRepo.update({ id: program.id }, { revision: newRevision, updatedAt: new Date() });
-      await this.recordRevisionSnapshot(revRepo, program.id, newRevision, `Modification groupée (${operations.length} opérations)`, currentSessions, program.slots);
+      await this.recordRevisionSnapshot(revRepo, program.id, newRevision, description, currentSessions, program.slots);
 
       return { revision: newRevision, sessions: currentSessions };
     });
@@ -632,15 +661,16 @@ export class ProgramsService implements OnModuleInit {
   async revert(programId: string, expectedRevision?: number) {
     const res = await this.dataSource.transaction(async (manager) => {
       const progRepo = manager.getRepository(Program);
+      const slotRepo = manager.getRepository(ProgramSlotEntity);
       const sessionRepo = manager.getRepository(ProgramSessionEntity);
       const revRepo = manager.getRepository(ProgramRevision);
 
       const program = await progRepo.findOne({
         where: { id: programId },
-        relations: { slots: true },
         lock: { mode: 'pessimistic_write' },
       });
       if (!program) throw new NotFoundException('Programme introuvable.');
+      program.slots = await slotRepo.findBy({ programId });
 
       if (expectedRevision !== undefined && program.revision !== expectedRevision) {
         throw new ConflictException(
@@ -702,15 +732,16 @@ export class ProgramsService implements OnModuleInit {
   async restoreRevision(programId: string, revisionNumber: number, expectedRevision?: number) {
     await this.dataSource.transaction(async (manager) => {
       const progRepo = manager.getRepository(Program);
+      const slotRepo = manager.getRepository(ProgramSlotEntity);
       const sessionRepo = manager.getRepository(ProgramSessionEntity);
       const revRepo = manager.getRepository(ProgramRevision);
 
       const program = await progRepo.findOne({
         where: { id: programId },
-        relations: { slots: true },
         lock: { mode: 'pessimistic_write' },
       });
       if (!program) throw new NotFoundException('Programme introuvable.');
+      program.slots = await slotRepo.findBy({ programId });
 
       if (expectedRevision !== undefined && program.revision !== expectedRevision) {
         throw new ConflictException(
@@ -842,7 +873,7 @@ export class ProgramsService implements OnModuleInit {
     if (!Number.isInteger(session.slotSpan) || session.slotSpan < 1 || session.slot + session.slotSpan > 6 || !Number.isInteger(session.daySpan) || session.daySpan < 1 || session.day + session.daySpan > 6) throw new BadRequestException(`Séance ${index + 1} : fusion de cellules invalide.`);
     if (session.roomUnassigned && session.room) throw new BadRequestException(`Séance ${index + 1} : une salle à rechercher ne peut pas avoir de salle affectée.`);
     if (typeof session.title !== 'string' || session.title.length > 1_000 || typeof session.code !== 'string' || session.code.length > 100 || typeof session.rawText !== 'string' || session.rawText.length > 10_000 || !Array.isArray(session.teachers) || session.teachers.length > 20 || session.teachers.some((name) => typeof name !== 'string' || name.length > 255) || !Array.isArray(session.teacherKeys) || session.teacherKeys.length > 20 || session.teacherKeys.some((key) => typeof key !== 'string' || key.length > 255) || !Array.isArray(session.tags) || session.tags.length > 30 || session.tags.some((tag) => typeof tag !== 'string' || tag.length > 100) || !Array.isArray(session.reasons) || session.reasons.length > 30 || session.reasons.some((reason) => typeof reason !== 'string' || reason.length > 500) || !Number.isFinite(session.confidence) || session.confidence < 0 || session.confidence > 1) throw new BadRequestException(`Séance ${index + 1} : champs invalides.`);
-    if ((session.room !== null && typeof session.room !== 'string' && session.room !== undefined) || typeof session.locationNote !== 'string' || session.locationNote.length > 255 || typeof session.frequency !== 'string' || session.frequency.length > 100 || typeof session.note !== 'string' || session.note.length > 2_000 || typeof session.roomUnassigned !== 'boolean' || !['docx', 'pdf', 'manual'].includes(session.source) || (session.color !== null && session.color !== undefined && !/^(?:[0-9a-f]{3}|[0-9a-f]{6})$/iu.test(session.color)) || (session.customTime !== null && session.customTime !== undefined && (typeof session.customTime !== 'string' || session.customTime.length > 80))) throw new BadRequestException(`Séance ${index + 1} : champs invalides.`);
+    if ((session.room !== null && typeof session.room !== 'string' && session.room !== undefined) || typeof session.locationNote !== 'string' || session.locationNote.length > 255 || typeof session.frequency !== 'string' || session.frequency.length > 100 || typeof session.note !== 'string' || session.note.length > 2_000 || typeof session.roomUnassigned !== 'boolean' || !['docx', 'pdf', 'manual'].includes(session.source) || (session.color !== null && session.color !== undefined && !/^(?:[0-9a-f]{3}|[0-9a-f]{6})$/iu.test(session.color)) || (session.customTime !== null && session.customTime !== undefined && (typeof session.customTime !== 'string' || session.customTime.length > 80 || !parseCustomTime(session.customTime)))) throw new BadRequestException(`Séance ${index + 1} : champs invalides.`);
   }
 
   private validateAliasNames(aliasName: string, canonicalName: string) {

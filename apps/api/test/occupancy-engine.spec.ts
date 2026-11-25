@@ -330,6 +330,64 @@ describe('Occupancy and Conflict Engine', () => {
       const conflicts3 = detectConflicts(state3);
       expect(conflicts3).toEqual(conflicts1);
     });
+
+    it('returns Friday-specific labels for slots suggested on Friday', () => {
+      const session = { id: 's-fri', day: 4, slot: 0, room: 'A 0-1', title: 'Cours', programCode: 'GT-M1' };
+      const state = buildOccupancyState([], [session]);
+      const normalizedSession = state.sessions.find((s) => s.id === 's-fri')!;
+      const slots = findFreeSlots(normalizedSession, state);
+      const fridaySlots = slots.filter((s) => s.day === 4);
+      expect(fridaySlots.length).toBeGreaterThan(0);
+      const pauseSlot = fridaySlots.find((s) => s.slot === 2);
+      if (pauseSlot) {
+        expect(pauseSlot.slotLabel).toBe('12:00-14:00');
+      }
+      const afternoonSlot = fridaySlots.find((s) => s.slot === 3);
+      if (afternoonSlot) {
+        expect(afternoonSlot.slotLabel).toBe('14:00-15:30');
+      }
+    });
+
+    it('indexes sessions with malformed customTime into nominal slots and detects conflict', () => {
+      const state = buildOccupancyState(
+        [],
+        [
+          { id: 'bad-time-1', day: 0, slot: 0, room: 'A 0-1', customTime: 'not a valid time', title: 'C1', programCode: 'GT-M1' },
+          { id: 'bad-time-2', day: 0, slot: 0, room: 'A 0-1', title: 'C2', programCode: 'GT-M2' },
+        ],
+      );
+      const conflicts = detectConflicts(state);
+      expect(conflicts.some((c) => c.type === 'room_double_booked')).toBe(true);
+    });
+
+    it('deduplicates spanning and custom-time session collisions to a single conflict', () => {
+      const state = buildOccupancyState(
+        [],
+        [
+          { id: 'span-1', day: 0, slot: 0, slotSpan: 3, room: 'A 0-1', title: 'C1', programCode: 'GT-M1' },
+          { id: 'span-2', day: 0, slot: 1, slotSpan: 2, room: 'A 0-1', title: 'C2', programCode: 'GT-M2' },
+        ],
+      );
+      const conflicts = detectConflicts(state);
+      const roomDoubleConflicts = conflicts.filter((c) => c.type === 'room_double_booked');
+      expect(roomDoubleConflicts).toHaveLength(1);
+    });
+
+    it('resolves teacher aliases with punctuation such as "J-P Dupont" or "Dr. Martin"', () => {
+      const aliases = {
+        'j-p. dupont': 'Jean-Pierre Dupont',
+        'dr. martin': 'Claire Martin',
+      };
+      const key1 = canonicalTeacherKey('J-P Dupont', aliases);
+      const key2 = canonicalTeacherKey('j p dupont', aliases);
+      expect(key1).toBe('dupont jean pierre');
+      expect(key2).toBe('dupont jean pierre');
+
+      const key3 = canonicalTeacherKey('Dr. Martin', aliases);
+      const key4 = canonicalTeacherKey('dr martin', aliases);
+      expect(key3).toBe('claire martin');
+      expect(key4).toBe('claire martin');
+    });
   });
 
   describe('Performance Guard (<100 ms for 3,000 sessions)', () => {
@@ -363,8 +421,8 @@ describe('Occupancy and Conflict Engine', () => {
       }
 
       // Warm up V8 JIT compiler
-      const warmupState = buildOccupancyState(fetSessions.slice(0, 500), programSessions.slice(0, 500));
-      detectConflicts(warmupState);
+      const warmup = buildOccupancyState(fetSessions, programSessions);
+      detectConflicts(warmup);
 
       const start = performance.now();
       const state = buildOccupancyState(fetSessions, programSessions);

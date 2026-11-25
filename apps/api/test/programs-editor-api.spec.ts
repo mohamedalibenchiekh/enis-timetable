@@ -79,6 +79,10 @@ describe('Programs Editor API (Revisions, Batch, Revert, Conflicts)', () => {
         slots.push(...vals);
         return vals;
       },
+      findBy: async (criteria: Partial<ProgramSlotEntity>) =>
+        slots.filter((s) => Object.entries(criteria).every(([k, v]) => s[k as keyof ProgramSlotEntity] === v)),
+      find: async ({ where }: any = {}) =>
+        slots.filter((s) => Object.entries(where).every(([k, v]) => s[k as keyof ProgramSlotEntity] === v)),
       delete: async () => ({ affected: 1 }),
     };
 
@@ -352,9 +356,10 @@ describe('Programs Editor API (Revisions, Batch, Revert, Conflicts)', () => {
       mode: 'new-version',
     });
 
-    // Add another session via batch
+    // Add another session via batch with custom description
     await service.batchSessions(prog.id, {
       expectedRevision: 1,
+      description: 'Déplacement manuel de séance',
       operations: [{ type: 'create', session: { day: 2, slot: 2, title: 'Séance Ajoutée' } }],
     });
 
@@ -377,5 +382,6 @@ describe('Programs Editor API (Revisions, Batch, Revert, Conflicts)', () => {
     // Revisions list
     const revs = await service.listRevisions(prog.id);
     expect(revs.length).toBeGreaterThanOrEqual(3);
+    expect(revs.some((r) => r.description === 'Déplacement manuel de séance')).toBe(true);
   });
 });

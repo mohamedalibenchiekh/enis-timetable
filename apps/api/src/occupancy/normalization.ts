@@ -148,7 +148,19 @@ export function canonicalTeacherKey(
   }
 
   const norm = normalizeText(teacher);
-  const resolved = (hasAliases && Object.prototype.hasOwnProperty.call(teacherAliases, norm) && teacherAliases[norm]) || teacher;
+  let resolved = teacher;
+  if (hasAliases) {
+    if (Object.prototype.hasOwnProperty.call(teacherAliases, norm)) {
+      resolved = teacherAliases[norm];
+    } else {
+      for (const [k, v] of Object.entries(teacherAliases)) {
+        if (normalizeText(k) === norm) {
+          resolved = v;
+          break;
+        }
+      }
+    }
+  }
   if (isGenericTeacher(resolved)) {
     if (cacheKey) teacherCache.set(cacheKey, null);
     return null;

@@ -60,12 +60,27 @@ describe('ProgramsService save modes', () => {
         return { affected: 1 };
       },
     };
+    const storedRevisions: any[] = [];
     const revisionRepo = {
       create: (value: any) => value,
-      save: async (value: any) => value,
-      delete: async () => ({ affected: 1 }),
-      find: async () => [],
-      findOneBy: async () => null,
+      save: async (value: any) => {
+        const item = { ...value, id: value.id ?? `rev-${++sequence}` };
+        storedRevisions.push(item);
+        return item;
+      },
+      delete: async (criteria: any) => {
+        let deletedCount = 0;
+        for (let index = storedRevisions.length - 1; index >= 0; index--) {
+          if (Object.entries(criteria).every(([key, value]) => storedRevisions[index][key] === value)) {
+            storedRevisions.splice(index, 1);
+            deletedCount++;
+          }
+        }
+        return { affected: deletedCount };
+      },
+      find: async () => [...storedRevisions],
+      findOneBy: async (criteria: any) =>
+        storedRevisions.find((r) => Object.entries(criteria).every(([k, v]) => r[k] === v)) ?? null,
       query: async () => [],
     };
     const manager = {
@@ -120,5 +135,7 @@ describe('ProgramsService save modes', () => {
     expect(sessions.find((session) => session.programId === current.id)?.id).not.toBe(currentSession.id);
     expect(slots.filter((slot) => slot.programId === current.id)).toHaveLength(6);
     expect(slots.find((slot) => slot.programId === current.id)?.id).not.toBe(currentSlots[0].id);
+    expect(storedRevisions.filter((r) => r.programId === current.id && r.revision === 2)).toHaveLength(1);
+    expect(storedRevisions.some((r) => r.programId === current.id && r.revision === 2 && r.description.includes('Remplacement'))).toBe(true);
   });
 });
