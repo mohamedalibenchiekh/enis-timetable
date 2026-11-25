@@ -335,6 +335,12 @@ Le bouton **« Ouvrir le dossier des journaux »** de la boîte de dialogue d’
 - **« Droits d’accès refusés pour accéder aux fichiers de données »** : L'application n'a pas les droits d'écriture dans le dossier `%APPDATA%`.
 - **« Le dossier de données ou l’un de ses fichiers semble corrompu ou illisible »** : Les fichiers de la base de données intégrée sont endommagés. Utilisez le bouton **« Ouvrir les sauvegardes »** pour restaurer une sauvegarde précédente (`.enisbackup`). L'application ne supprime jamais automatiquement vos données existantes.
 
+## Mastères : export
+
+Depuis **Mastères**, l’éditeur propose l’export Word du programme actif. Dans l’application de bureau, **Exporter en PDF** compose la même grille HTML dans une fenêtre Electron masquée et l’enregistre en PDF A4 paysage. Dans un navigateur, **Imprimer / Enregistrer en PDF** ouvre la mise en page autonome avec la feuille d’impression. **Tout exporter (.zip)** regroupe les versions Word des programmes enregistrés.
+
+L’export utilise l’année académique du programme (par défaut 2026-2027) et les créneaux et spans importés. Aucun logo institutionnel n’est fourni avec l’application. Les fichiers de mastère restent modifiables dans l’éditeur avant export.
+
 ## Documentation utilisateur
 
 Le guide français maintenu se trouve dans `docs/guide-utilisateur.fr.md`. Les mentions d’interface suivent la convention `**[Libellé exact]**`, vérifiée par un test qui compare les valeurs statiques entières des textes et libellés de l’interface.

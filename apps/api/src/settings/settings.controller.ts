@@ -18,6 +18,14 @@ export class SettingsController {
     }
   }
 
+  @Get('masters-form') getMastersForm() {
+    return this.settings.getMastersFormSettings();
+  }
+
+  @Put('masters-form') async putMastersForm(@Body() body: unknown) {
+    return this.settings.setMastersFormSettings(body);
+  }
+
   // ----- export profiles -------------------------------------------------------------------
 
   @Get('export-profiles') listProfiles() {

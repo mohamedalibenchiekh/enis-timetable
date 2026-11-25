@@ -197,6 +197,14 @@ Les programmes sont stockés séparément des imports FET. L’année universita
 - **Le PDF ne contient pas de couche texte exploitable (les documents numérisés ne sont pas acceptés)** : les PDF numérisés ne sont pas pris en charge; fournissez un PDF avec texte sélectionnable ou un DOCX.
 - **Ligne des jours introuvable dans le PDF du mastère** : vérifiez qu’au moins cinq jours reconnus figurent dans l’en-tête du tableau.
 
+## Exporter un emploi de mastère
+
+Dans l’onglet **[Mastères]**, ouvrez l’éditeur d’un programme enregistré. Utilisez **[Exporter en Word]** pour télécharger le formulaire Word. Dans l’application de bureau, **[Exporter en PDF]** ouvre le dialogue d’enregistrement et produit un PDF A4 paysage. Dans un navigateur, utilisez **[Imprimer / Enregistrer en PDF]**, puis choisissez l’imprimante PDF du navigateur.
+
+**[Tout exporter (.zip)]** télécharge les documents Word des programmes enregistrés. L’année affichée provient du programme et vaut 2026-2027 par défaut.
+
+Les erreurs **Identifiant de programme invalide**, **Paramètres du formulaire invalides**, **Identifiant de programme invalide ou serveur indisponible** et **Impossible de préparer le document PDF** indiquent respectivement une URL ou un modèle mal formé, ou un serveur local qui n’a pas pu préparer le PDF. Vérifiez que le programme existe et réessayez depuis l’application de bureau.
+
 ## Mises à jour
 
 ### Vérifier et installer une mise à jour

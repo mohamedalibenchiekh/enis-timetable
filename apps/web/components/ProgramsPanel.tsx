@@ -1,6 +1,6 @@
 'use client';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { api, Conflict, ProgramAnalysis, ProgramSession, SavedProgram, Timetable } from '@/lib/api';
+import { api, Conflict, MastersFormSettings, ProgramAnalysis, ProgramSession, SavedProgram, Timetable } from '@/lib/api';
 import { ProgramEditorGrid } from './ProgramEditorGrid';
 import { GlobalConflictsPanel } from './GlobalConflictsPanel';
 
@@ -72,6 +72,8 @@ export function ProgramsPanel() {
   const [error, setError] = useState('');
   const [listDrafts, setListDrafts] = useState<Record<string, string>>({});
   const [conflicts, setConflicts] = useState<Conflict[]>([]);
+  const [formSettings, setFormSettings] = useState<MastersFormSettings>({ institution: 'École Nationale d’Ingénieurs de Sousse', academicYear: '2026-2027', formDate: '', headerTitle: 'Emploi du Temps', emptyMarker: '---', roomColor: 'FF0000', footerFormat: 'legacy' });
+  const [settingsMessage, setSettingsMessage] = useState('');
 
   const current = analyses[selected];
   const existing = useMemo(
@@ -117,6 +119,10 @@ export function ProgramsPanel() {
   useEffect(() => {
     loadInitial();
   }, [loadInitial]);
+
+  useEffect(() => {
+    void api.getMastersFormSettings().then(setFormSettings).catch(() => undefined);
+  }, []);
 
   // Load conflicts whenever referenceId or programs change
   const reloadConflicts = useCallback(async () => {
@@ -792,6 +798,20 @@ export function ProgramsPanel() {
       {/* TAB 2: PROGRAM EDITOR */}
       {mainTab === 'editor' && (
         <div>
+          <details style={{ marginBottom: '1rem' }}>
+            <summary style={{ cursor: 'pointer', fontWeight: 600 }}>Modèle du formulaire</summary>
+            <div className="grid2" style={{ marginTop: '0.75rem' }}>
+              <label>Établissement<input className="text" value={formSettings.institution} onChange={(event) => setFormSettings({ ...formSettings, institution: event.target.value })} /></label>
+              <label>Année universitaire par défaut<input className="text" value={formSettings.academicYear} onChange={(event) => setFormSettings({ ...formSettings, academicYear: event.target.value })} /></label>
+              <label>Date du formulaire<input className="text" value={formSettings.formDate} onChange={(event) => setFormSettings({ ...formSettings, formDate: event.target.value })} /></label>
+              <label>Titre de l’en-tête<select value={formSettings.headerTitle} onChange={(event) => setFormSettings({ ...formSettings, headerTitle: event.target.value })}><option>Emploi du Temps</option><option>Formulaire / Emploi du temps</option></select></label>
+              <label>Marqueur de cellule vide<select value={formSettings.emptyMarker} onChange={(event) => setFormSettings({ ...formSettings, emptyMarker: event.target.value as MastersFormSettings['emptyMarker'] })}><option value="---">---</option><option value="-X-">-X-</option><option value="">Vide</option></select></label>
+              <label>Couleur des salles<input className="text" value={formSettings.roomColor} onChange={(event) => setFormSettings({ ...formSettings, roomColor: event.target.value })} /></label>
+              <label>Format du pied de page<select value={formSettings.footerFormat} onChange={(event) => setFormSettings({ ...formSettings, footerFormat: event.target.value as MastersFormSettings['footerFormat'] })}><option value="legacy">ENISo, le…</option><option value="compact">Emploi du temps, ENISo…</option></select></label>
+            </div>
+            <button className="primary" onClick={() => { setError(''); void api.saveMastersFormSettings(formSettings).then((saved) => { setFormSettings(saved); setSettingsMessage('Modèle enregistré'); }).catch((e: unknown) => setError((e as Error).message)); }}>Enregistrer le modèle</button>
+            {settingsMessage && <span className="ok"> {settingsMessage}</span>}
+          </details>
           {programs && programs.length > 1 && (
             <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1rem', padding: '0.5rem 0.75rem', background: '#f8fafc', borderRadius: '6px' }}>
               <span style={{ fontWeight: 600, fontSize: '13px' }}>Programme actif :</span>
@@ -814,14 +834,41 @@ export function ProgramsPanel() {
           )}
 
           {activeProgram ? (
-            <ProgramEditorGrid
-              program={activeProgram}
-              conflicts={conflicts}
-              timetables={timetables}
-              referenceId={referenceId}
-              onProgramUpdated={handleProgramUpdated}
-              onOpenSessionId={activeSessionId}
-            />
+            <>
+              {(() => {
+                const unresolved = conflicts.filter((conflict) => conflict.sessions.some((session) => session.programId === activeProgram.id || session.programCode === activeProgram.code));
+                const unassigned = activeProgram.sessions.filter((session) => session.roomUnassigned).length;
+                return (unresolved.length || unassigned) ? (
+                  <p role="alert" className="warning">
+                    {unresolved.length ? `${unresolved.length} conflit${unresolved.length > 1 ? 's' : ''} non résolu${unresolved.length > 1 ? 's' : ''}. ` : ''}
+                    {unassigned ? `${unassigned} salle${unassigned > 1 ? 's' : ''} à rechercher. ` : ''}
+                    Vous pouvez exporter quand même.
+                  </p>
+                ) : null;
+              })()}
+              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
+                <a className="btn primary" href={`/api/programs/${encodeURIComponent(activeProgram.id)}/export.docx`} download>Exporter en Word</a>
+                {typeof window !== 'undefined' && window.enis ? (
+                  <button className="btn secondary" onClick={() => {
+                    setError('');
+                    void window.enis?.exportProgramPdf(activeProgram.id).then((file) => {
+                      if (file) setMessage(`PDF enregistré : ${file}`);
+                    }).catch((e: unknown) => setError((e as Error).message));
+                  }}>Exporter en PDF</button>
+                ) : (
+                  <a className="btn secondary" href={`/api/programs/${encodeURIComponent(activeProgram.id)}/print.html`} target="_blank" rel="noreferrer">Imprimer / Enregistrer en PDF</a>
+                )}
+                <a className="btn secondary" href="/api/programs/export.zip" download>Tout exporter (.zip)</a>
+              </div>
+              <ProgramEditorGrid
+                program={activeProgram}
+                conflicts={conflicts}
+                timetables={timetables}
+                referenceId={referenceId}
+                onProgramUpdated={handleProgramUpdated}
+                onOpenSessionId={activeSessionId}
+              />
+            </>
           ) : (
             <p className="muted">Aucun programme enregistré. Cliquez sur « + Importer » pour en ajouter un.</p>
           )}

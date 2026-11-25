@@ -13,6 +13,7 @@ import { StartupLogger } from './logger';
 import { classifyStartupError } from './error-classifier';
 
 let api: ChildProcess | null = null;
+let apiPort = 0;
 let win: BrowserWindow | null = null;
 let apiLog = '';
 let db: EmbeddedDb | null = null;
@@ -322,6 +323,41 @@ ipcMain.handle('choose-folder', async (_event, ...args: unknown[]) => {
   const r = await dialog.showOpenDialog(win!, { title: 'Choisir le dossier de destination', properties: ['openDirectory', 'createDirectory'] });
   return r.canceled ? null : r.filePaths[0];
 });
+ipcMain.handle('export-program-pdf', async (_event, ...args: unknown[]) => {
+  if (args.length !== 1 || typeof args[0] !== 'string' || !/^[0-9a-f-]{36}$/iu.test(args[0]) || !apiPort) {
+    throw new Error('Identifiant de programme invalide ou serveur indisponible.');
+  }
+  const id = args[0];
+  const programResponse = await fetch(`http://127.0.0.1:${apiPort}/api/programs/${id}`);
+  if (!programResponse.ok) throw new Error('Programme introuvable.');
+  const programData: unknown = await programResponse.json();
+  const rawCode = programData && typeof programData === 'object' && 'code' in programData && typeof programData.code === 'string' ? programData.code : 'programme';
+  const code = rawCode.normalize('NFKD').replace(/[\u0300-\u036f]/gu, '').replace(/[^a-zA-Z0-9_-]+/gu, '-').replace(/^-+|-+$/gu, '').slice(0, 80) || 'programme';
+  const result = await dialog.showSaveDialog(win!, {
+    title: 'Exporter le programme en PDF',
+    defaultPath: path.join(app.getPath('documents'), `Emploi-${code}-${new Date().toISOString().slice(0, 10)}.pdf`),
+    filters: [{ name: 'Document PDF', extensions: ['pdf'] }],
+  });
+  if (result.canceled || !result.filePath) return null;
+  const response = await fetch(`http://127.0.0.1:${apiPort}/api/programs/${id}/print.html`);
+  if (!response.ok) throw new Error('Impossible de préparer le document PDF.');
+  const html = await response.text();
+  const printWindow = new BrowserWindow({
+    show: false, width: 1280, height: 900,
+    webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true },
+  });
+  try {
+    await printWindow.loadURL(`data:text/html;base64,${Buffer.from(html, 'utf8').toString('base64')}`);
+    const pdf = await printWindow.webContents.printToPDF({
+      pageSize: 'A4', landscape: true, printBackground: true, preferCSSPageSize: true,
+      margins: { top: 0.3, bottom: 0.3, left: 0.3, right: 0.3 },
+    });
+    fs.writeFileSync(result.filePath, pdf);
+    return result.filePath;
+  } finally {
+    if (!printWindow.isDestroyed()) printWindow.destroy();
+  }
+});
 ipcMain.handle('show-in-folder', (_event, ...args: unknown[]) => {
   if (args.length !== 1 || typeof args[0] !== 'string' || !path.isAbsolute(args[0])) {
     throw new Error('Chemin de fichier invalide.');
@@ -462,6 +498,7 @@ async function boot(): Promise<void> {
 
   try {
     const port = await startApi();
+    apiPort = port;
     await createWindow(port);
     if (backupWarning) {
       void dialog.showMessageBox(win!, {

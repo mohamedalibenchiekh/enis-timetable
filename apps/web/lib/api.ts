@@ -22,6 +22,7 @@ export interface ProgramAnalysis {
 export interface SavedProgram extends Omit<ProgramAnalysis, 'id' | 'version'> {
   id: string; version: string; revision: number; isCurrent: boolean; createdAt: string; updatedAt: string;
 }
+export interface MastersFormSettings { institution: string; academicYear: string; formDate: string; headerTitle: string; emptyMarker: '---' | '-X-' | ''; roomColor: string; footerFormat: 'legacy' | 'compact' }
 export interface ProgramAlias { id: number; aliasKey: string; aliasName: string; canonicalName: string; canonicalKey?: string; seeded: boolean; }
 export interface CellIssue {
   file: string;
@@ -287,6 +288,7 @@ declare global {
   interface Window {
     enis?: {
       chooseFolder: () => Promise<string | null>;
+      exportProgramPdf: (programId: string) => Promise<string | null>;
       showInFolder: (p: string) => Promise<void>;
       getVersion: () => Promise<string>;
       getUpdateStatus: () => Promise<UpdateStatus | null>;
@@ -308,6 +310,8 @@ async function req<T>(url: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  getMastersFormSettings: () => req<MastersFormSettings>('/api/settings/masters-form'),
+  saveMastersFormSettings: (settings: MastersFormSettings) => req<MastersFormSettings>('/api/settings/masters-form', { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify(settings) }),
   analyzePrograms: (files: File[], referenceSlots?: string[], referenceTimetableId?: string, referenceOverrides?: Record<number, Record<number, string>>) => {
     const fd = new FormData();
     files.forEach((file) => fd.append('files', file));
