@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { DataSource, Repository } from 'typeorm';
-import { KnownRoom, Program, ProgramSessionEntity, ProgramSlotEntity, RoomAlias, SessionEntity, TeacherAlias } from '../src/entities/timetable.entity.js';
+import { KnownRoom, Program, ProgramRevision, ProgramSessionEntity, ProgramSlotEntity, RoomAlias, SessionEntity, TeacherAlias } from '../src/entities/timetable.entity.js';
 import { vi } from 'vitest';
 import type { ProgramAnalysis } from '../src/masters/types.js';
 
@@ -60,8 +60,16 @@ describe('ProgramsService save modes', () => {
         return { affected: 1 };
       },
     };
+    const revisionRepo = {
+      create: (value: any) => value,
+      save: async (value: any) => value,
+      find: async () => [],
+      findOneBy: async () => null,
+      query: async () => [],
+    };
     const manager = {
-      getRepository: (entity: unknown) => entity === Program ? programRepo : entity === ProgramSlotEntity ? slotRepo : sessionRepo,
+      getRepository: (entity: unknown) =>
+        entity === Program ? programRepo : entity === ProgramSlotEntity ? slotRepo : entity === ProgramRevision ? revisionRepo : sessionRepo,
       query: async () => [{ revision: Math.max(0, ...programs.map((row) => row.revision)) }],
     };
     const dataSource = { transaction: async (work: (transactionManager: typeof manager) => Promise<unknown>) => work(manager) };
@@ -70,7 +78,12 @@ describe('ProgramsService save modes', () => {
       programRepo as unknown as Repository<Program>,
       slotRepo as unknown as Repository<ProgramSlotEntity>,
       sessionRepo as unknown as Repository<ProgramSessionEntity>,
-      emptyRepo as unknown as Repository<RoomAlias>, emptyRepo as unknown as Repository<TeacherAlias>, emptyRepo as unknown as Repository<SessionEntity>, emptyRepo as unknown as Repository<KnownRoom>,
+      revisionRepo as unknown as Repository<ProgramRevision>,
+      emptyRepo as unknown as Repository<RoomAlias>,
+      emptyRepo as unknown as Repository<TeacherAlias>,
+      emptyRepo as unknown as Repository<SessionEntity>,
+      emptyRepo as unknown as Repository<Timetable>,
+      emptyRepo as unknown as Repository<KnownRoom>,
       dataSource as unknown as DataSource,
     );
     const analysis: ProgramAnalysis = {

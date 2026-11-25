@@ -58,7 +58,7 @@ export class BackupRestorer {
         teacher_names: 0,
         room_labels: 0,
         known_rooms: 0,
-        programs: 0, program_slots: 0, program_sessions: 0, teacher_aliases: 0, room_aliases: 0,
+        programs: 0, program_slots: 0, program_sessions: 0, teacher_aliases: 0, room_aliases: 0, program_revisions: 0,
       };
 
       if (mode === 'replace') {
@@ -68,6 +68,7 @@ export class BackupRestorer {
         await em.query('DELETE FROM teacher_names');
         await em.query('DELETE FROM room_labels');
         await em.query('DELETE FROM known_rooms');
+        await em.query('DELETE FROM program_revisions');
         await em.query('DELETE FROM program_sessions');
         await em.query('DELETE FROM program_slots');
         await em.query('DELETE FROM programs');
@@ -201,7 +202,7 @@ export class BackupRestorer {
         }
         restoredCounts.known_rooms = data.known_rooms ? data.known_rooms.length : 0;
 
-        for (const table of ['programs', 'program_slots', 'program_sessions', 'teacher_aliases', 'room_aliases'] as const) {
+        for (const table of ['programs', 'program_slots', 'program_sessions', 'teacher_aliases', 'room_aliases', 'program_revisions'] as const) {
           await this.insertRows(em, table, data[table]);
           restoredCounts[table] = data[table].length;
         }
@@ -357,6 +358,13 @@ export class BackupRestorer {
           await this.insertRows(em, 'program_sessions', [{ ...row, id: randomUUID(), programId }]);
           restoredCounts.program_sessions = (restoredCounts.program_sessions ?? 0) + 1;
         }
+        for (const row of (data.program_revisions ?? [])) {
+          const programId = programIdMap.get(row.programId);
+          if (!programId) continue;
+          const { id: _id, ...rest } = row;
+          await this.insertRows(em, 'program_revisions', [{ ...rest, programId }]);
+          restoredCounts.program_revisions = (restoredCounts.program_revisions ?? 0) + 1;
+        }
         for (const table of ['teacher_aliases', 'room_aliases'] as const) {
           for (const row of data[table]) {
             const exists = await em.query(`SELECT 1 FROM ${table} WHERE "aliasKey" = $1`, [row.aliasKey]);
@@ -394,6 +402,7 @@ export class BackupRestorer {
       SELECT setval('program_slots_id_seq', COALESCE((SELECT MAX(id) FROM program_slots), 1), (SELECT MAX(id) FROM program_slots) IS NOT NULL);
       SELECT setval('teacher_aliases_id_seq', COALESCE((SELECT MAX(id) FROM teacher_aliases), 1), (SELECT MAX(id) FROM teacher_aliases) IS NOT NULL);
       SELECT setval('room_aliases_id_seq', COALESCE((SELECT MAX(id) FROM room_aliases), 1), (SELECT MAX(id) FROM room_aliases) IS NOT NULL);
+      SELECT setval('program_revisions_id_seq', COALESCE((SELECT MAX(id) FROM program_revisions), 1), (SELECT MAX(id) FROM program_revisions) IS NOT NULL);
     `);
   }
 
@@ -404,6 +413,7 @@ export class BackupRestorer {
       program_sessions: new Set(['id', 'programId', 'day', 'slot', 'slotSpan', 'daySpan', 'title', 'code', 'teachers', 'teacherKeys', 'room', 'roomUnassigned', 'locationNote', 'frequency', 'tags', 'customTime', 'color', 'note', 'rawText', 'confidence', 'reasons', 'source']),
       teacher_aliases: new Set(['id', 'aliasKey', 'canonicalKey', 'aliasName', 'canonicalName', 'seeded', 'createdAt']),
       room_aliases: new Set(['id', 'aliasKey', 'canonicalName', 'aliasName', 'seeded', 'createdAt']),
+      program_revisions: new Set(['id', 'programId', 'revision', 'snapshot', 'description', 'createdAt']),
     };
     const columnsForTable = allowedColumns[table];
     if (!columnsForTable) throw new Error(`Table non gérée : ${table}`);

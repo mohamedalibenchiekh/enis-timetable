@@ -130,6 +130,53 @@ export interface ExportOptions {
   orientation: Orientation;
   repeatDayHeader: boolean;
   showPageTitle: boolean;
+  includeMasters?: boolean;
+  highlightConflicts?: boolean;
+}
+export interface ConflictSessionRef {
+  id?: string | number;
+  programId?: string;
+  programCode?: string;
+  source: string;
+  title: string;
+  room: string | null;
+  canonicalRoom: string | null;
+  teachers: string[];
+  day: number;
+  slot: number;
+}
+export type ConflictSeverity = 'error' | 'warning' | 'info';
+export interface Conflict {
+  id: string;
+  type: 'room_double_booked' | 'teacher_double_booked' | 'room_missing' | 'room_to_find' | 'room_unknown';
+  severity: ConflictSeverity;
+  day: number;
+  slot: number;
+  resource: string;
+  message: string;
+  sessions: ConflictSessionRef[];
+}
+export interface FreeRoomSuggestion {
+  room: string;
+  bloc: string;
+  isSameBloc: boolean;
+}
+export interface FreeSlotSuggestion {
+  day: number;
+  slot: number;
+  dayName: string;
+  slotLabel: string;
+}
+export interface SessionSuggestions {
+  freeRooms: FreeRoomSuggestion[];
+  freeSlots: FreeSlotSuggestion[];
+  bestRoom: string | null;
+}
+export interface ProgramRevisionInfo {
+  id: string;
+  revision: number;
+  description: string;
+  createdAt: string;
 }
 export interface ExportProfile { id: string; name: string; options: ExportOptions }
 export interface ExportProfilesState { optionsVersion: number; defaultId: string; profiles: ExportProfile[] }
@@ -274,6 +321,63 @@ export const api = {
   listPrograms: () => req<SavedProgram[]>('/api/programs'),
   getProgram: (id: string) => req<SavedProgram>(`/api/programs/${id}`),
   deleteProgram: (id: string) => req<{ ok: true }>(`/api/programs/${id}`, { method: 'DELETE' }),
+  getConflicts: (against?: string) =>
+    req<Conflict[]>(`/api/conflicts${against ? `?against=${encodeURIComponent(against)}` : ''}`),
+  getProgramConflicts: (programId: string, against?: string) =>
+    req<Conflict[]>(`/api/programs/${encodeURIComponent(programId)}/conflicts${against ? `?against=${encodeURIComponent(against)}` : ''}`),
+  getSessionSuggestions: (programId: string, sessionId: string, against?: string) =>
+    req<SessionSuggestions>(`/api/programs/${encodeURIComponent(programId)}/sessions/${encodeURIComponent(sessionId)}/suggestions${against ? `?against=${encodeURIComponent(against)}` : ''}`),
+  getFreeRooms: (day: number, slot: number, opts?: { against?: string; targetBloc?: string; slotSpan?: number; customTime?: string }) => {
+    const params = new URLSearchParams({ day: String(day), slot: String(slot) });
+    if (opts?.against) params.set('against', opts.against);
+    if (opts?.targetBloc) params.set('targetBloc', opts.targetBloc);
+    if (opts?.slotSpan) params.set('slotSpan', String(opts.slotSpan));
+    if (opts?.customTime) params.set('customTime', opts.customTime);
+    return req<FreeRoomSuggestion[]>(`/api/occupancy/free-rooms?${params.toString()}`);
+  },
+  createProgramSession: (programId: string, session: Partial<ProgramSession>) =>
+    req<{ ok: true; session: ProgramSession; revision: number }>(`/api/programs/${encodeURIComponent(programId)}/sessions`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(session),
+    }),
+  updateProgramSession: (programId: string, sessionId: string, session: Partial<ProgramSession>) =>
+    req<{ ok: true; session: ProgramSession; revision: number }>(`/api/programs/${encodeURIComponent(programId)}/sessions/${encodeURIComponent(sessionId)}`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(session),
+    }),
+  deleteProgramSession: (programId: string, sessionId: string) =>
+    req<{ ok: true; revision: number }>(`/api/programs/${encodeURIComponent(programId)}/sessions/${encodeURIComponent(sessionId)}`, {
+      method: 'DELETE',
+    }),
+  batchProgramSessions: (
+    programId: string,
+    expectedRevision: number,
+    ops: Array<{
+      op: 'create' | 'update' | 'delete' | 'move';
+      session?: Partial<ProgramSession>;
+      sessionId?: string;
+      targetDay?: number;
+      targetSlot?: number;
+    }>,
+    description?: string,
+  ) =>
+    req<{ ok: true; revision: number; sessions: ProgramSession[] }>(`/api/programs/${encodeURIComponent(programId)}/sessions/batch`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ expectedRevision, ops, description }),
+    }),
+  revertProgram: (programId: string) =>
+    req<{ ok: true; revision: number; sessions: ProgramSession[] }>(`/api/programs/${encodeURIComponent(programId)}/revert`, {
+      method: 'POST',
+    }),
+  listProgramRevisions: (programId: string) =>
+    req<ProgramRevisionInfo[]>(`/api/programs/${encodeURIComponent(programId)}/revisions`),
+  restoreProgramRevision: (programId: string, revision: number) =>
+    req<{ ok: true; revision: number; sessions: ProgramSession[] }>(`/api/programs/${encodeURIComponent(programId)}/revisions/${revision}/restore`, {
+      method: 'POST',
+    }),
   saveProgramAlias: (alias: { kind: 'teacher' | 'room'; aliasName: string; canonicalName: string }) =>
     req<unknown>('/api/programs/aliases', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(alias) }),
   listProgramAliases: () => req<{ rooms: ProgramAlias[]; teachers: ProgramAlias[] }>('/api/programs/aliases'),

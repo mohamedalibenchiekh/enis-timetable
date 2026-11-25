@@ -31,6 +31,7 @@ function validManifest(overrides: Partial<BackupManifest> = {}): BackupManifest 
       program_sessions: 0,
       teacher_aliases: 0,
       room_aliases: 0,
+      program_revisions: 0,
     },
     sha256: {},
   };
@@ -246,7 +247,7 @@ describe('Hostile archive hardening & validation suite', () => {
 
   it('rejects missing program table manifest entries and archive files', async () => {
     const emptyHash = createHash('sha256').update(Buffer.alloc(0)).digest('hex');
-    const tables = ['timetables', 'sessions', 'settings', 'teacher_names', 'room_labels', 'known_rooms', 'programs', 'program_slots', 'program_sessions', 'teacher_aliases', 'room_aliases'] as const;
+    const tables = ['timetables', 'sessions', 'settings', 'teacher_names', 'room_labels', 'known_rooms', 'programs', 'program_slots', 'program_sessions', 'teacher_aliases', 'room_aliases', 'program_revisions'] as const;
     const emptyFiles = Object.fromEntries(tables.map((table) => [`data/${table}.ndjson`, '']));
     const hashes = Object.fromEntries(tables.map((table) => [`data/${table}.ndjson`, emptyHash]));
 
@@ -258,7 +259,7 @@ describe('Hostile archive hardening & validation suite', () => {
 
     const zeroCounts: BackupManifest['counts'] = {
       timetables: 0, sessions: 0, settings: 0, teacher_names: 0, room_labels: 0, known_rooms: 0,
-      programs: 0, program_slots: 0, program_sessions: 0, teacher_aliases: 0, room_aliases: 0,
+      programs: 0, program_slots: 0, program_sessions: 0, teacher_aliases: 0, room_aliases: 0, program_revisions: 0,
     };
     const missingHash = validManifest({ counts: zeroCounts, sha256: Object.fromEntries(Object.entries(hashes).filter(([path]) => path !== 'data/programs.ndjson')) });
     await expect(BackupInspector.inspectArchive(await makeArchive({
@@ -296,7 +297,7 @@ describe('Hostile archive hardening & validation suite', () => {
 
     const legacyData = {
       timetables: [], sessions: [], settings: [], teacher_names: [], room_labels: [], known_rooms: [],
-      programs: [{ ...program, version: 12 }], program_slots: [], program_sessions: [], teacher_aliases: [], room_aliases: [],
+      programs: [{ ...program, version: 12 }], program_slots: [], program_sessions: [], teacher_aliases: [], room_aliases: [], program_revisions: [],
     } as BackupData;
     expect(upgradeBackupData(legacyData, 4).programs[0].version).toBe('12');
   });
@@ -310,7 +311,7 @@ describe('Hostile archive hardening & validation suite', () => {
       isCurrent: true, originalSnapshot: {},
     }) + '\n';
     const empty = '';
-    const tables = ['timetables', 'sessions', 'settings', 'teacher_names', 'room_labels', 'known_rooms', 'programs', 'program_slots', 'program_sessions', 'teacher_aliases', 'room_aliases'] as const;
+    const tables = ['timetables', 'sessions', 'settings', 'teacher_names', 'room_labels', 'known_rooms', 'programs', 'program_slots', 'program_sessions', 'teacher_aliases', 'room_aliases', 'program_revisions'] as const;
     const emptyHash = createHash('sha256').update(Buffer.alloc(0)).digest('hex');
 
     for (const [table, row] of [
@@ -320,7 +321,7 @@ describe('Hostile archive hardening & validation suite', () => {
       const content = Object.fromEntries(tables.map((name) => [`data/${name}.ndjson`, name === 'programs' ? programRow : name === table ? row : empty]));
       const counts: BackupManifest['counts'] = {
         timetables: 0, sessions: 0, settings: 0, teacher_names: 0, room_labels: 0, known_rooms: 0,
-        programs: 1, program_slots: 0, program_sessions: 0, teacher_aliases: 0, room_aliases: 0,
+        programs: 1, program_slots: 0, program_sessions: 0, teacher_aliases: 0, room_aliases: 0, program_revisions: 0,
         [table]: 1,
       };
       const hashes = Object.fromEntries(Object.entries(content).map(([path, value]) => [path, createHash('sha256').update(value).digest('hex') || emptyHash]));
@@ -346,7 +347,7 @@ describe('Hostile archive hardening & validation suite', () => {
     const sHash = createHash('sha256').update(orphanSession).digest('hex');
 
     const manifest = validManifest({
-      counts: { timetables: 0, sessions: 1, settings: 0, teacher_names: 0, room_labels: 0, known_rooms: 0, programs: 0, program_slots: 0, program_sessions: 0, teacher_aliases: 0, room_aliases: 0 },
+      counts: { timetables: 0, sessions: 1, settings: 0, teacher_names: 0, room_labels: 0, known_rooms: 0, programs: 0, program_slots: 0, program_sessions: 0, teacher_aliases: 0, room_aliases: 0, program_revisions: 0 },
       sha256: {
         'data/timetables.ndjson': emptyHash,
         'data/sessions.ndjson': sHash,
@@ -359,6 +360,7 @@ describe('Hostile archive hardening & validation suite', () => {
         'data/program_sessions.ndjson': emptyHash,
         'data/teacher_aliases.ndjson': emptyHash,
         'data/room_aliases.ndjson': emptyHash,
+        'data/program_revisions.ndjson': emptyHash,
       },
     });
 
@@ -375,6 +377,7 @@ describe('Hostile archive hardening & validation suite', () => {
       'data/program_sessions.ndjson': '',
       'data/teacher_aliases.ndjson': '',
       'data/room_aliases.ndjson': '',
+      'data/program_revisions.ndjson': '',
     });
 
     await expect(BackupInspector.inspectArchive(zip)).rejects.toThrow(
@@ -412,7 +415,7 @@ describe('Hostile archive hardening & validation suite', () => {
     const sHash = createHash('sha256').update(sessionsData).digest('hex');
 
     const manifest = validManifest({
-      counts: { timetables: 1, sessions: 1, settings: 0, teacher_names: 0, room_labels: 0, known_rooms: 0, programs: 0, program_slots: 0, program_sessions: 0, teacher_aliases: 0, room_aliases: 0 },
+      counts: { timetables: 1, sessions: 1, settings: 0, teacher_names: 0, room_labels: 0, known_rooms: 0, programs: 0, program_slots: 0, program_sessions: 0, teacher_aliases: 0, room_aliases: 0, program_revisions: 0 },
       sha256: {
         'data/timetables.ndjson': tHash,
         'data/sessions.ndjson': sHash,
@@ -425,6 +428,7 @@ describe('Hostile archive hardening & validation suite', () => {
         'data/program_sessions.ndjson': emptyHash,
         'data/teacher_aliases.ndjson': emptyHash,
         'data/room_aliases.ndjson': emptyHash,
+        'data/program_revisions.ndjson': emptyHash,
       },
     });
 
@@ -441,6 +445,7 @@ describe('Hostile archive hardening & validation suite', () => {
       'data/program_sessions.ndjson': '',
       'data/teacher_aliases.ndjson': '',
       'data/room_aliases.ndjson': '',
+      'data/program_revisions.ndjson': '',
     });
 
     const inspected = await BackupInspector.inspectArchive(zip);

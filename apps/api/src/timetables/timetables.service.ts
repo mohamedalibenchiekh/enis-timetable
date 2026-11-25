@@ -7,7 +7,7 @@ import JSZip from 'jszip';
 import { KnownRoom, SessionEntity, SourceFileInfo, Timetable } from '../entities/timetable.entity.js';
 import { detectKind, parseHtml } from '../parser/html-parser.js';
 import { ParsedFile, SourceKind } from '../parser/types.js';
-import { buildDayGrid, DayGrid } from '../export/grid-builder.js';
+import { buildDayGrid, DayGrid, MasterGridSession } from '../export/grid-builder.js';
 import { buildDayDocx } from '../export/docx-builder.js';
 import { dayFileName, ExportOptions } from '../export/options.js';
 import { SettingsService } from '../settings/settings.service.js';
@@ -18,6 +18,8 @@ import { CompareService } from '../compare/compare.service.js';
 import type { CompareSummary } from '../compare/types.js';
 import { ImporterRegistry } from '../importers/registry.js';
 import { ImportReport } from '../importers/types.js';
+import { ProgramsService } from '../masters/programs.service.js';
+import { Conflict, detectConflicts } from '../occupancy/index.js';
 
 const PRIORITY: SourceKind[] = ['rooms', 'teachers', 'groups'];
 
@@ -39,6 +41,7 @@ export class TimetablesService {
     private names: NamesService,
     private compare: CompareService,
     @Optional() private backups?: BackupsService,
+    @Optional() private programsService?: ProgramsService,
   ) {}
 
   list() {
@@ -226,7 +229,22 @@ export class TimetablesService {
     const rows = await this.sessions.find({ where: { timetableId: t.id, source: kind, day } });
     const resolver = nameResolver ?? await this.names.getResolver();
     const roomsUniverse = await this.resolveRoomsUniverse(t);
-    return buildDayGrid(rows, { days: t.days, slots: t.slots, rooms: roomsUniverse }, day, options, resolver);
+
+    let masterSessions: MasterGridSession[] = [];
+    let conflicts: Conflict[] = [];
+    if (options.includeMasters && this.programsService) {
+      const state = await this.programsService.buildFullOccupancyState(t.id);
+      conflicts = detectConflicts(state);
+      const programs = await this.programsService.list();
+      masterSessions = programs.flatMap((p) =>
+        (p.sessions ?? []).map((s) => ({
+          ...s,
+          programCode: p.code,
+        })),
+      );
+    }
+
+    return buildDayGrid(rows, { days: t.days, slots: t.slots, rooms: roomsUniverse }, day, options, resolver, masterSessions, conflicts);
   }
 
   async dayGrid(id: string, day: number, nameResolver?: NameResolver, source?: SourceKind, profileId?: string): Promise<DayGrid & { options: ExportOptions }> {

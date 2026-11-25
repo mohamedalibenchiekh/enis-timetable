@@ -192,6 +192,11 @@ export function OptionsPanel({ profiles, activeProfileId, onProfilesChange, onAc
       <label><input type="checkbox" checked={o.includeEmptyRooms} onChange={(e) => set('includeEmptyRooms', e.target.checked)} /> Lister aussi les salles libres</label>
       <label>Libellé de la pause <input className="text inline" value={o.pauseLabel} onChange={(e) => set('pauseLabel', e.target.value)} /></label>
 
+      {/* ----- Mastères ----- */}
+      <h3>Mastères</h3>
+      <label><input type="checkbox" checked={o.includeMasters ?? false} onChange={(e) => set('includeMasters', e.target.checked)} /> Inclure les emplois du temps des mastères</label>
+      <label><input type="checkbox" checked={o.highlightConflicts ?? false} onChange={(e) => set('highlightConflicts', e.target.checked)} /> Signaler les conflits d’occupation (⚠)</label>
+
       {error && <p className="error">{error}</p>}
       <div><button className="primary" disabled={busy} onClick={save}>Enregistrer</button> {msg && <span className="ok">{msg}</span>}</div>
     </div>

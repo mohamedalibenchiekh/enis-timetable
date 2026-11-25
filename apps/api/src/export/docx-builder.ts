@@ -155,7 +155,58 @@ function hasRichCells(grid: DayGrid): boolean {
 
 /** True when the historical single-section layout applies (byte-identical output). */
 function isLegacyLayout(grid: DayGrid, options: ExportOptions): boolean {
-  return !grid.pages && options.orientation === 'portrait' && options.repeatDayHeader && !options.showPageTitle && !hasRichCells(grid);
+  return (
+    !grid.pages &&
+    options.orientation === 'portrait' &&
+    options.repeatDayHeader &&
+    !options.showPageTitle &&
+    !hasRichCells(grid) &&
+    !options.includeMasters
+  );
+}
+
+function unassignedSection(grid: DayGrid, totalWidth: number): (Paragraph | Table)[] {
+  if (!grid.unassignedSessions || grid.unassignedSessions.length === 0) return [];
+  const colW = [1400, 1600, 4000, Math.max(1500, totalWidth - 7000)];
+  const row = (cells: TableCell[], height = 288, header = false) =>
+    new TableRow({ children: cells, tableHeader: header || undefined, cantSplit: true, height: { value: height, rule: HeightRule.ATLEAST } });
+
+  const rows: TableRow[] = [
+    row([cell(['Salles à attribuer'], totalWidth, { bold: true, size: 22, fill: 'FFFF99', span: 4 })], 350, true),
+    row(
+      [
+        cell(['Créneau'], colW[0], { bold: true, size: 20, fill: 'E0E0E0' }),
+        cell(['Programme'], colW[1], { bold: true, size: 20, fill: 'E0E0E0' }),
+        cell(['Séance / Matière'], colW[2], { bold: true, size: 20, fill: 'E0E0E0' }),
+        cell(['Enseignant(s)'], colW[3], { bold: true, size: 20, fill: 'E0E0E0' }),
+      ],
+      300,
+      true,
+    ),
+  ];
+
+  for (const item of grid.unassignedSessions) {
+    const slotLabel = grid.headers[item.slot]?.[0] ?? `Créneau ${item.slot + 1}`;
+    rows.push(
+      row([
+        cell([slotLabel], colW[0], { size: 18 }),
+        cell([item.programCode], colW[1], { size: 18, bold: true }),
+        cell([item.title], colW[2], { size: 18 }),
+        cell([item.teachers || '—'], colW[3], { size: 18 }),
+      ]),
+    );
+  }
+
+  return [
+    new Paragraph({ spacing: { before: 240, after: 120 } }),
+    new Table({
+      width: { size: totalWidth, type: WidthType.DXA },
+      columnWidths: colW,
+      layout: TableLayoutType.FIXED,
+      alignment: AlignmentType.CENTER,
+      rows,
+    }),
+  ];
 }
 
 /** Historical layout: one portrait section, plain-text cells. Kept verbatim for backward compatibility. */
@@ -233,6 +284,9 @@ function richDocument(grid: DayGrid, options: ExportOptions): Document {
         rows: tableRows(grid, pg.blocs, showHeader, options),
       }),
     );
+    if (pgIndex === pageGroups.length - 1 && grid.unassignedSessions && grid.unassignedSessions.length > 0) {
+      children.push(...unassignedSection(grid, total));
+    }
     return {
       properties: {
         page: {

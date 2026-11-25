@@ -170,3 +170,15 @@ export class RoomAlias {
   @Column({ default: false }) seeded: boolean;
   @CreateDateColumn() createdAt: Date;
 }
+
+@Entity('program_revisions')
+@Index(['programId', 'revision'], { unique: true })
+export class ProgramRevision {
+  @PrimaryGeneratedColumn() id: number;
+  @Column('uuid') programId: string;
+  @ManyToOne(() => Program, { onDelete: 'CASCADE' }) @JoinColumn({ name: 'programId' }) program: Program;
+  @Column('int') revision: number;
+  @Column('jsonb') snapshot: Record<string, unknown>;
+  @Column({ default: '' }) description: string;
+  @CreateDateColumn() createdAt: Date;
+}
