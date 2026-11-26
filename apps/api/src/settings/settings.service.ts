@@ -6,7 +6,7 @@ import {
   DEFAULT_OPTIONS, ExportOptions, ExportProfile, ExportProfilesState, normalizeOptions, normalizeProfilesState,
 } from '../export/options.js';
 import { BackupsService } from '../backups/backups.service.js';
-import type { FormSettings } from '../masters/form-layout.js';
+import { DEFAULT_FORM_SETTINGS, type FormSettings } from '../masters/form-layout.js';
 
 const SETTINGS_KEY = 'export';
 
@@ -58,8 +58,8 @@ export class SettingsService {
   async getMastersFormSettings(): Promise<FormSettings> {
     const row = await this.repo.findOneBy({ key: 'masters-form' });
     const value = row?.value;
-    if (!value || typeof value !== 'object' || Array.isArray(value)) return { institution: 'École Nationale d’Ingénieurs de Sousse', academicYear: '2026-2027', emptyMarker: '---', roomColor: 'FF0000', footerFormat: 'legacy' };
-    return value as FormSettings;
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return { ...DEFAULT_FORM_SETTINGS };
+    return { ...DEFAULT_FORM_SETTINGS, ...value } as FormSettings;
   }
 
   async setMastersFormSettings(input: unknown): Promise<FormSettings> {
@@ -71,9 +71,9 @@ export class SettingsService {
       return item.trim();
     };
     const emptyMarker = text('emptyMarker', '---', 3);
-    const roomColor = text('roomColor', 'FF0000', 6).replace(/^#/u, '').toUpperCase();
+    const roomColor = text('roomColor', 'FF0000', 7).replace(/^#/u, '').toUpperCase();
     const footerFormat = value.footerFormat === undefined ? 'legacy' : value.footerFormat;
-    if (!['---', '-X-', ''].includes(emptyMarker) || !/^[0-9A-F]{6}$/u.test(roomColor) || !['legacy', 'compact'].includes(String(footerFormat))) throw new BadRequestException('Paramètres du formulaire invalides.');
+    if (!['---', '-X-', ''].includes(emptyMarker) || !/^[0-9A-F]{6}$/u.test(roomColor) || typeof footerFormat !== 'string' || !['legacy', 'compact'].includes(footerFormat)) throw new BadRequestException('Paramètres du formulaire invalides.');
     const settings: FormSettings = {
       institution: text('institution', 'École Nationale d’Ingénieurs de Sousse', 200),
       academicYear: text('academicYear', '2026-2027', 20),

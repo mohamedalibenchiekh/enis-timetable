@@ -23,6 +23,8 @@ export interface FormLayout {
   footer: string;
   marker: string;
   roomColor: string;
+  tableWidthTwips: number;
+  columnWidthsTwips: number[];
   warnings: string[];
   fontSize: number;
 }
@@ -37,20 +39,37 @@ export interface FormSettings {
   footerFormat?: 'legacy' | 'compact';
 }
 
+export const DEFAULT_FORM_SETTINGS: Required<FormSettings> = {
+  institution: 'École Nationale d’Ingénieurs de Sousse',
+  academicYear: '2026-2027',
+  formDate: '',
+  headerTitle: 'Emploi du Temps',
+  emptyMarker: '---',
+  roomColor: 'FF0000',
+  footerFormat: 'legacy',
+};
+
 const DAYS = ['Lundi', 'Mardi', 'Mercredi (M)', 'Jeudi', 'Vendredi (V)', 'Samedi (S)'];
 const VALID_MARKERS = new Set(['---', '-X-', '']);
 
 function sessionTextSize(session: ProgramSession): number {
-  return `${session.title} ${session.teachers.join(' ')} ${session.room ?? ''}`.length;
+  const visibleTags = session.tags.filter((tag) => tag !== 'DS' && tag !== 'teacher-italic' && !/devoir surveill[eé]/iu.test(tag));
+  return [
+    isDs(session.tags) ? 'Devoir Surveillé' : '', session.customTime ?? '', session.code, session.title,
+    session.frequency, ...visibleTags, ...session.teachers, displayRoom(session), session.locationNote,
+  ].filter(Boolean).join(' ').length;
 }
 
+function isDs(tags: string[]) { return tags.some((tag) => tag === 'DS' || /devoir surveill[eé]/iu.test(tag)); }
+
 export function buildFormLayout(program: ProgramAnalysis, settings: FormSettings = {}): FormLayout {
-  const academicYear = program.academicYear || settings.academicYear || '2026-2027';
+  const config = { ...DEFAULT_FORM_SETTINGS, ...settings };
+  const academicYear = program.academicYear || config.academicYear;
   const safeTitle = (program.title || program.code).replace(/20\d{2}\s*[-–/]\s*20\d{2}/gu, academicYear);
   const slots = Array.from({ length: 6 }, (_, index) => program.slots?.find((slot) => slot.index === index) ?? {
     index, label: '', rawLabel: '', base: '', dayOverrides: {}, note: '',
   });
-  const marker = settings.emptyMarker !== undefined && VALID_MARKERS.has(settings.emptyMarker) ? settings.emptyMarker : '---';
+  const marker = VALID_MARKERS.has(config.emptyMarker) ? config.emptyMarker : DEFAULT_FORM_SETTINGS.emptyMarker;
   const occupied = new Map<string, ProgramSession>();
   for (const session of program.sessions ?? []) {
     if (session.day < 0 || session.day > 5 || session.slot < 0 || session.slot > 5) continue;
@@ -76,15 +95,17 @@ export function buildFormLayout(program: ProgramAnalysis, settings: FormSettings
   const fontSize = Math.max(7, Math.min(10, Math.floor(10 - Math.max(0, longest - 54) / 18)));
   const warnings: string[] = [];
   if (longest > 108) warnings.push(`Le programme ${program.code} dépasse la capacité prévue sur une page, même à 7 pt.`);
-  const footer = settings.footerFormat === 'compact'
-    ? `Emploi du temps, ${settings.institution || 'ENISo'} ${academicYear}, ${settings.formDate || ''}`.trim()
-    : program.footerText || `${settings.institution || 'ENISo'}, le ${settings.formDate || ''}, v${program.version || '1'} A partir du Semaine du ${program.effectiveFrom || ''}`.trim();
+  const footer = config.footerFormat === 'compact'
+    ? `Emploi du temps, ${config.institution} ${academicYear}, ${config.formDate}`.trim()
+    : program.footerText || `${config.institution}, le ${config.formDate}, v${program.version || '1'} A partir du Semaine du ${program.effectiveFrom || ''}`.trim();
   return {
     program: { ...program, title: safeTitle, academicYear },
-    institution: settings.institution || 'École Nationale d’Ingénieurs de Sousse',
-    headerTitle: settings.headerTitle || 'Emploi du Temps', formDate: settings.formDate || '',
+    institution: config.institution,
+    headerTitle: config.headerTitle, formDate: config.formDate,
     days: DAYS, slots, cells, footer, marker,
-    roomColor: settings.roomColor || 'FF0000', warnings, fontSize,
+    roomColor: config.roomColor, warnings, fontSize,
+    tableWidthTwips: 16838 - 500 - 500,
+    columnWidthsTwips: [1500, 2389, 2389, 2389, 2389, 2389, 2393],
   };
 }
 

@@ -46,7 +46,7 @@ import {
 
 const MAX_FILE_BYTES = 20 * 1024 * 1024;
 const MAX_REVISIONS_KEPT = 50;
-const safeExportName = (value: string) => value.normalize('NFKD').replace(/[\u0300-\u036f]/gu, '').replace(/[^a-zA-Z0-9_-]+/gu, '-').replace(/^-+|-+$/gu, '').slice(0, 80) || 'programme';
+export const safeExportName = (value: string) => value.normalize('NFKD').replace(/[\u0300-\u036f]/gu, '').replace(/[^a-zA-Z0-9_-]+/gu, '-').replace(/^-+|-+$/gu, '').slice(0, 80) || 'programme';
 
 @Injectable()
 export class ProgramsService implements OnModuleInit {
@@ -260,9 +260,12 @@ export class ProgramsService implements OnModuleInit {
   async exportZip(ids?: string[]) {
     const programs = ids?.length ? await Promise.all(ids.map((id) => this.get(id))) : await this.list();
     const zip = new JSZip();
+    const settings = await this.settings?.getMastersFormSettings();
+    const date = new Date().toISOString().slice(0, 10);
     for (const program of programs) {
-      const { buffer } = await this.exportDocx(program.id);
-      zip.file(`Emploi-${safeExportName(program.code)}-${new Date().toISOString().slice(0, 10)}.docx`, buffer);
+      const layout = buildFormLayout(program, settings);
+      const buffer = await packFormDocument(layout);
+      zip.file(`Emploi-${safeExportName(program.code)}-${program.id}-${date}.docx`, buffer);
     }
     return zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' });
   }

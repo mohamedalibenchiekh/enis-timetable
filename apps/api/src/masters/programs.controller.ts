@@ -19,13 +19,22 @@ import {
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { catchError, throwError } from 'rxjs';
 import { Readable } from 'node:stream';
-import { ProgramsService } from './programs.service.js';
+import { ProgramsService, safeExportName } from './programs.service.js';
 import type { Response } from 'express';
 import { Res } from '@nestjs/common';
 
 const MAX_FILE_BYTES = 20 * 1024 * 1024;
 const MAX_FILES = 20;
 const totalBytesByRequest = new WeakMap<object, number>();
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
+
+export function parseProgramExportIds(value: unknown): string[] | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== 'string') throw new BadRequestException('Identifiant de programme invalide.');
+  const ids = value.split(',').map((id) => id.trim()).filter(Boolean);
+  if (ids.some((id) => !UUID_RE.test(id))) throw new BadRequestException('Identifiant de programme invalide.');
+  return ids;
+}
 
 type UploadPart = { stream: Readable; buffer?: Buffer };
 type StoredPart = { buffer: Buffer; size: number };
@@ -126,9 +135,8 @@ export class ProgramsController {
   }
 
   @Get('export.zip')
-  async exportZip(@Query('ids') ids: string | undefined, @Res() response: Response) {
-    const parsedIds = ids?.split(',').map((id) => id.trim()).filter(Boolean);
-    if (parsedIds?.some((id) => !/^[0-9a-f-]{36}$/iu.test(id))) throw new BadRequestException('Identifiant de programme invalide.');
+  async exportZip(@Query('ids') ids: unknown, @Res() response: Response) {
+    const parsedIds = parseProgramExportIds(ids);
     const buffer = await this.service.exportZip(parsedIds);
     response.setHeader('Content-Type', 'application/zip');
     response.setHeader('Content-Disposition', 'attachment; filename="Emplois-masters.zip"');
@@ -139,14 +147,15 @@ export class ProgramsController {
   async exportDocx(@Param('id', ParseUUIDPipe) id: string, @Res() response: Response) {
     const { buffer, layout } = await this.service.exportDocx(id);
     response.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
-    const code = layout.program.code.normalize('NFKD').replace(/[\u0300-\u036f]/gu, '').replace(/[^a-zA-Z0-9_-]+/gu, '-').replace(/^-+|-+$/gu, '').slice(0, 80) || 'programme';
+    const code = safeExportName(layout.program.code);
     response.setHeader('Content-Disposition', `attachment; filename="Emploi-${code}-${new Date().toISOString().slice(0, 10)}.docx"`);
     response.send(buffer);
   }
 
   @Get(':id/print.html')
   async printHtml(@Param('id', ParseUUIDPipe) id: string, @Res() response: Response) {
-    const { html } = await this.service.exportHtml(id);
+    const { html, warnings } = await this.service.exportHtml(id);
+    response.setHeader('X-Export-Warnings', encodeURIComponent(JSON.stringify(warnings)));
     response.type('html').send(html);
   }
 

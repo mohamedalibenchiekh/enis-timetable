@@ -26,6 +26,8 @@ function installApi() {
   let savedPayload: { program: ProgramAnalysis; mode: string } | undefined;
   const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
+    if (url === '/api/settings/masters-form' && init?.method === 'PUT') return response(JSON.parse(String(init.body)));
+    if (url === '/api/settings/masters-form') return response({ institution: 'ENISo', academicYear: '2026-2027', formDate: '', headerTitle: 'Emploi du Temps', emptyMarker: '---', roomColor: 'FF0000', footerFormat: 'legacy' });
     if (url === '/api/timetables') return response([timetable('five', 'Emploi cinq créneaux', 5), timetable('six', 'Emploi six créneaux', 6)]);
     if (url === '/api/programs' && init?.method === 'POST') {
       savedPayload = JSON.parse(String(init.body)) as { program: ProgramAnalysis; mode: string };

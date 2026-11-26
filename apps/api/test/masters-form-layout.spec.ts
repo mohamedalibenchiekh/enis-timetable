@@ -5,6 +5,7 @@ import { packFormDocument } from '../src/masters/form-renderers.js';
 import { parseMastersDocx } from '../src/masters/docx-importer.js';
 import JSZip from 'jszip';
 import type { ProgramAnalysis } from '../src/masters/types.js';
+import { parseProgramCell } from '../src/masters/cell-parser.js';
 
 const base: ProgramAnalysis = {
   code: 'FAKE-M1', title: 'Programme fictif 2025-2026', kind: 'Mastère Recherche', academicYear: '2026-2027',
@@ -29,8 +30,13 @@ describe('master form layout', () => {
     expect(displayRoom({ ...base.sessions[0], room: 'DGSE' })).toBe('Salle PAQ/DGSE');
     expect(html).toContain('Salle XX');
     expect(html).toContain('Année Universitaire 2026-2027');
-    expect(html).not.toContain('2025-2026</div>');
+    expect(layout.program.title).toContain('2026-2027');
+    expect(layout.program.title).not.toContain('2025-2026');
     expect(html).toContain('Pause');
+  });
+
+  it('keeps a course named Pause as content when no pause-cell context is present', () => {
+    expect(parseProgramCell('Pause').title).toBe('Pause');
   });
 
   it('round-trips a generated DOCX into the same session span and canonical room', async () => {
@@ -51,6 +57,28 @@ describe('master form layout', () => {
     expect(xml).toContain('<w:gridSpan w:val="2"/>');
     expect(xml).toContain('<w:vMerge w:val="restart"/>');
     expect(xml).toContain('FFF2CC');
-    expect(xml).toContain('FF0000');
+    const dsRun = xml.match(/<w:r(?:\s[^>]*)?>[\s\S]*?<w:t(?:\s[^>]*)?>Devoir Surveillé<\/w:t>[\s\S]*?<\/w:r>/u)?.[0];
+    expect(dsRun).toContain('w:color');
+    expect(dsRun).toContain('FF0000');
+  });
+
+  it('expands short colors and applies formatting control tags without printing them', async () => {
+    const layout = buildFormLayout({ ...base, sessions: [{ ...base.sessions[0], color: 'ABC', tags: ['teacher-italic'], customTime: '10:30-12:30' }] }, { roomColor: '#009900' });
+    const html = renderFormHtml(layout);
+    expect(html).toContain('background:#AABBCC');
+    expect(html).toContain('.custom{color:#FF0000}');
+    expect(html).toContain('class="teacher italic"');
+    expect(html).not.toContain('teacher-italic</div>');
+    const buffer = await packFormDocument(layout);
+    const zip = await JSZip.loadAsync(buffer);
+    const xml = await zip.file('word/document.xml')!.async('string');
+    expect(xml).toContain('AABBCC');
+    expect(xml).toContain('w:color w:val="009900"');
+  });
+
+  it('uses rendered tokens when scaling the session font', () => {
+    const short = buildFormLayout(base).fontSize;
+    const long = buildFormLayout({ ...base, sessions: [{ ...base.sessions[0], code: 'TU'.repeat(40), customTime: '10:30-12:30', frequency: '(1/15)', tags: ['période 2'], locationNote: '(Novation City)', room: 'R21' }] }).fontSize;
+    expect(long).toBeLessThan(short);
   });
 });

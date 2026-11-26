@@ -73,6 +73,7 @@ export function ProgramsPanel() {
   const [listDrafts, setListDrafts] = useState<Record<string, string>>({});
   const [conflicts, setConflicts] = useState<Conflict[]>([]);
   const [formSettings, setFormSettings] = useState<MastersFormSettings>({ institution: 'École Nationale d’Ingénieurs de Sousse', academicYear: '2026-2027', formDate: '', headerTitle: 'Emploi du Temps', emptyMarker: '---', roomColor: 'FF0000', footerFormat: 'legacy' });
+  const [formSettingsLoaded, setFormSettingsLoaded] = useState(false);
   const [settingsMessage, setSettingsMessage] = useState('');
 
   const current = analyses[selected];
@@ -121,8 +122,30 @@ export function ProgramsPanel() {
   }, [loadInitial]);
 
   useEffect(() => {
-    void api.getMastersFormSettings().then(setFormSettings).catch(() => undefined);
+    void api.getMastersFormSettings()
+      .then((loaded) => {
+        setFormSettings((current) => ({ ...current, ...loaded }));
+        setFormSettingsLoaded(true);
+      })
+      .catch((e: unknown) => setError(`Impossible de charger le modèle du formulaire : ${(e as Error).message}`));
   }, []);
+
+  const updateFormSetting = <K extends keyof MastersFormSettings,>(key: K, value: MastersFormSettings[K]) => {
+    setFormSettings((current) => ({ ...current, [key]: value }));
+    setSettingsMessage('');
+  };
+
+  const saveFormSettings = async () => {
+    setSettingsMessage('');
+    setError('');
+    try {
+      const saved = await api.saveMastersFormSettings(formSettings);
+      setFormSettings((current) => ({ ...current, ...saved }));
+      setSettingsMessage('Modèle enregistré');
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  };
 
   // Load conflicts whenever referenceId or programs change
   const reloadConflicts = useCallback(async () => {
@@ -801,15 +824,15 @@ export function ProgramsPanel() {
           <details style={{ marginBottom: '1rem' }}>
             <summary style={{ cursor: 'pointer', fontWeight: 600 }}>Modèle du formulaire</summary>
             <div className="grid2" style={{ marginTop: '0.75rem' }}>
-              <label>Établissement<input className="text" value={formSettings.institution} onChange={(event) => setFormSettings({ ...formSettings, institution: event.target.value })} /></label>
-              <label>Année universitaire par défaut<input className="text" value={formSettings.academicYear} onChange={(event) => setFormSettings({ ...formSettings, academicYear: event.target.value })} /></label>
-              <label>Date du formulaire<input className="text" value={formSettings.formDate} onChange={(event) => setFormSettings({ ...formSettings, formDate: event.target.value })} /></label>
-              <label>Titre de l’en-tête<select value={formSettings.headerTitle} onChange={(event) => setFormSettings({ ...formSettings, headerTitle: event.target.value })}><option>Emploi du Temps</option><option>Formulaire / Emploi du temps</option></select></label>
-              <label>Marqueur de cellule vide<select value={formSettings.emptyMarker} onChange={(event) => setFormSettings({ ...formSettings, emptyMarker: event.target.value as MastersFormSettings['emptyMarker'] })}><option value="---">---</option><option value="-X-">-X-</option><option value="">Vide</option></select></label>
-              <label>Couleur des salles<input className="text" value={formSettings.roomColor} onChange={(event) => setFormSettings({ ...formSettings, roomColor: event.target.value })} /></label>
-              <label>Format du pied de page<select value={formSettings.footerFormat} onChange={(event) => setFormSettings({ ...formSettings, footerFormat: event.target.value as MastersFormSettings['footerFormat'] })}><option value="legacy">ENISo, le…</option><option value="compact">Emploi du temps, ENISo…</option></select></label>
+              <label>Établissement<input className="text" value={formSettings.institution} onChange={(event) => updateFormSetting('institution', event.target.value)} /></label>
+              <label>Année universitaire par défaut<input className="text" value={formSettings.academicYear} onChange={(event) => updateFormSetting('academicYear', event.target.value)} /></label>
+              <label>Date du formulaire<input className="text" value={formSettings.formDate} onChange={(event) => updateFormSetting('formDate', event.target.value)} /></label>
+              <label>Titre de l’en-tête<select value={formSettings.headerTitle} onChange={(event) => updateFormSetting('headerTitle', event.target.value)}><option>Emploi du Temps</option><option>Formulaire / Emploi du temps</option></select></label>
+              <label>Marqueur de cellule vide<select value={formSettings.emptyMarker} onChange={(event) => updateFormSetting('emptyMarker', event.target.value as MastersFormSettings['emptyMarker'])}><option value="---">---</option><option value="-X-">-X-</option><option value="">Vide</option></select></label>
+              <label>Couleur des salles<input className="text" value={formSettings.roomColor} onChange={(event) => updateFormSetting('roomColor', event.target.value)} /></label>
+              <label>Format du pied de page<select value={formSettings.footerFormat} onChange={(event) => updateFormSetting('footerFormat', event.target.value as MastersFormSettings['footerFormat'])}><option value="legacy">ENISo, le…</option><option value="compact">Emploi du temps, ENISo…</option></select></label>
             </div>
-            <button className="primary" onClick={() => { setError(''); void api.saveMastersFormSettings(formSettings).then((saved) => { setFormSettings(saved); setSettingsMessage('Modèle enregistré'); }).catch((e: unknown) => setError((e as Error).message)); }}>Enregistrer le modèle</button>
+            <button className="primary" disabled={!formSettingsLoaded} onClick={() => { void saveFormSettings(); }}>Enregistrer le modèle</button>
             {settingsMessage && <span className="ok"> {settingsMessage}</span>}
           </details>
           {programs && programs.length > 1 && (

@@ -74,10 +74,13 @@ export async function parseMastersPdf(buffer: Buffer, filename: string, referenc
     rows.forEach((y, slot) => {
       if (!Number.isFinite(y)) return;
       const { upper, lower } = pdfRowBounds(rows, slot, y);
+      const rowCells = columns.map((_, day) => scheduleItems.filter((item) => item.y <= upper && item.y >= lower && item.x >= xCuts[day] && item.x < xCuts[day + 1]));
+      const rowTexts = rowCells.map((cellItems) => cellItems.sort((a, b) => b.y - a.y || a.x - b.x).map((item) => item.text).join('\n').trim());
+      const pauseCount = rowTexts.filter((text) => /^pause$/iu.test(text)).length;
+      if (slot === 2 && pauseCount >= 4 && rowTexts.every((text) => !text || /^pause$/iu.test(text))) return;
       for (let day = 0; day < columns.length; day++) {
-        const left = xCuts[day]; const right = xCuts[day + 1];
-        const cellItems = scheduleItems.filter((item) => item.y <= upper && item.y >= lower && item.x >= left && item.x < right);
-        const text = cellItems.sort((a, b) => b.y - a.y || a.x - b.x).map((item) => item.text).join('\n').trim();
+        const cellItems = rowCells[day];
+        const text = rowTexts[day];
         if (text) {
           const parsed = parseProgramCell(text, cellItems.map((item) => ({ bold: /bold|black|semibold/iu.test(item.font), italic: /italic|oblique/iu.test(item.font) })), catalogs);
           if (parsed.confidence < 0.75 && !parsed.empty) lowConfidenceCells++;

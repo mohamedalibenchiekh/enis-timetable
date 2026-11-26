@@ -33,7 +33,7 @@ export function parseProgramCell(rawText: string, styles: StyleHints[] = [], cat
   const inputLines = raw.split(/\r?\n|\s*\/\/\s*/u)
     .map((text, index) => ({ text: text.trim(), style: styles[index] ?? {}, used: false }))
     .filter((line) => Boolean(line.text));
-  const base = { title: '', code: '', teachers: [] as string[], teacherKeys: [] as string[], room: null as string | null, roomUnassigned: false, locationNote: '', frequency: '', tags: [] as string[], customTime: null as string | null, color: styles.map((s) => s.fill).find(Boolean) ?? null, note: '', rawText, confidence: 1, reasons: [] as string[], teacherCandidates: [] as { name: string; score: number }[], roomCandidates: [] as { name: string; score: number }[], empty: !raw || /^(-X-|---|pause)$/iu.test(raw) };
+  const base = { title: '', code: '', teachers: [] as string[], teacherKeys: [] as string[], room: null as string | null, roomUnassigned: false, locationNote: '', frequency: '', tags: [] as string[], customTime: null as string | null, color: styles.map((s) => s.fill).find(Boolean) ?? null, note: '', rawText, confidence: 1, reasons: [] as string[], teacherCandidates: [] as { name: string; score: number }[], roomCandidates: [] as { name: string; score: number }[], empty: !raw || /^(-X-|---)$/iu.test(raw) };
   if (base.empty) return base;
 
   let remaining = raw;
