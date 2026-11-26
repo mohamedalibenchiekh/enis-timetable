@@ -100,4 +100,39 @@ describe('ProgramsPanel', () => {
     render(<ProgramsPanel />);
     expect((await screen.findByRole('alert')).textContent).toContain('Programmes temporarily unavailable');
   });
+
+  it('retries a failed form-settings load and disables edits while saving', async () => {
+    const settings = { institution: 'ENISo', academicYear: '2026-2027', formDate: '', headerTitle: 'Emploi du Temps', emptyMarker: '---', roomColor: 'FF0000', footerFormat: 'legacy' };
+    const savedProgram = { ...analysis, id: 'program-1', revision: 1, isCurrent: true, createdAt: '', updatedAt: '' };
+    let settingsGets = 0;
+    let releaseSave: (() => void) | undefined;
+    let saveStarted = false;
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url === '/api/settings/masters-form' && init?.method === 'PUT') {
+        saveStarted = true;
+        return await new Promise<ReturnType<typeof response>>((resolve) => { releaseSave = () => resolve(response(settings)); });
+      }
+      if (url === '/api/settings/masters-form') {
+        settingsGets++;
+        return settingsGets === 1 ? response({ message: 'temporary settings failure' }, 500) : response(settings);
+      }
+      if (url === '/api/programs') return response([savedProgram]);
+      if (url === '/api/timetables' || url === '/api/conflicts') return response([]);
+      throw new Error(`Unexpected request: ${init?.method ?? 'GET'} ${url}`);
+    }));
+
+    render(<ProgramsPanel />);
+    fireEvent.click(await screen.findByRole('button', { name: /Éditeur de programme/ }));
+    expect(await screen.findByText(/Impossible de charger le modèle du formulaire/)).not.toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Réessayer' }));
+    const saveButton = screen.getByRole('button', { name: 'Enregistrer le modèle' });
+    await waitFor(() => expect((saveButton as HTMLButtonElement).disabled).toBe(false));
+
+    fireEvent.click(saveButton);
+    await waitFor(() => expect(saveStarted).toBe(true));
+    expect((screen.getByLabelText('Établissement') as HTMLInputElement).disabled).toBe(true);
+    releaseSave?.();
+    await waitFor(() => expect(screen.getByText(/Modèle enregistré/)).not.toBeNull());
+  });
 });

@@ -54,16 +54,24 @@ const VALID_MARKERS = new Set(['---', '-X-', '']);
 
 function sessionTextSize(session: ProgramSession): number {
   const visibleTags = session.tags.filter((tag) => tag !== 'DS' && tag !== 'teacher-italic' && !/devoir surveill[eé]/iu.test(tag));
+  const locationNote = session.locationNote.trim();
+  const visibleLocationNote = !locationNote || (session.roomUnassigned && /^salle à rechercher$/iu.test(locationNote))
+    ? ''
+    : /^\(.*\)$/u.test(locationNote) ? locationNote : `(${locationNote})`;
   return [
     isDs(session.tags) ? 'Devoir Surveillé' : '', session.customTime ?? '', session.code, session.title,
-    session.frequency, ...visibleTags, ...session.teachers, displayRoom(session), session.locationNote,
+    session.frequency, ...visibleTags, ...session.teachers, displayRoom(session), visibleLocationNote,
   ].filter(Boolean).join(' ').length;
 }
 
 function isDs(tags: string[]) { return tags.some((tag) => tag === 'DS' || /devoir surveill[eé]/iu.test(tag)); }
 
 export function buildFormLayout(program: ProgramAnalysis, settings: FormSettings = {}): FormLayout {
-  const config = { ...DEFAULT_FORM_SETTINGS, ...settings };
+  const config = {
+    ...DEFAULT_FORM_SETTINGS,
+    ...settings,
+    institution: settings.institution?.trim() || DEFAULT_FORM_SETTINGS.institution,
+  };
   const academicYear = program.academicYear || config.academicYear;
   const safeTitle = (program.title || program.code).replace(/20\d{2}\s*[-–/]\s*20\d{2}/gu, academicYear);
   const slots = Array.from({ length: 6 }, (_, index) => program.slots?.find((slot) => slot.index === index) ?? {

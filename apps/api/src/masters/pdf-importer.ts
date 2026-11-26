@@ -36,6 +36,10 @@ export function pdfRowBounds(rows: number[], slot: number, y: number): { upper: 
   };
 }
 
+export function isGeneratedPdfPauseMarker(slot: number, text: string, pauseCount: number): boolean {
+  return slot === 2 && pauseCount >= 4 && /^pause$/iu.test(text.trim());
+}
+
 export async function parseMastersPdf(buffer: Buffer, filename: string, referenceSlots: readonly string[] = DEFAULT_PROGRAM_SLOTS, catalogs: CellCatalogs = {}, referenceOverrides?: Record<number, Record<number, string>>): Promise<ProgramAnalysis> {
   if (buffer.length > MAX_BYTES) throw new Error('Le fichier PDF dépasse la taille maximale de 20 Mo.');
   const task = pdfjs.getDocument({ data: new Uint8Array(buffer), isEvalSupported: false, useSystemFonts: true, disableFontFace: true, stopAtErrors: true, disableAutoFetch: true, disableStream: true, disableRange: true });
@@ -77,10 +81,10 @@ export async function parseMastersPdf(buffer: Buffer, filename: string, referenc
       const rowCells = columns.map((_, day) => scheduleItems.filter((item) => item.y <= upper && item.y >= lower && item.x >= xCuts[day] && item.x < xCuts[day + 1]));
       const rowTexts = rowCells.map((cellItems) => cellItems.sort((a, b) => b.y - a.y || a.x - b.x).map((item) => item.text).join('\n').trim());
       const pauseCount = rowTexts.filter((text) => /^pause$/iu.test(text)).length;
-      if (slot === 2 && pauseCount >= 4 && rowTexts.every((text) => !text || /^pause$/iu.test(text))) return;
       for (let day = 0; day < columns.length; day++) {
         const cellItems = rowCells[day];
         const text = rowTexts[day];
+        if (isGeneratedPdfPauseMarker(slot, text, pauseCount)) continue;
         if (text) {
           const parsed = parseProgramCell(text, cellItems.map((item) => ({ bold: /bold|black|semibold/iu.test(item.font), italic: /italic|oblique/iu.test(item.font) })), catalogs);
           if (parsed.confidence < 0.75 && !parsed.empty) lowConfidenceCells++;

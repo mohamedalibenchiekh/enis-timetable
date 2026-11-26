@@ -14,6 +14,11 @@ const safeHex = (color: string, fallback: string) => {
 const isDs = (tags: string[]) => tags.some((tag) => tag === 'DS' || /devoir surveill[eé]/iu.test(tag));
 const isTeacherItalic = (session: FormCell['session']) => session?.tags.includes('teacher-italic') ?? false;
 const visibleTags = (tags: string[]) => tags.filter((tag) => tag !== 'DS' && tag !== 'teacher-italic' && !/devoir surveill[eé]/iu.test(tag));
+const locationNoteText = (cell: FormCell) => {
+  const note = cell.session?.locationNote.trim() ?? '';
+  if (!note || (cell.session?.roomUnassigned && /^salle à rechercher$/iu.test(note))) return '';
+  return /^\(.*\)$/u.test(note) ? note : `(${note})`;
+};
 const text = (value: string, options: { bold?: boolean; color?: string; italic?: boolean; size?: number } = {}) => new TextRun({ text: value, bold: options.bold, color: options.color, italics: options.italic, size: (options.size ?? 18) * 2 });
 
 function sessionParagraphs(cell: FormCell, layout: FormLayout): Paragraph[] {
@@ -23,7 +28,9 @@ function sessionParagraphs(cell: FormCell, layout: FormLayout): Paragraph[] {
   if (session.customTime) paras.push(new Paragraph({ alignment: AlignmentType.CENTER, children: [text(session.customTime, { color: 'FF0000', size: layout.fontSize })] }));
   const title = [session.code, session.title].filter(Boolean).join(': ');
   if (isDs(session.tags)) paras.push(new Paragraph({ alignment: AlignmentType.CENTER, children: [text('Devoir Surveillé', { bold: true, color: 'FF0000', size: layout.fontSize })] }));
-  paras.push(new Paragraph({ alignment: AlignmentType.CENTER, children: [text([title, session.frequency, ...visibleTags(session.tags), session.locationNote].filter(Boolean).join(' '), { size: layout.fontSize })] }));
+  paras.push(new Paragraph({ alignment: AlignmentType.CENTER, children: [text([title, session.frequency, ...visibleTags(session.tags)].filter(Boolean).join(' '), { size: layout.fontSize })] }));
+  const location = locationNoteText(cell);
+  if (location) paras.push(new Paragraph({ alignment: AlignmentType.CENTER, children: [text(location, { size: layout.fontSize })] }));
   for (const teacher of session.teachers) paras.push(new Paragraph({ alignment: AlignmentType.CENTER, children: [text(teacher, { bold: true, italic: isTeacherItalic(session), size: layout.fontSize })] }));
   const room = displayRoom(session);
   if (room) paras.push(new Paragraph({ alignment: AlignmentType.CENTER, children: [text(room, { bold: true, color: safeHex(layout.roomColor, 'FF0000'), size: layout.fontSize })] }));
@@ -85,7 +92,8 @@ export function renderFormHtml(layout: FormLayout): string {
     if (!cell.session) return `<span class="${cell.pause ? 'pause' : ''}">${cell.pause ? 'Pause' : esc(cell.marker)}</span>`;
     const session = cell.session;
     const title = [session.code, session.title].filter(Boolean).join(': ');
-    return `${session.customTime ? `<div class="custom">${esc(session.customTime)}</div>` : ''}${isDs(session.tags) ? '<b class="ds">Devoir Surveillé</b>' : ''}<div>${esc([title, session.frequency, ...visibleTags(session.tags), session.locationNote].filter(Boolean).join(' '))}</div>${session.teachers.map((teacher) => `<b class="teacher${isTeacherItalic(session) ? ' italic' : ''}">${esc(teacher)}</b>`).join('<br>')}${displayRoom(session) ? `<b class="room">${esc(displayRoom(session))}</b>` : ''}`;
+    const location = locationNoteText(cell);
+    return `${session.customTime ? `<div class="custom">${esc(session.customTime)}</div>` : ''}${isDs(session.tags) ? '<b class="ds">Devoir Surveillé</b>' : ''}<div>${esc([title, session.frequency, ...visibleTags(session.tags)].filter(Boolean).join(' '))}</div>${location ? `<div>${esc(location)}</div>` : ''}${session.teachers.map((teacher) => `<b class="teacher${isTeacherItalic(session) ? ' italic' : ''}">${esc(teacher)}</b>`).join('<br>')}${displayRoom(session) ? `<b class="room">${esc(displayRoom(session))}</b>` : ''}`;
   };
   const widths = layout.columnWidthsTwips.map((width) => `${(100 * width / layout.tableWidthTwips).toFixed(4)}%`);
   const bodyRows = layout.cells.map((row, slot) => `<tr><th>${esc(layout.slots[slot]?.label ?? '')}</th>${row.map((cell) => cell.covered ? '' : `<td rowspan="${cell.slotSpan}" colspan="${cell.daySpan}" style="background:${cell.fill ? `#${safeHex(cell.fill, 'FFFFFF')}` : cell.pause ? '#4472C4' : 'white'}">${sessionContent(cell)}</td>`).join('')}</tr>`).join('');

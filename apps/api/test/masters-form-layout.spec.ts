@@ -48,6 +48,17 @@ describe('master form layout', () => {
     expect(parsed.academicYear).toBe('2026-2027');
   });
 
+  it('round-trips a standalone location note without folding it into the title', async () => {
+    const layout = buildFormLayout({ ...base, sessions: [{ ...base.sessions[0], locationNote: 'Novation City' }] });
+    const buffer = await packFormDocument(layout);
+    const parsed = await parseMastersDocx(buffer, 'fake-m1.docx');
+    expect(parsed.sessions[0]).toMatchObject({ title: 'Sujet fictif', locationNote: 'Novation City' });
+  });
+
+  it('uses the default institution when a saved setting is blank', () => {
+    expect(buildFormLayout(base, { institution: '' }).institution).toBe('École Nationale d’Ingénieurs de Sousse');
+  });
+
   it('writes a landscape one-table DOCX with horizontal and vertical merges', async () => {
     const buffer = await packFormDocument(buildFormLayout({ ...base, sessions: [{ ...base.sessions[0], tags: ['DS'] }] }));
     const zip = await JSZip.loadAsync(buffer);
