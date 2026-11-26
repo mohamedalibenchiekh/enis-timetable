@@ -157,6 +157,7 @@ export async function parseMastersDocx(buffer: Buffer, filename: string, referen
       const cellText = /\d{1,2}\s*[:.]\s*\d{2}\s*[-–]/u.test(cell.text) ? '' : cell.text;
       if (day !== undefined) cellsScanned++;
       if (day !== undefined && cellText.trim()) {
+        if (/^pause$/iu.test(cellText.trim()) && cell.style.fill?.toUpperCase() === '4472C4') { col++; continue; }
         const cellStyles = cell.styles.length
           ? cell.styles.map((style, index) => index === 0 ? { ...style, fill: cell.style.fill } : style)
           : [{ ...cell.style }];

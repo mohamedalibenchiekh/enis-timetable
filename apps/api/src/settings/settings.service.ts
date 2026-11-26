@@ -6,6 +6,7 @@ import {
   DEFAULT_OPTIONS, ExportOptions, ExportProfile, ExportProfilesState, normalizeOptions, normalizeProfilesState,
 } from '../export/options.js';
 import { BackupsService } from '../backups/backups.service.js';
+import { DEFAULT_FORM_SETTINGS, type FormSettings } from '../masters/form-layout.js';
 
 const SETTINGS_KEY = 'export';
 
@@ -52,6 +53,37 @@ export class SettingsService {
     state.profiles[idx >= 0 ? idx : 0].options = options;
     await this.writeState(state);
     return options;
+  }
+
+  async getMastersFormSettings(): Promise<FormSettings> {
+    const row = await this.repo.findOneBy({ key: 'masters-form' });
+    const value = row?.value;
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return { ...DEFAULT_FORM_SETTINGS };
+    return { ...DEFAULT_FORM_SETTINGS, ...value } as FormSettings;
+  }
+
+  async setMastersFormSettings(input: unknown): Promise<FormSettings> {
+    if (!input || typeof input !== 'object' || Array.isArray(input)) throw new BadRequestException('Paramètres du formulaire invalides.');
+    const value = input as Record<string, unknown>;
+    const text = (key: string, fallback: string, max: number) => {
+      const item = value[key] === undefined ? fallback : value[key];
+      if (typeof item !== 'string' || item.length > max || /[\u0000-\u001f\u007f-\u009f]/u.test(item)) throw new BadRequestException('Paramètres du formulaire invalides.');
+      return item.trim();
+    };
+    const emptyMarker = text('emptyMarker', '---', 3);
+    const roomColor = text('roomColor', 'FF0000', 7).replace(/^#/u, '').toUpperCase();
+    const footerFormat = value.footerFormat === undefined ? 'legacy' : value.footerFormat;
+    if (!['---', '-X-', ''].includes(emptyMarker) || !/^[0-9A-F]{6}$/u.test(roomColor) || typeof footerFormat !== 'string' || !['legacy', 'compact'].includes(footerFormat)) throw new BadRequestException('Paramètres du formulaire invalides.');
+    const settings: FormSettings = {
+      institution: text('institution', 'École Nationale d’Ingénieurs de Sousse', 200),
+      academicYear: text('academicYear', '2026-2027', 20),
+      formDate: text('formDate', '', 30),
+      headerTitle: text('headerTitle', 'Emploi du Temps', 80),
+      emptyMarker, roomColor, footerFormat: footerFormat as FormSettings['footerFormat'],
+    };
+    await this.repo.save({ key: 'masters-form', value: settings });
+    this.backups?.scheduler?.notifyDataChanged();
+    return settings;
   }
 
   // ----- profiles ---------------------------------------------------------------------------

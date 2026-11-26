@@ -36,6 +36,7 @@ function isUpdateStatus(value: unknown): value is UpdateStatus {
 // Minimal, explicit bridge: the web UI never gets direct access to Node or the file system.
 contextBridge.exposeInMainWorld('enis', {
   chooseFolder: (): Promise<string | null> => ipcRenderer.invoke('choose-folder'),
+  exportProgramPdf: (programId: string): Promise<string | null> => ipcRenderer.invoke('export-program-pdf', programId),
   showInFolder: (p: string): Promise<void> => ipcRenderer.invoke('show-in-folder', p),
   getVersion: (): Promise<string> => ipcRenderer.invoke('get-version'),
   getUpdateStatus: (): Promise<UpdateStatus | null> => ipcRenderer.invoke('get-update-status'),

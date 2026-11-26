@@ -70,6 +70,12 @@ Use **Exporter les noms (.json)** to keep a copy of the overrides or **Importer 
 
 Open **Mastères** in the sidebar to analyze DOCX and one-page text PDFs, review detected metadata and schedule cells, correct uncertain values, and save an editable program. FET timetables are read-only inputs; program schedules are stored separately. “Salle XX” is stored as an unassigned room, while “Salle PAQ” and “Salle DGSE” share the canonical room “PAQ/DGSE”. The academic year is always saved as 2026-2027. PDF imports require a text layer; scanned pages are not processed.
 
+## Mastères: export
+
+Depuis **Mastères**, l’éditeur propose l’export Word du programme actif. Dans l’application de bureau, **Exporter en PDF** compose la même grille HTML dans une fenêtre Electron masquée et l’enregistre en PDF A4 paysage. Dans un navigateur, **Imprimer / Enregistrer en PDF** ouvre la mise en page autonome avec la feuille d’impression. **Tout exporter (.zip)** regroupe les versions Word des programmes enregistrés.
+
+L’export utilise l’année académique du programme (par défaut 2026-2027) et les créneaux et spans importés. Aucun logo institutionnel n’est fourni avec l’application. Les fichiers de mastère restent modifiables dans l’éditeur avant export.
+
 ## Comparer deux versions
 
 When a timetable is re-issued (new period, moved sessions, changed rooms), import the new HTML files and pick the previous version in the **Nouvelle version de…** field of the import screen. The new timetable stores a `previousTimetableId` link, and the **Changements** tab compares the two versions.

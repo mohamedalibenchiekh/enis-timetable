@@ -5,6 +5,7 @@ import {
   NotFoundException,
   OnModuleInit,
   Optional,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { randomUUID } from 'node:crypto';
@@ -26,6 +27,10 @@ import { ProgramAnalysis, ProgramSession } from './types.js';
 import { normalizeName } from '../names/name-normalization.js';
 import { BackupsService } from '../backups/backups.service.js';
 import { SEEDED_ROOM_ALIASES } from './seeded-aliases.js';
+import { buildFormLayout } from './form-layout.js';
+import { packFormDocument, renderFormHtml } from './form-renderers.js';
+import JSZip from 'jszip';
+import { SettingsService } from '../settings/settings.service.js';
 import {
   areSessionsOverlapping,
   buildOccupancyState,
@@ -41,6 +46,7 @@ import {
 
 const MAX_FILE_BYTES = 20 * 1024 * 1024;
 const MAX_REVISIONS_KEPT = 50;
+export const safeExportName = (value: string) => value.normalize('NFKD').replace(/[\u0300-\u036f]/gu, '').replace(/[^a-zA-Z0-9_-]+/gu, '-').replace(/^-+|-+$/gu, '').slice(0, 80) || 'programme';
 
 @Injectable()
 export class ProgramsService implements OnModuleInit {
@@ -56,6 +62,7 @@ export class ProgramsService implements OnModuleInit {
     @InjectRepository(KnownRoom) private readonly knownRooms: Repository<KnownRoom>,
     private readonly dataSource: DataSource,
     @Optional() private readonly backups?: BackupsService,
+    @Optional() private readonly settings?: SettingsService,
   ) {}
 
   async onModuleInit() {
@@ -232,6 +239,35 @@ export class ProgramsService implements OnModuleInit {
     const program = await this.programs.findOne({ where: { id }, relations: { slots: true, sessions: true } });
     if (!program) throw new NotFoundException('Programme introuvable.');
     return this.toApiProgram(program);
+  }
+
+  async exportDocx(id: string) {
+    const program = await this.get(id);
+    const layout = buildFormLayout(program, await this.settings?.getMastersFormSettings());
+    return { buffer: await packFormDocument(layout), layout };
+  }
+
+  async exportHtml(id: string) {
+    const program = await this.get(id);
+    const layout = buildFormLayout(program, await this.settings?.getMastersFormSettings());
+    return { html: renderFormHtml(layout), warnings: layout.warnings };
+  }
+
+  async exportPdfUnavailable() {
+    throw new ServiceUnavailableException('L’export PDF est disponible depuis l’application de bureau. Dans le navigateur, utilisez Imprimer puis Enregistrer en PDF.');
+  }
+
+  async exportZip(ids?: string[]) {
+    const programs = ids?.length ? await Promise.all(ids.map((id) => this.get(id))) : await this.list();
+    const zip = new JSZip();
+    const settings = await this.settings?.getMastersFormSettings();
+    const date = new Date().toISOString().slice(0, 10);
+    for (const program of programs) {
+      const layout = buildFormLayout(program, settings);
+      const buffer = await packFormDocument(layout);
+      zip.file(`Emploi-${safeExportName(program.code)}-${program.id}-${date}.docx`, buffer);
+    }
+    return zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' });
   }
 
   async remove(id: string) {
@@ -915,7 +951,7 @@ export class ProgramsService implements OnModuleInit {
 
   private toApiProgram(program: Program) {
     const parsed = program.originalSnapshot ?? {};
-    const source = parsed.source === 'pdf' ? 'pdf' : 'docx';
+    const source: 'pdf' | 'docx' = parsed.source === 'pdf' ? 'pdf' : 'docx';
     return {
       ...program,
       source,
