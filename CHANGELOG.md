@@ -18,7 +18,7 @@ _(Aucune modification en attente.)_
 ---
 
 ## [1.1.0] - 2026-11-26
-
+ 
 ### Ajouté
 
 - **Visualisation des conflits dans les emplois du temps maîtres** : l'éditeur
