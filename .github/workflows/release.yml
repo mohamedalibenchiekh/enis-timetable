@@ -12,7 +12,7 @@ env:
   NODE_VERSION: '22'
 
 jobs:
-  # ── Verify tag matches package.json version ────────────────────────
+  # ── Verify tag matches package.json version + CHANGELOG ───────────
   verify-version:
     name: Verify tag version
     runs-on: ubuntu-latest
@@ -28,6 +28,8 @@ jobs:
             echo "::error::Tag $GITHUB_REF_NAME does not match apps/desktop/package.json version $PKG_VERSION"
             exit 1
           fi
+      - name: Validate CHANGELOG.md section for this version (blocking)
+        run: node scripts/check-release-notes.js "$GITHUB_REF_NAME"
 
   # ── Build installers per OS ────────────────────────────────────────
   build:
@@ -152,6 +154,11 @@ jobs:
           fi
           cd ..
           cp .github/release-template.fr.md release-body.md
+          # Inject CHANGELOG notes for this version into <!-- CHANGELOG_NOTES --> placeholder
+          CHANGELOG_NOTES=$(node scripts/check-release-notes.js "$GITHUB_REF_NAME" 2>/dev/null || echo "Notes de version indisponibles.")
+          # Use awk to replace the placeholder with the extracted notes
+          awk -v notes="$CHANGELOG_NOTES" '{gsub(/<!-- CHANGELOG_NOTES -->/, notes); print}' release-body.md > release-body-with-notes.md
+          mv release-body-with-notes.md release-body.md
           sed '/<!-- SHA256SUMS -->/r release-artifacts/SHA256SUMS.txt' release-body.md > release-body-with-checksums.md
           sed -i '/<!-- SHA256SUMS -->/d' release-body-with-checksums.md
       - name: Create or reuse draft release with generated notes
@@ -166,7 +173,7 @@ jobs:
             fi
             echo "Reusing existing draft release for $GITHUB_REF_NAME."
             existing_body=$(gh release view "$GITHUB_REF_NAME" --json body --jq '.body')
-            notes_marker='Les notes de version générées par GitHub sont ajoutées après ce texte.'
+            notes_marker='## Installation'
             case "$existing_body" in
               *"$notes_marker"*) ;;
               *)

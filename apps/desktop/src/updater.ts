@@ -1,5 +1,10 @@
 export interface UpdateInfo {
   version: string;
+  /**
+   * Release notes from the GitHub Release body, provided by electron-updater.
+   * May be a string (Markdown) or null/undefined when unavailable.
+   */
+  releaseNotes?: string | null;
 }
 
 export interface UpdateProgress {
@@ -8,9 +13,9 @@ export interface UpdateProgress {
 
 export type UpdateStatus =
   | { status: 'checking' }
-  | { status: 'available'; version: string }
+  | { status: 'available'; version: string; releaseNotes?: string | null }
   | { status: 'progress'; version: string; percent: number }
-  | { status: 'downloaded'; version: string }
+  | { status: 'downloaded'; version: string; releaseNotes?: string | null }
   | { status: 'error'; message: string }
   | { status: 'none' };
 
@@ -63,6 +68,7 @@ export function createUpdater(options: UpdateServiceOptions) {
   let updateVersion: string | null = null;
   let latestStatus: UpdateStatus | null = null;
   let downloadedStatus: UpdateStatus | null = null;
+  let pendingReleaseNotes: string | null = null;
 
   const publish = (status: UpdateStatus) => {
     latestStatus = status;
@@ -91,8 +97,15 @@ export function createUpdater(options: UpdateServiceOptions) {
   updater.on('checking-for-update', () => publish({ status: 'checking' }));
   updater.on('update-available', (info) => {
     updateVersion = info.version;
+    // Capture release notes from the GitHub Release body for display in the update banner.
+    // electron-updater populates info.releaseNotes from the GitHub Release; may be null/undefined.
+    pendingReleaseNotes = typeof info.releaseNotes === 'string' && info.releaseNotes.trim() ? info.releaseNotes : null;
     options.log(`Mise à jour disponible: ${info.version}`);
-    publish({ status: 'available', version: info.version });
+    publish({
+      status: 'available',
+      version: info.version,
+      ...(pendingReleaseNotes ? { releaseNotes: pendingReleaseNotes } : {}),
+    });
   });
   updater.on('update-not-available', () => {
     options.log('Aucune mise à jour disponible.');
@@ -118,7 +131,11 @@ export function createUpdater(options: UpdateServiceOptions) {
     downloadedVersion = info.version;
     manuallyChecking = false;
     options.log(`Mise à jour téléchargée: ${info.version}`);
-    publish({ status: 'downloaded', version: info.version });
+    publish({
+      status: 'downloaded',
+      version: info.version,
+      ...(pendingReleaseNotes ? { releaseNotes: pendingReleaseNotes } : {}),
+    });
     void dialog.showMessageBox({
       type: 'info',
       title: 'Mise à jour prête',

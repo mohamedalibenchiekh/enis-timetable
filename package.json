@@ -23,7 +23,8 @@
     "test:visual:update": "npm run test:visual:update -w apps/api --",
     "test:e2e": "npm run build && playwright test",
     "fixtures:pdf": "node scripts/generate-pdf-fixtures.mjs",
-    "icons": "node scripts/generate-icons.cjs"
+    "icons": "node scripts/generate-icons.cjs",
+    "check:release-notes": "node scripts/check-release-notes.js"
   },
   "devDependencies": {
     "jsdom": "^31.0.1",

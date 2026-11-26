@@ -36,4 +36,6 @@ Les mises à jour automatiques vérifient l’intégrité du fichier télécharg
 
 ## Nouveautés
 
-Les notes de version générées par GitHub sont ajoutées après ce texte.
+<!-- CHANGELOG_NOTES -->
+
+## Installation

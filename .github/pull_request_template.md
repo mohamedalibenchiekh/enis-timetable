@@ -16,4 +16,4 @@
 - [ ] `npm test` passes (rooms vs teachers parity check)
 - [ ] No secrets, `.env` files, or private data committed
 - [ ] French used for UI strings; English for code/comments
-
+- [ ] **CHANGELOG.md updated**: if this PR makes a user-visible change, a line has been added under `[Unreleased]` in CHANGELOG.md (in French, plain language, no jargon or commit hashes)

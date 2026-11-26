@@ -114,3 +114,4 @@ Test commands:
 - Never edit generated `latest*.yml` update metadata by hand.
 - Never reuse a release tag.
 - `apps/desktop/package.json` version must exactly match the pushed `vX.Y.Z` tag (without the leading `v`).
+- Every PR with a user-visible change adds a line under `[Unreleased]` in `CHANGELOG.md` (French, plain language).

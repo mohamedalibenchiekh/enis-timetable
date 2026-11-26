@@ -17,6 +17,7 @@ import { ProgramsController } from './masters/programs.controller.js';
 import { ProgramsService } from './masters/programs.service.js';
 
 import { ConflictsController, OccupancyController } from './occupancy/occupancy.controller.js';
+import { ChangelogModule } from './changelog/changelog.module.js';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { ConflictsController, OccupancyController } from './occupancy/occupancy.
     }),
     TypeOrmModule.forFeature([Timetable, SessionEntity, Setting, TeacherName, RoomLabel, KnownRoom, Program, ProgramSlotEntity, ProgramSessionEntity, TeacherAlias, RoomAlias, ProgramRevision]),
     BackupsModule,
+    ChangelogModule,
   ],
   controllers: [TimetablesController, SettingsController, HealthController, NamesController, CompareController, ProgramsController, ConflictsController, OccupancyController],
   providers: [

@@ -125,6 +125,7 @@ export default function Home() {
             {desktopVersionError && <span className="muted small">Version indisponible</span>}
             <a className="link" href="/sauvegardes/">Sauvegardes</a>
             <a className="link" href="/aide/">Aide</a>
+            <a className="link" href="/nouveautes/">Nouveautés</a>
             <button className="link" onClick={checkForUpdates}>Rechercher les mises à jour</button>
           </div>
         )}
