@@ -156,9 +156,13 @@ jobs:
           cp .github/release-template.fr.md release-body.md
           # Inject CHANGELOG notes for this version into <!-- CHANGELOG_NOTES --> placeholder
           CHANGELOG_NOTES=$(node scripts/check-release-notes.js "$GITHUB_REF_NAME" 2>/dev/null || echo "Notes de version indisponibles.")
-          # Use awk to replace the placeholder with the extracted notes
-          awk -v notes="$CHANGELOG_NOTES" '{gsub(/<!-- CHANGELOG_NOTES -->/, notes); print}' release-body.md > release-body-with-notes.md
-          mv release-body-with-notes.md release-body.md
+          export CHANGELOG_NOTES
+          node -e "
+            const fs = require('fs');
+            const body = fs.readFileSync('release-body.md', 'utf8');
+            const notes = process.env.CHANGELOG_NOTES || '';
+            fs.writeFileSync('release-body.md', body.replace('<!-- CHANGELOG_NOTES -->', () => notes));
+          "
           sed '/<!-- SHA256SUMS -->/r release-artifacts/SHA256SUMS.txt' release-body.md > release-body-with-checksums.md
           sed -i '/<!-- SHA256SUMS -->/d' release-body-with-checksums.md
       - name: Create or reuse draft release with generated notes
@@ -173,7 +177,7 @@ jobs:
             fi
             echo "Reusing existing draft release for $GITHUB_REF_NAME."
             existing_body=$(gh release view "$GITHUB_REF_NAME" --json body --jq '.body')
-            notes_marker='## Installation'
+            notes_marker='<!-- GENERATED_RELEASE_NOTES_START -->'
             case "$existing_body" in
               *"$notes_marker"*) ;;
               *)

@@ -126,7 +126,9 @@ jobs:
       - run: npm run typecheck
       - run: npm run build
       - name: Validate CHANGELOG.md (warning on PR, blocking on tag)
-        run: node scripts/check-release-notes.js HEAD || echo "::warning::CHANGELOG.md validation failed – add an entry under [Unreleased] or for the new version before tagging."
+        run: |
+          VERSION=$(node -p "require('./apps/desktop/package.json').version")
+          node scripts/check-release-notes.js "$VERSION" || echo "::warning::CHANGELOG.md validation failed – add an entry under [Unreleased] or for the new version before tagging."
         continue-on-error: true
       - name: Unit tests (API, web, updater, backups)
         run: npm test

@@ -38,6 +38,29 @@ describe('ChangelogDialog', () => {
     expect(screen.getByText('Ajouté')).toBeTruthy();
     expect(screen.getByText('Corrigé')).toBeTruthy();
     expect(screen.getByText('Modifié')).toBeTruthy();
+    expect(screen.getByText('Correction du bogue B')).toBeTruthy();
+    const strong = document.querySelector('strong');
+    expect(Array.from(document.querySelectorAll('.cl-item strong')).some((el) => el.textContent === 'A')).toBe(true);
+    expect(strong).toBeTruthy();
+  });
+
+  it('escapes raw HTML in items and does not render injected tags', () => {
+    const malicious: ChangelogEntry[] = [
+      {
+        version: '1.5.0',
+        date: '2026-11-27',
+        sections: [
+          {
+            title: 'Corrigé',
+            items: ['Test <img src=x onerror=alert(1)> avec **gras**'],
+          },
+        ],
+      },
+    ];
+    render(<ChangelogDialog entries={malicious} />);
+    expect(document.querySelector('img')).toBeNull();
+    expect(screen.getByText(/<img src=x onerror=alert\(1\)>/)).toBeTruthy();
+    expect(Array.from(document.querySelectorAll('.cl-item strong')).some((el) => el.textContent === 'gras')).toBe(true);
   });
 
   it('renders "Compris" button when onDismiss is provided', () => {

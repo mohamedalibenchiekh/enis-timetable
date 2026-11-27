@@ -50,8 +50,8 @@ function renderInline(text: string): string {
       continue;
     }
 
-    // Link: [text](url)
-    const linkMatch = /^\[([^\]]+)\]\(([^)]+)\)/.exec(remaining);
+    // Link: [text](url) — allow one level of balanced parentheses in URL
+    const linkMatch = /^\[([^\]]+)\]\(((?:[^()\s]|\([^()\s]*\))+)\)/.exec(remaining);
     if (linkMatch) {
       const linkText = esc(linkMatch[1]);
       const url = linkMatch[2].trim();
@@ -73,10 +73,10 @@ function renderInline(text: string): string {
       continue;
     }
 
-    // Italic: *text* or _text_ — render as <em>
-    const emMatch = /^(\*|_)([^*_]+)\1/.exec(remaining);
+    // Italic: *text* — restrict to * delimiters so snake_case identifiers are preserved
+    const emMatch = /^\*([^*]+)\*/.exec(remaining);
     if (emMatch) {
-      result += `<em>${esc(emMatch[2])}</em>`;
+      result += `<em>${esc(emMatch[1])}</em>`;
       remaining = remaining.slice(emMatch[0].length);
       continue;
     }

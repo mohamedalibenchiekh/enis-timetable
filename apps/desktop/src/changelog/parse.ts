@@ -19,8 +19,8 @@ export interface ChangelogEntry {
   sections: ChangelogSection[];
 }
 
-// Maximum file size we will parse (10 MB) to avoid runaway processing
-const MAX_BYTES = 10 * 1024 * 1024;
+// Maximum input length we will parse (10 million UTF-16 characters) to avoid runaway processing
+const MAX_CHARS = 10 * 1024 * 1024;
 
 // Matches  ## [1.2.3] - 2026-11-26  (with optional surrounding whitespace)
 const VERSION_HEADING = /^##\s+\[(\d+\.\d+\.\d+[^\]]*)\]\s*-\s*(\d{4}-\d{2}-\d{2})\s*$/;
@@ -40,8 +40,8 @@ const ITEM_LINE = /^-\s+(.+)$/;
  * Entries appear newest-first (file order preserved).
  */
 export function parseChangelog(text: string): ChangelogEntry[] {
-  if (text.length > MAX_BYTES) {
-    text = text.slice(0, MAX_BYTES);
+  if (text.length > MAX_CHARS) {
+    text = text.slice(0, MAX_CHARS);
   }
 
   const lines = text.split(/\r?\n/);
@@ -78,6 +78,19 @@ export function parseChangelog(text: string): ChangelogEntry[] {
       current = null;
       currentSection = null;
       inUnreleased = true;
+      continue;
+    }
+
+    // Any other level-2 heading closes the current version block so its
+    // content is skipped rather than leaking into the previous version.
+    if (/^##(?:\s|$)/.test(line)) {
+      if (currentSection && current && currentSection.items.length > 0) {
+        current.sections.push(currentSection);
+      }
+      if (current) entries.push(current);
+      current = null;
+      currentSection = null;
+      inUnreleased = false;
       continue;
     }
 

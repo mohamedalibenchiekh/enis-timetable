@@ -165,6 +165,15 @@ describe('update service', () => {
     expect(service.getStatus()).toEqual({ status: 'downloaded', version: '1.0.1' });
   });
 
+  it('uses releaseNotes from update-downloaded and does not reuse notes from another version', () => {
+    const { updater, statuses } = createTestUpdater();
+    updater.emitAvailable({ version: '1.0.1', releaseNotes: 'Notes 1.0.1' });
+    updater.emitDownloaded({ version: '1.0.2', releaseNotes: 'Notes 1.0.2' });
+    updater.emitDownloaded({ version: '1.0.3' });
+    expect(statuses).toContainEqual({ status: 'downloaded', version: '1.0.2', releaseNotes: 'Notes 1.0.2' });
+    expect(statuses).toContainEqual({ status: 'downloaded', version: '1.0.3' });
+  });
+
   it('shows the latest-version message for a manual check', async () => {
     const { updater, dialog, service } = createTestUpdater();
     await service.checkForUpdates(true);
@@ -311,5 +320,43 @@ describe('UpdateBanner', () => {
     expect(screen.getByRole('status').textContent).toContain('Redémarrer pour installer');
     fireEvent.click(screen.getByRole('button', { name: 'Redémarrer pour installer' }));
     expect(onInstall).toHaveBeenCalledOnce();
+  });
+
+  it('toggles release notes with aria-expanded, keeps notes open across progress, and escapes HTML/non-https links', () => {
+    const onInstall = vi.fn();
+    const notes = [
+      '## Nouveautés',
+      '- **Fonction** <script>alert(1)</script>',
+      '- [Lien sûr](https://example.com/ok) et [Lien bloqué](http://evil.com) et [JS](javascript:alert(1))',
+    ].join('\n');
+
+    const view = render(
+      <UpdateBanner status={{ status: 'available', version: '1.0.1', releaseNotes: notes }} onInstall={onInstall} />,
+    );
+
+    const toggle = screen.getByRole('button', { name: /Notes de version/ });
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+
+    fireEvent.click(toggle);
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    const panel = document.getElementById('update-notes-panel')!;
+    expect(panel).toBeTruthy();
+    expect(panel.querySelector('script')).toBeNull();
+    expect(panel.querySelector('strong')?.textContent).toBe('Fonction');
+    const links = Array.from(panel.querySelectorAll('a'));
+    expect(links).toHaveLength(1);
+    expect(links[0].getAttribute('href')).toBe('https://example.com/ok');
+
+    // Progress events for the same version keep the toggle and open state
+    view.rerender(<UpdateBanner status={{ status: 'progress', version: '1.0.1', percent: 50 }} onInstall={onInstall} />);
+    expect(document.getElementById('update-notes-panel')).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Masquer les notes/ }).getAttribute('aria-expanded')).toBe('true');
+
+    // Changing version resets notesOpen
+    view.rerender(
+      <UpdateBanner status={{ status: 'available', version: '1.0.2', releaseNotes: '## v1.0.2' }} onInstall={onInstall} />,
+    );
+    expect(document.getElementById('update-notes-panel')).toBeNull();
+    expect(screen.getByRole('button', { name: /Notes de version/ }).getAttribute('aria-expanded')).toBe('false');
   });
 });

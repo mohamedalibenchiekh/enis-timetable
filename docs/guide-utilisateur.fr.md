@@ -434,7 +434,7 @@ Si vous avez manqué plusieurs versions d'affilée, la fenêtre regroupe l'ensem
 - Depuis le menu **Aide → Nouveautés…**, vous pouvez afficher la liste complète de toutes les versions.
 - Depuis la barre latérale, cliquez sur **Nouveautés** pour ouvrir la même page dans l'application.
 
-Si le fichier des nouveautés ne peut pas être lu, le message « Journal des modifications indisponible » s’affiche.
+Si le fichier des nouveautés ne peut pas être lu, le message « Impossible de charger le journal des modifications : … » (ou « Journal des modifications indisponible ») s’affiche.
 
 ### Désactiver l'affichage automatique
 

@@ -1,8 +1,9 @@
 /**
- * parse.ts – shared CHANGELOG parser for the API layer.
+ * parse.ts – CHANGELOG parser for the API layer.
  *
- * Re-exports the same logic as apps/desktop/src/changelog/parse.ts without
- * importing from the desktop package (to keep circular deps away).
+ * Mirrors apps/desktop/src/changelog/parse.ts (kept as a local copy because
+ * apps/api is ESM and staged standalone by apps/desktop/scripts/stage.js,
+ * while apps/desktop compiles CommonJS with rootDir: "src").
  * Kept as a pure function with no side-effects.
  */
 
@@ -17,14 +18,15 @@ export interface ChangelogEntry {
   sections: ChangelogSection[];
 }
 
-const MAX_BYTES = 10 * 1024 * 1024;
+// Maximum input length we will parse (10 million UTF-16 characters) to avoid runaway processing.
+const MAX_CHARS = 10 * 1024 * 1024;
 const VERSION_HEADING = /^##\s+\[(\d+\.\d+\.\d+[^\]]*)\]\s*-\s*(\d{4}-\d{2}-\d{2})\s*$/;
 const UNRELEASED_HEADING = /^##\s+\[Unreleased\]\s*$/i;
 const SECTION_HEADING = /^###\s+(.+)$/;
 const ITEM_LINE = /^-\s+(.+)$/;
 
 export function parseChangelog(text: string): ChangelogEntry[] {
-  if (text.length > MAX_BYTES) text = text.slice(0, MAX_BYTES);
+  if (text.length > MAX_CHARS) text = text.slice(0, MAX_CHARS);
   const lines = text.split(/\r?\n/);
   const entries: ChangelogEntry[] = [];
   let current: ChangelogEntry | null = null;
@@ -46,6 +48,12 @@ export function parseChangelog(text: string): ChangelogEntry[] {
       if (currentSection && current && currentSection.items.length > 0) current.sections.push(currentSection);
       if (current) entries.push(current);
       current = null; currentSection = null; inUnreleased = true;
+      continue;
+    }
+    if (/^##(?:\s|$)/.test(line)) {
+      if (currentSection && current && currentSection.items.length > 0) current.sections.push(currentSection);
+      if (current) entries.push(current);
+      current = null; currentSection = null; inUnreleased = false;
       continue;
     }
     if (inUnreleased || !current) continue;

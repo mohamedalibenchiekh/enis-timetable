@@ -27,9 +27,6 @@ _(Aucune modification en attente.)_
 - **Export des emplois du temps maîtres en Word et PDF** : il est désormais
   possible de télécharger directement les emplois du temps maîtres dans ces
   deux formats.
-- **Import des emplois du temps maîtres depuis Word et PDF** : vous pouvez
-  charger des fichiers issus de Word (.docx) ou de PDF pour créer ou mettre à
-  jour un emploi du temps maître.
 - **Journalisation structurée au démarrage** : les incidents de démarrage sont
   maintenant consignés avec plus de détails pour faciliter le diagnostic.
 
@@ -46,8 +43,7 @@ _(Aucune modification en attente.)_
 
 - Correction d'un problème rare où la base de données embarquée pouvait rester
   partiellement démarrée après un arrêt Windows.
-- Correction d'une erreur silencieuse lors du nettoyage de PDF.js après
-  l'analyse d'un emploi du temps maître.
+- Correction d'une erreur silencieuse lors de l'analyse d'un PDF d'emploi du temps maître.
 
 ---
 

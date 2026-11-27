@@ -121,11 +121,32 @@ describe('parseChangelog', () => {
     assert.equal(entries[0].sections[0].title, 'Ajouté');
   });
 
-  it('caps processing at 10 MB without error', () => {
-    const bigText = '- item\n'.repeat(2_000_000); // ~14 MB
-    // Should not throw
-    const entries = parseChangelog(`## [1.0.0] - 2026-01-01\n\n### Ajouté\n${bigText}`);
+  it('caps processing at 10M characters and drops trailing versions beyond the cap', () => {
+    const bigText = '- item\n'.repeat(2_000_000); // ~14M chars (> 10 * 1024 * 1024)
+    const entries = parseChangelog(
+      `## [1.0.0] - 2026-01-01\n\n### Ajouté\n${bigText}\n## [0.9.0] - 2025-01-01\n\n### Ajouté\n- Dropped\n`,
+    );
     assert.equal(entries.length, 1);
+    assert.equal(entries[0].version, '1.0.0');
+  });
+
+  it('closes the previous version on an unrecognized ## heading instead of merging items', () => {
+    const md = `
+## [1.2.0] - 2026-11-01
+
+### Ajouté
+- Real feature
+
+## [1.1.1] – 2026-10-15
+
+### Corrigé
+- Should not leak into 1.2.0
+`;
+    const entries = parseChangelog(md);
+    assert.equal(entries.length, 1);
+    assert.equal(entries[0].version, '1.2.0');
+    assert.equal(entries[0].sections.length, 1);
+    assert.deepEqual(entries[0].sections[0].items, ['Real feature']);
   });
 });
 
@@ -201,6 +222,8 @@ describe('decideShowChangelog', () => {
     ['pre-release stripped: 1.2.0 same as 1.2.0-rc (core)', '1.2.0', '1.2.0-rc.1', true, 'nothing'],
     ['setting disabled', '1.2.0', '1.1.0', false, 'nothing'],
     ['corrupt stored value (non-string)', '1.2.0', /** @type {any} */ (42), true, 'first-install'],
+    ['corrupt stored value (unparseable string)', '1.2.0', 'not-a-version', true, 'first-install'],
+    ['unparseable current version', 'bad-current', '1.1.0', true, 'nothing'],
   ];
 
   for (const [desc, current, lastSeen, setting, expected] of cases) {

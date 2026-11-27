@@ -532,13 +532,18 @@ async function openChangelogWindow(): Promise<void> {
  * Show-once logic (feature B): navigates to /nouveautes/ on first launch after
  * an upgrade. Never blocks startup; silently skips on any error.
  */
-async function maybeShowChangelogAfterUpdate(): Promise<void> {
+async function maybeShowChangelogAfterUpdate(previousAppVersion?: string | null): Promise<void> {
   try {
     const currentVersion = app.getVersion();
     const userDataPath = app.getPath('userData');
     const cfg = readConfig() as { showChangelogOnUpdate?: boolean };
     const settingEnabled = cfg.showChangelogOnUpdate !== false;
-    const lastSeen = readLastSeenVersion(userDataPath);
+    let lastSeen = readLastSeenVersion(userDataPath);
+    // Migrate existing pre-feature installations that had state.json.version but no changelog key.
+    if (!lastSeen && previousAppVersion && previousAppVersion !== 'inconnu') {
+      lastSeen = previousAppVersion;
+      writeLastSeenVersion(userDataPath, lastSeen, logUpdate);
+    }
     const decision = decideShowChangelog({ currentVersion, lastSeen, settingEnabled });
     if (decision === 'first-install') {
       writeLastSeenVersion(userDataPath, currentVersion, logUpdate);
@@ -551,14 +556,14 @@ async function maybeShowChangelogAfterUpdate(): Promise<void> {
       writeLastSeenVersion(userDataPath, currentVersion, logUpdate);
       return;
     }
-    if (win && !win.isDestroyed()) {
-      try {
-        const currentUrl = win.webContents.getURL();
-        const origin = new URL(currentUrl).origin;
-        if (origin && origin !== 'null') void win.loadURL(`${origin}/nouveautes/`);
-      } catch { /* ignore */ }
-    }
-    // Record as seen after displaying
+    if (!win || win.isDestroyed()) return;
+    const currentUrl = win.webContents.getURL();
+    if (!currentUrl || currentUrl.startsWith('about:')) return;
+    const origin = new URL(currentUrl).origin;
+    if (!origin || origin === 'null') return;
+    const target = `${origin}/nouveautes/?since=${encodeURIComponent(lastSeen!)}&upTo=${encodeURIComponent(currentVersion)}`;
+    await win.loadURL(target);
+    // Record as seen only after the update view has loaded successfully.
     writeLastSeenVersion(userDataPath, currentVersion, logUpdate);
   } catch (err) {
     logUpdate(`Erreur lors de l’affichage des nouveautés : ${String(err)}`);
@@ -569,13 +574,14 @@ async function boot(): Promise<void> {
   showSplash();
   initServicesOnce();
   const userDataPath = app.getPath('userData');
-  backupWarning = backupBeforeUpgrade(userDataPath, app.getVersion(), logUpdate).warning;
+  const backupResult = backupBeforeUpgrade(userDataPath, app.getVersion(), logUpdate);
+  backupWarning = backupResult.warning;
 
   try {
     const port = await startApi();
     apiPort = port;
     await createWindow(port);
-    setTimeout(() => { void maybeShowChangelogAfterUpdate(); }, 1500);
+    setTimeout(() => { void maybeShowChangelogAfterUpdate(backupResult.previousVersion); }, 1500);
     if (backupWarning) {
       void dialog.showMessageBox(win!, {
         type: 'warning',

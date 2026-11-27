@@ -68,7 +68,10 @@ export function createUpdater(options: UpdateServiceOptions) {
   let updateVersion: string | null = null;
   let latestStatus: UpdateStatus | null = null;
   let downloadedStatus: UpdateStatus | null = null;
-  let pendingReleaseNotes: string | null = null;
+  let pendingReleaseNotes: { version: string; notes: string } | null = null;
+
+  const normalizeReleaseNotes = (notes?: string | null): string | null =>
+    typeof notes === 'string' && notes.trim() ? notes : null;
 
   const publish = (status: UpdateStatus) => {
     latestStatus = status;
@@ -99,12 +102,13 @@ export function createUpdater(options: UpdateServiceOptions) {
     updateVersion = info.version;
     // Capture release notes from the GitHub Release body for display in the update banner.
     // electron-updater populates info.releaseNotes from the GitHub Release; may be null/undefined.
-    pendingReleaseNotes = typeof info.releaseNotes === 'string' && info.releaseNotes.trim() ? info.releaseNotes : null;
+    const notes = normalizeReleaseNotes(info.releaseNotes);
+    pendingReleaseNotes = notes ? { version: info.version, notes } : null;
     options.log(`Mise à jour disponible: ${info.version}`);
     publish({
       status: 'available',
       version: info.version,
-      ...(pendingReleaseNotes ? { releaseNotes: pendingReleaseNotes } : {}),
+      ...(notes ? { releaseNotes: notes } : {}),
     });
   });
   updater.on('update-not-available', () => {
@@ -130,11 +134,14 @@ export function createUpdater(options: UpdateServiceOptions) {
   updater.on('update-downloaded', (info) => {
     downloadedVersion = info.version;
     manuallyChecking = false;
+    const ownNotes = normalizeReleaseNotes(info.releaseNotes);
+    const fallbackNotes = pendingReleaseNotes?.version === info.version ? pendingReleaseNotes.notes : null;
+    const downloadedNotes = ownNotes ?? fallbackNotes;
     options.log(`Mise à jour téléchargée: ${info.version}`);
     publish({
       status: 'downloaded',
       version: info.version,
-      ...(pendingReleaseNotes ? { releaseNotes: pendingReleaseNotes } : {}),
+      ...(downloadedNotes ? { releaseNotes: downloadedNotes } : {}),
     });
     void dialog.showMessageBox({
       type: 'info',

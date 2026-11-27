@@ -248,13 +248,18 @@ Pour les responsables de publication : soumettez l’installateur Windows de cha
 
 ### Cutting a release
 
-1. Update `CHANGELOG.md`: move the items under `## [Unreleased]` into a new version heading `## [1.0.3] - YYYY-MM-DD` (French, plain language for school administrators) and verify with `npm run check:release-notes -- v1.0.3`.
-2. Create a version branch from the latest `main`, commit `CHANGELOG.md`, and update the desktop package version. Replace `1.0.3` with the next unused version:
+1. Create a version branch from the latest `main` and update the desktop package version. Replace `1.0.3` with the next unused version:
 
    ```bash
    git switch main && git pull
    git switch -c chore/release-1-0-3
    npm version 1.0.3 -w apps/desktop --no-git-tag-version
+   ```
+
+2. On that `chore/release-*` branch, update `CHANGELOG.md` (move the items under `## [Unreleased]` into a new version heading `## [1.0.3] - YYYY-MM-DD`, in French, plain language for school administrators), verify with `npm run check:release-notes -- v1.0.3`, then commit and push:
+
+   ```bash
+   npm run check:release-notes -- v1.0.3
    git add CHANGELOG.md apps/desktop/package.json package-lock.json
    git commit -m "chore: bump desktop version to 1.0.3"
    git push -u origin chore/release-1-0-3

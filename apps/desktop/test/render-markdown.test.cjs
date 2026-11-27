@@ -91,8 +91,17 @@ describe('renderMarkdown – safe output', () => {
   it('caps line length at 2000 characters', () => {
     const longLine = 'x'.repeat(5000);
     const html = renderMarkdown(longLine);
-    // The line should be truncated to 2000 chars before rendering
-    assert.ok(html.length < 3000);
+    assert.equal(html, `<p>${'x'.repeat(2000)}</p>`);
+  });
+
+  it('renders https links with balanced parentheses', () => {
+    const html = renderMarkdown('[Wiki](https://en.wikipedia.org/wiki/Foo_(bar))');
+    assert.match(html, /href="https:\/\/en\.wikipedia\.org\/wiki\/Foo_\(bar\)"/);
+  });
+
+  it('preserves underscores in snake_case identifiers without italicising', () => {
+    const html = renderMarkdown('settings_v2 et snake_case_name');
+    assert.equal(html, '<p>settings_v2 et snake_case_name</p>');
   });
 
   it('handles empty string', () => {
@@ -118,11 +127,42 @@ describe('renderMarkdown – safe output', () => {
   });
 });
 
-describe('renderMarkdown – check-release-notes script', () => {
-  it('script validates correctly with a matching version', () => {
-    // Lightweight smoke test: just require the script and check it exports nothing
-    // (it's a CLI script; full integration requires a real filesystem fixture)
-    const scriptPath = require.resolve('../../../scripts/check-release-notes.js');
-    assert.ok(require('fs').existsSync(scriptPath), 'script file exists');
+describe('check-release-notes – parser and validator', () => {
+  const { parseChangelog: parseReleaseNotes, entryToMarkdown } = require('../../../scripts/check-release-notes.js');
+
+  it('parses -, *, and + bullets and formats markdown', () => {
+    const entries = parseReleaseNotes([
+      '## [1.4.0] - 2026-11-26',
+      '### Ajouté',
+      '- Bullet dash',
+      '* Bullet star',
+      '+ Bullet plus',
+    ].join('\n'));
+    assert.equal(entries.length, 1);
+    assert.deepEqual(entries[0].sections[0].items, ['Bullet dash', 'Bullet star', 'Bullet plus']);
+    const md = entryToMarkdown(entries[0]);
+    assert.match(md, /## Nouveautés de la version 1\.4\.0 \(2026-11-26\)/);
+    assert.match(md, /- Bullet star/);
+  });
+
+  it('rejects impossible calendar dates', () => {
+    assert.throws(
+      () => parseReleaseNotes('## [1.4.0] - 2026-99-99\n### Ajouté\n- Item'),
+      /Invalid release date/,
+    );
+  });
+
+  it('rejects unrecognized level-2 headings', () => {
+    assert.throws(
+      () => parseReleaseNotes('## [1.4.0] - 2026-11-26\n### Ajouté\n- Ok\n\n## [1.3.0] – 2026-11-01\n### Corrigé\n- Leak'),
+      /Unrecognized level-2 heading/,
+    );
+  });
+
+  it('rejects uncaptured numbered list items', () => {
+    assert.throws(
+      () => parseReleaseNotes('## [1.4.0] - 2026-11-26\n### Ajouté\n1. Numbered item'),
+      /Unsupported or empty list item/,
+    );
   });
 });

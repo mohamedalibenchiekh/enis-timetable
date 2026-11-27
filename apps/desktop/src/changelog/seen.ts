@@ -43,8 +43,14 @@ export function decideShowChangelog(opts: {
 }): ShowDecision {
   const { currentVersion, lastSeen, settingEnabled } = opts;
 
-  // Corrupt / missing stored value → first-install path
-  if (lastSeen === null || lastSeen === undefined || typeof lastSeen !== 'string' || !lastSeen.trim()) {
+  // Corrupt / missing / unparseable stored value → first-install path
+  if (
+    lastSeen === null ||
+    lastSeen === undefined ||
+    typeof lastSeen !== 'string' ||
+    !lastSeen.trim() ||
+    compareVersions(lastSeen, lastSeen) === null
+  ) {
     return 'first-install';
   }
 
@@ -52,7 +58,7 @@ export function decideShowChangelog(opts: {
   if (!settingEnabled) return 'nothing';
 
   const cmp = compareVersions(currentVersion, lastSeen);
-  if (cmp === null) return 'nothing';   // unparseable versions
+  if (cmp === null) return 'nothing';   // unparseable currentVersion
   if (cmp <= 0) return 'nothing';       // same or downgrade
 
   return 'show';

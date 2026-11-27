@@ -38,4 +38,4 @@ Les mises à jour automatiques vérifient l’intégrité du fichier télécharg
 
 <!-- CHANGELOG_NOTES -->
 
-## Installation
+<!-- GENERATED_RELEASE_NOTES_START -->

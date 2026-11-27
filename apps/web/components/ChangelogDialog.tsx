@@ -53,10 +53,10 @@ function EntryBlock({ entry, defaultOpen, id }: EntryBlockProps) {
   return (
     <details open={defaultOpen} className="cl-entry">
       <summary className="cl-entry-summary">
-        <span className="cl-entry-version" aria-label={`Version ${entry.version}`}>
+        <span className="cl-entry-version">
           <strong>Version {entry.version}</strong>
         </span>
-        <span className="cl-entry-date" aria-label={`publiée le ${entry.date}`}>{entry.date}</span>
+        <time className="cl-entry-date" dateTime={entry.date}>{entry.date}</time>
       </summary>
       <div className="cl-entry-body" id={id}>
         {entry.sections.length === 0 && (
