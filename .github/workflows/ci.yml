@@ -130,7 +130,6 @@ jobs:
         continue-on-error: true
       - name: Unit tests (API, web, updater, backups)
         run: npm test
-        run: npm test
       - name: Generate and verify guide screenshots
         run: npm run guide:screenshots
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
