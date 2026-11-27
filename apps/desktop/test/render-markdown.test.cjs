@@ -165,4 +165,26 @@ describe('check-release-notes – parser and validator', () => {
       /Unsupported or empty list item/,
     );
   });
+
+  it('rejects duplicate version headings', () => {
+    assert.throws(
+      () => parseReleaseNotes('## [1.4.0] - 2026-11-26\n### Ajouté\n- A\n\n## [1.4.0] - 2026-11-25\n### Ajouté\n- B'),
+      /Duplicate version heading/,
+    );
+  });
+
+  it('appends unindented and single-space-indented continuation lines to the previous item', () => {
+    const entries = parseReleaseNotes([
+      '## [1.4.0] - 2026-11-26',
+      '### Ajouté',
+      '- First line',
+      'unindented continuation',
+      ' single-space continuation',
+      '---',
+    ].join('\n'));
+    assert.deepEqual(
+      entries[0].sections[0].items,
+      ['First line unindented continuation single-space continuation'],
+    );
+  });
 });

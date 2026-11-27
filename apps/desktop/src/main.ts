@@ -11,7 +11,7 @@ import { createUpdater } from './updater';
 import { showMessageBoxWithOptionalParent } from './window-dialog';
 import { StartupLogger } from './logger';
 import { classifyStartupError } from './error-classifier';
-import { parseChangelog, entriesBetween } from './changelog/parse';
+import { parseChangelog, entriesBetween, findEntry } from './changelog/parse';
 import { decideShowChangelog, readLastSeenVersion, writeLastSeenVersion } from './changelog/seen';
 
 let api: ChildProcess | null = null;
@@ -539,8 +539,29 @@ async function maybeShowChangelogAfterUpdate(previousAppVersion?: string | null)
     const cfg = readConfig() as { showChangelogOnUpdate?: boolean };
     const settingEnabled = cfg.showChangelogOnUpdate !== false;
     let lastSeen = readLastSeenVersion(userDataPath);
+    const isUnknownUpgrade = !lastSeen && previousAppVersion === 'inconnu';
+
+    if (isUnknownUpgrade) {
+      if (!settingEnabled) return;
+      const allEntries = readChangelogEntries();
+      const currentEntry = findEntry(allEntries, currentVersion);
+      if (!currentEntry) {
+        writeLastSeenVersion(userDataPath, currentVersion, logUpdate);
+        return;
+      }
+      if (!win || win.isDestroyed()) return;
+      const currentUrl = win.webContents.getURL();
+      if (!currentUrl || currentUrl.startsWith('about:')) return;
+      const origin = new URL(currentUrl).origin;
+      if (!origin || origin === 'null') return;
+      const target = `${origin}/nouveautes/?upTo=${encodeURIComponent(currentVersion)}`;
+      await win.loadURL(target);
+      writeLastSeenVersion(userDataPath, currentVersion, logUpdate);
+      return;
+    }
+
     // Migrate existing pre-feature installations that had state.json.version but no changelog key.
-    if (!lastSeen && previousAppVersion && previousAppVersion !== 'inconnu') {
+    if (!lastSeen && previousAppVersion) {
       lastSeen = previousAppVersion;
       writeLastSeenVersion(userDataPath, lastSeen, logUpdate);
     }

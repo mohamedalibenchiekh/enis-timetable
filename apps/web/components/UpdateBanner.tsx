@@ -7,33 +7,34 @@ export function UpdateBanner({ status, onInstall }: { status: UpdateStatus | nul
   const [notesOpen, setNotesOpen] = useState(false);
   const [lastNotes, setLastNotes] = useState<{ version: string; notes: string } | null>(null);
   const notesRef = useRef<HTMLDivElement>(null);
+  const visibleStatusRef = useRef<UpdateStatus | null>(status);
   const lastVersionRef = useRef<string | null>(null);
 
   useEffect(() => {
-    setVisibleStatus((current) => {
-      const next = current?.status === 'downloaded' && status?.status !== 'downloaded' ? current : status;
-      const nextVersion =
-        next && (next.status === 'available' || next.status === 'progress' || next.status === 'downloaded')
-          ? next.version
-          : null;
+    const current = visibleStatusRef.current;
+    const next = current?.status === 'downloaded' && status?.status !== 'downloaded' ? current : status;
+    visibleStatusRef.current = next;
+    setVisibleStatus(next);
 
-      if (nextVersion !== lastVersionRef.current) {
-        lastVersionRef.current = nextVersion;
-        setNotesOpen(false);
+    const nextVersion =
+      next && (next.status === 'available' || next.status === 'progress' || next.status === 'downloaded')
+        ? next.version
+        : null;
+
+    if (nextVersion !== lastVersionRef.current) {
+      lastVersionRef.current = nextVersion;
+      setNotesOpen(false);
+    }
+
+    if (next && (next.status === 'available' || next.status === 'downloaded')) {
+      if (next.releaseNotes) {
+        setLastNotes({ version: next.version, notes: next.releaseNotes });
+      } else if (next.status === 'available') {
+        setLastNotes((prev) => (prev?.version === next.version ? prev : null));
       }
-
-      if (next && (next.status === 'available' || next.status === 'downloaded')) {
-        if (next.releaseNotes) {
-          setLastNotes({ version: next.version, notes: next.releaseNotes });
-        } else if (next.status === 'available') {
-          setLastNotes((prev) => (prev?.version === next.version ? prev : null));
-        }
-      } else if (!next || next.status === 'none' || next.status === 'checking') {
-        setLastNotes(null);
-      }
-
-      return next;
-    });
+    } else if (!next || next.status === 'none' || next.status === 'checking') {
+      setLastNotes(null);
+    }
   }, [status]);
 
   if (!visibleStatus || (visibleStatus.status !== 'available' && visibleStatus.status !== 'progress'

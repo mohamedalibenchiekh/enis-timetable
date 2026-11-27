@@ -1,6 +1,7 @@
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { ChangelogDialog } from '../components/ChangelogDialog';
+import { ChangelogPanel } from '../components/ChangelogPanel';
 import type { ChangelogEntry } from '../components/ChangelogDialog';
 
 const SAMPLE_ENTRIES: ChangelogEntry[] = [
@@ -127,5 +128,44 @@ describe('ChangelogDialog', () => {
     const dialog = screen.getByRole('dialog');
     const labelId = dialog.getAttribute('aria-labelledby');
     expect(document.getElementById(labelId!)).toBeTruthy();
+  });
+});
+
+describe('ChangelogPanel – post-update modal flow', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it('filters entries in (since, upTo] and navigates to / when "Compris" is clicked', async () => {
+    const entries: ChangelogEntry[] = [
+      { version: '1.5.0', date: '2026-12-01', sections: [{ title: 'Ajouté', items: ['Feature 1.5'] }] },
+      { version: '1.4.0', date: '2026-11-26', sections: [{ title: 'Ajouté', items: ['Feature 1.4'] }] },
+      { version: '1.3.0', date: '2026-11-01', sections: [{ title: 'Corrigé', items: ['Fix 1.3'] }] },
+    ];
+
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => entries,
+    }));
+
+    const originalLocation = window.location;
+    const mockLocation = { ...originalLocation, search: '?since=1.3.0&upTo=1.5.0', href: 'http://localhost/nouveautes/?since=1.3.0&upTo=1.5.0' };
+    Object.defineProperty(window, 'location', { value: mockLocation, configurable: true, writable: true });
+
+    try {
+      render(<ChangelogPanel />);
+      await waitFor(() => {
+        expect(screen.getByText('Version 1.5.0')).toBeTruthy();
+      });
+
+      expect(screen.getByText('Version 1.4.0')).toBeTruthy();
+      expect(screen.queryByText('Version 1.3.0')).toBeNull();
+
+      fireEvent.click(screen.getByRole('button', { name: 'Compris' }));
+      expect(mockLocation.href).toBe('/');
+    } finally {
+      Object.defineProperty(window, 'location', { value: originalLocation, configurable: true, writable: true });
+    }
   });
 });

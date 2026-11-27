@@ -63,6 +63,9 @@ function parseChangelog(text) {
       if (!isValidIsoDate(vm[2])) {
         throw new Error(`Invalid release date "${vm[2]}" in heading "${line}".`);
       }
+      if (current?.version === vm[1] || entries.some((e) => e.version === vm[1])) {
+        throw new Error(`Duplicate version heading: "[${vm[1]}]".`);
+      }
       if (currentSection && current && currentSection.items.length > 0) current.sections.push(currentSection);
       if (current) entries.push(current);
       current = { version: vm[1], date: vm[2], sections: [] };
@@ -93,7 +96,10 @@ function parseChangelog(text) {
       currentSection.items.push(im[1]);
     } else if (UNCAPTURED_LIST_LINE.test(line)) {
       throw new Error(`Unsupported or empty list item: "${line}". Use "- ", "* ", or "+ " with text inside a ### section.`);
-    } else if (currentSection && /^\s{2,}\S/.test(line) && currentSection.items.length > 0) {
+    } else if (/^(?:-{3,}|\*{3,}|_{3,})\s*$/.test(line)) {
+      if (currentSection && current && currentSection.items.length > 0) current.sections.push(currentSection);
+      currentSection = null;
+    } else if (currentSection && /^\s*\S/.test(line) && currentSection.items.length > 0) {
       const idx = currentSection.items.length - 1;
       currentSection.items[idx] = `${currentSection.items[idx]} ${line.trim()}`;
     }

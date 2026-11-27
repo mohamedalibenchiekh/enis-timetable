@@ -38,6 +38,7 @@ export class ChangelogService {
     }
 
     this.logger.warn('CHANGELOG.md introuvable dans les chemins candidats.');
-    return [];
+    this.cached = [];
+    return this.cached;
   }
 }
