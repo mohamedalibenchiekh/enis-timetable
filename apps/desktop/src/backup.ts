@@ -8,6 +8,7 @@ export interface UpgradeBackupOptions {
 
 export interface UpgradeBackupResult {
   changed: boolean;
+  previousVersion?: string | null;
   warning?: string;
   backupPath?: string;
 }
@@ -25,11 +26,15 @@ export function backupBeforeUpgrade(
   const statePath = path.join(userDataPath, 'state.json');
   const databasePath = path.join(userDataPath, 'database');
   let previousVersion: string | null = null;
+  let existingState: Record<string, unknown> = {};
 
   if (fs.existsSync(statePath)) {
     try {
-      const state = JSON.parse(fs.readFileSync(statePath, 'utf8')) as { version?: unknown };
-      previousVersion = typeof state.version === 'string' ? state.version : 'inconnu';
+      const parsed = JSON.parse(fs.readFileSync(statePath, 'utf8')) as Record<string, unknown>;
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        existingState = parsed;
+      }
+      previousVersion = typeof existingState.version === 'string' ? existingState.version : 'inconnu';
     } catch (error) {
       previousVersion = 'inconnu';
       log(`Impossible de lire state.json; sauvegarde conservatrice: ${String(error)}`);
@@ -95,7 +100,8 @@ export function backupBeforeUpgrade(
     try {
       fs.mkdirSync(userDataPath, { recursive: true });
       const temporaryStatePath = `${statePath}.tmp`;
-      fs.writeFileSync(temporaryStatePath, JSON.stringify({ version: currentVersion }, null, 2));
+      const nextState = { ...existingState, version: currentVersion };
+      fs.writeFileSync(temporaryStatePath, JSON.stringify(nextState, null, 2));
       fs.renameSync(temporaryStatePath, statePath);
     } catch (error) {
       warning ??= 'La version de l’application n’a pas pu être enregistrée.';
@@ -103,5 +109,5 @@ export function backupBeforeUpgrade(
     }
   }
 
-  return { changed, warning, backupPath };
+  return { changed, previousVersion, warning, backupPath };
 }

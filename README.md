@@ -254,14 +254,20 @@ Pour les responsables de publication : soumettez l’installateur Windows de cha
    git switch main && git pull
    git switch -c chore/release-1-0-3
    npm version 1.0.3 -w apps/desktop --no-git-tag-version
-   git add apps/desktop/package.json package-lock.json
+   ```
+
+2. On that `chore/release-*` branch, update `CHANGELOG.md` (move the items under `## [Unreleased]` into a new version heading `## [1.0.3] - YYYY-MM-DD`, in French, plain language for school administrators), verify with `npm run check:release-notes -- v1.0.3`, then commit and push:
+
+   ```bash
+   npm run check:release-notes -- v1.0.3
+   git add CHANGELOG.md apps/desktop/package.json package-lock.json
    git commit -m "chore: bump desktop version to 1.0.3"
    git push -u origin chore/release-1-0-3
    ```
 
-2. Open and merge the pull request to `main`. Confirm the desktop package version equals the new tag without the leading `v`.
+3. Open and merge the pull request to `main`. Confirm `apps/desktop/package.json` and `CHANGELOG.md` match the new tag without the leading `v`.
 
-3. Tag the merged commit and push only the new tag:
+4. Tag the merged commit and push only the new tag (the release workflow validates `CHANGELOG.md` and populates the GitHub Release body from it):
    ```bash
    git switch main && git pull
    git tag v1.0.3

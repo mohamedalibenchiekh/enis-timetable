@@ -42,6 +42,7 @@ contextBridge.exposeInMainWorld('enis', {
   getUpdateStatus: (): Promise<UpdateStatus | null> => ipcRenderer.invoke('get-update-status'),
   checkForUpdates: (): Promise<void> => ipcRenderer.invoke('check-for-updates'),
   installUpdate: (): Promise<void> => ipcRenderer.invoke('install-update'),
+  showChangelog: (): Promise<void> => ipcRenderer.invoke('show-changelog'),
   onUpdateStatus: (callback: (status: UpdateStatus) => void): (() => void) => {
     if (typeof callback !== 'function') throw new TypeError('Le rappel de mise à jour doit être une fonction.');
     const listener = (_event: Electron.IpcRendererEvent, value: unknown) => {

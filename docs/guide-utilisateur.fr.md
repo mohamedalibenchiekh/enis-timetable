@@ -417,6 +417,31 @@ Si une mise à jour indique « La version … est prête. Redémarrer maintenant
 
 Si le message « Le serveur intégré n’a pas pu être arrêté proprement. Vous pouvez réessayer ou quitter quand même » apparaît, sélectionnez **[Réessayer]**. Si l’application indique que « Le processus API ne répond pas à l’arrêt », « Le processus API ne s’est pas arrêté après SIGKILL » ou « Impossible d’arrêter le processus API », fermez les autres fenêtres ENISo puis relancez l’application.
 
+## Voir les nouveautés
+
+Chaque fois que l'application est mise à jour, une fenêtre s'ouvre automatiquement au démarrage suivant pour vous indiquer ce qui a changé.
+
+### Après une mise à jour
+
+Lorsque vous lancez l'application après une mise à jour, la fenêtre **Nouveautés de la version X** s'affiche. Elle liste les changements apportés dans toutes les versions que vous avez manquées, les plus récentes en premier. Cliquez sur **Compris** (ou appuyez sur **Échap**) pour fermer la fenêtre. Elle n'apparaîtra plus pour cette version.
+
+Si vous avez manqué plusieurs versions d'affilée, la fenêtre regroupe l'ensemble des nouveautés dans des sections repliables, une par version.
+
+**Remarque :** cette fenêtre ne s'affiche pas lors de la première installation.
+
+### Consulter les nouveautés à tout moment
+
+- Depuis le menu **Aide → Nouveautés…**, vous pouvez afficher la liste complète de toutes les versions.
+- Depuis la barre latérale, cliquez sur **Nouveautés** pour ouvrir la même page dans l'application.
+
+Si le fichier des nouveautés ne peut pas être lu, le message « Impossible de charger le journal des modifications : … » (ou « Journal des modifications indisponible ») s’affiche.
+
+### Désactiver l'affichage automatique
+
+Pour ne plus voir cette fenêtre après une mise à jour, ajoutez `"showChangelogOnUpdate": false` dans votre fichier de configuration (`config.json` dans le dossier de données utilisateur). La valeur par défaut est `true` (activé).
+
+---
+
 ## Glossaire
 
 - **Emploi du temps** : organisation des séances par jour et par horaire.

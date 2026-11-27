@@ -277,9 +277,9 @@ export interface RestoreResult {
 
 export type UpdateStatus =
   | { status: 'checking' }
-  | { status: 'available'; version: string }
+  | { status: 'available'; version: string; releaseNotes?: string | null }
   | { status: 'progress'; version: string; percent: number }
-  | { status: 'downloaded'; version: string }
+  | { status: 'downloaded'; version: string; releaseNotes?: string | null }
   | { status: 'error'; message: string }
   | { status: 'none' };
 
